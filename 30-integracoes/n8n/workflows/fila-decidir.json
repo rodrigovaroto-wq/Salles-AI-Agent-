@@ -1,0 +1,217 @@
+{
+  "name": "fila-decidir (aplica apos aprovacao)",
+  "active": false,
+  "settings": {},
+  "nodes": [
+    {
+      "id": "n1",
+      "name": "Clique aprovar/rejeitar",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "notes": "Recebe o clique nos links do digest (fila-notificar.json): ?id=<sugestao_id>&decisao=aprovada|rejeitada",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "fila-decidir",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "id": "n2",
+      "name": "Extrair id e decisao",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0],
+      "parameters": {
+        "jsCode": "const q = $input.first().json.query;\nreturn [{ json: { sugestao_id: q.id, decisao: q.decisao } }];"
+      }
+    },
+    {
+      "id": "n3",
+      "name": "Marcar decisao na fila",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/fila_sugestoes?sugestao_id=eq.{{$json.sugestao_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { status: $json.decisao, decidido_por: 'rodrigo', decidido_em: new Date().toISOString() } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n4",
+      "name": "Decisao = aprovada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [660, 0],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "leftValue": "={{$node[\"Extrair id e decisao\"].json.decisao}}",
+              "rightValue": "aprovada",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "n5",
+      "name": "Buscar sugestao",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, -80],
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/fila_sugestoes?sugestao_id=eq.{{$node[\"Extrair id e decisao\"].json.sugestao_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n6",
+      "name": "Derivar chave do prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, -80],
+      "notes": "TODO: heuristica simples por nome de arquivo. Ajustar se o mapeamento arquivo->chave crescer (ex.: por skill individual).",
+      "parameters": {
+        "jsCode": "const s = $input.first().json[0];\nlet chave = 'skill:' + (s.arquivo_alvo || 'desconhecido');\nif (/objetivo\\.md$/.test(s.arquivo_alvo)) chave = 'objetivo';\nelse if (/compliance-e-etica\\.md$/.test(s.arquivo_alvo)) chave = 'compliance';\nreturn [{ json: { chave, conteudo: s.mudanca_proposta, sugestao_id: s.sugestao_id } }];"
+      }
+    },
+    {
+      "id": "n7",
+      "name": "Buscar versao atual",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1320, -80],
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/prompt_ativo?chave=eq.{{$node[\"Derivar chave do prompt\"].json.chave}}&ativo=eq.true",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n8",
+      "name": "Desativar versao antiga",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, -80],
+      "notes": "Nao apaga: so marca ativo=false. E o que permite reverter com 1 toque (reativar a linha antiga manualmente se preciso).",
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/prompt_ativo?chave=eq.{{$node[\"Derivar chave do prompt\"].json.chave}}&ativo=eq.true",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { ativo: false } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n9",
+      "name": "Inserir nova versao ativa",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1760, -80],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/prompt_ativo",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { chave: $node[\"Derivar chave do prompt\"].json.chave, versao: (($node[\"Buscar versao atual\"].json[0]?.versao) || 0) + 1, conteudo: $node[\"Derivar chave do prompt\"].json.conteudo, ativo: true, origem_sugestao_id: $node[\"Derivar chave do prompt\"].json.sugestao_id } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Marcar aplicado_em",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1980, -80],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/fila_sugestoes?sugestao_id=eq.{{$node[\"Extrair id e decisao\"].json.sugestao_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { aplicado_em: new Date().toISOString() } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n11",
+      "name": "Rejeitada (sem aplicacao)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [880, 80],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Clique aprovar/rejeitar": { "main": [[{ "node": "Extrair id e decisao", "type": "main", "index": 0 }]] },
+    "Extrair id e decisao": { "main": [[{ "node": "Marcar decisao na fila", "type": "main", "index": 0 }]] },
+    "Marcar decisao na fila": { "main": [[{ "node": "Decisao = aprovada?", "type": "main", "index": 0 }]] },
+    "Decisao = aprovada?": {
+      "main": [
+        [{ "node": "Buscar sugestao", "type": "main", "index": 0 }],
+        [{ "node": "Rejeitada (sem aplicacao)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Buscar sugestao": { "main": [[{ "node": "Derivar chave do prompt", "type": "main", "index": 0 }]] },
+    "Derivar chave do prompt": { "main": [[{ "node": "Buscar versao atual", "type": "main", "index": 0 }]] },
+    "Buscar versao atual": { "main": [[{ "node": "Desativar versao antiga", "type": "main", "index": 0 }]] },
+    "Desativar versao antiga": { "main": [[{ "node": "Inserir nova versao ativa", "type": "main", "index": 0 }]] },
+    "Inserir nova versao ativa": { "main": [[{ "node": "Marcar aplicado_em", "type": "main", "index": 0 }]] }
+  }
+}

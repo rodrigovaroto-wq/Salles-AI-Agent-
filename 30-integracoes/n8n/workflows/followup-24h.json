@@ -1,0 +1,100 @@
+{
+  "name": "followup-24h (Gatilho 4)",
+  "active": false,
+  "settings": {},
+  "nodes": [
+    {
+      "id": "n1",
+      "name": "A cada hora",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "parameters": {
+        "rule": { "interval": [{ "field": "hours", "hoursInterval": 1 }] }
+      }
+    },
+    {
+      "id": "n2",
+      "name": "Buscar leads sem compra >24h",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0],
+      "notes": "HTTP Request mantem o array inteiro como 1 item por padrao (nao explode sozinho) -- por isso o node seguinte separa explicitamente.",
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?status=in.(ativo,abandonou)&ultima_interacao=lt.{{new Date(Date.now()-24*60*60*1000).toISOString()}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n2b",
+      "name": "Separar leads (1 item cada)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [330, 0],
+      "notes": "Transforma o array unico em N itens n8n, um por lead, para os proximos nodes rodarem por item automaticamente.",
+      "parameters": {
+        "jsCode": "const leads = $input.first().json || [];\nreturn leads.map(l => ({ json: l }));"
+      }
+    },
+    {
+      "id": "n3",
+      "name": "Enviar template",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0],
+      "notes": "WHATSAPP_TEMPLATE_NAME = nome do template aprovado pela Meta (ver ../../whatsapp/README.md secao 9). Fora da janela 24h so template serve.",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$env.WHATSAPP_TOKEN}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $json.lead_id, type: 'template', template: { name: $env.WHATSAPP_TEMPLATE_NAME, language: { code: 'pt_BR' }, components: [{ type: 'body', parameters: [{ type: 'text', text: $json.nome || '' }] }] } } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n4",
+      "name": "Gravar evento (follow-up)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/conversas",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { lead_id: $json.lead_id, etapa_processo: 'recuperacao', desfecho: 'follow_up_agendado' } }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "A cada hora": { "main": [[{ "node": "Buscar leads sem compra >24h", "type": "main", "index": 0 }]] },
+    "Buscar leads sem compra >24h": { "main": [[{ "node": "Separar leads (1 item cada)", "type": "main", "index": 0 }]] },
+    "Separar leads (1 item cada)": { "main": [[{ "node": "Enviar template", "type": "main", "index": 0 }]] },
+    "Enviar template": { "main": [[{ "node": "Gravar evento (follow-up)", "type": "main", "index": 0 }]] }
+  }
+}
