@@ -27,11 +27,18 @@ O projeto é organizado nas **quatro camadas de um agente de IA**:
 | [`00-nucleo/`](00-nucleo/) | A constituição do agente | [ver README](00-nucleo/README.md) |
 | [`10-skills/`](10-skills/) | Os livros na estante | [ver README](10-skills/README.md) · [conformidade](10-skills/CONFORMIDADE.md) |
 | [`20-memoria/`](20-memoria/) | O caderno de anotações | [ver README](20-memoria/README.md) |
-| [`30-integracoes/`](30-integracoes/) | As mãos do agente | [catálogo](30-integracoes/catalogo-produtos.md) · [BlackCat](30-integracoes/blackcat/) · [workflow](30-integracoes/workflow-lead-a-cliente.md) |
+| [`30-integracoes/`](30-integracoes/) | As mãos do agente | [catálogo](30-integracoes/catalogo-produtos.md) · [BlackCat](30-integracoes/blackcat/) · [workflow](30-integracoes/workflow-lead-a-cliente.md) · [ciclo de aprendizado (Hermes)](30-integracoes/hermes/) |
 
 ## Stack definida
-WhatsApp Cloud API (oficial) · OpenAI · orquestrador n8n (Hermes Agent em
-avaliação) · checkout BlackCat · memória em Supabase.
+WhatsApp Cloud API (oficial) · OpenAI · orquestrador n8n (tempo real) ·
+Hermes Agent (análise assíncrona) · checkout BlackCat · memória em Supabase.
+
+## Ciclo de aprendizado
+O agente aprende com as próprias conversas: o Hermes analisa os dados
+acumulados e gera sugestões de melhoria, mas **nenhuma sugestão vira
+comportamento ativo sem passar por um filtro automático de conformidade e,
+em seguida, por aprovação humana explícita**. Ver
+[`30-integracoes/hermes/ciclo-aprendizado.md`](30-integracoes/hermes/ciclo-aprendizado.md).
 
 ## Governança
 O bloco **CONTEXT8 (Regras Éticas)** em [`00-nucleo/objetivo.md`](00-nucleo/objetivo.md)
