@@ -13,7 +13,7 @@ Conversas reais (WhatsApp)
 20-memoria/schema-conversa.md + schema-aprendizado.md  (dados brutos)
         │
         ▼
-HERMES roda em cron (ex.: diário ou semanal)
+HERMES roda em cron diário (só se houver >= 25 conversas novas)
   → lê os dados acumulados
   → identifica padrões (o que converteu, onde travou, qual mensagem-pivô)
   → gera hipóteses de melhoria no formato [SUGESTÃO N]
@@ -52,7 +52,7 @@ Volta a alimentar as conversas reais → fecha o ciclo
 Cada conversa grava eventos em `../../20-memoria/schema-conversa.md`. Os
 agregados de performance rodam em `../../20-memoria/schema-aprendizado.md`.
 
-### 2. Análise (Hermes, em cron — ex.: semanal)
+### 2. Análise (Hermes, em cron diário, com mínimo de 25 conversas novas)
 O Hermes lê os agregados e o log de eventos e produz um lote de hipóteses,
 cada uma no formato já definido no `CONTEXT10` do núcleo:
 
