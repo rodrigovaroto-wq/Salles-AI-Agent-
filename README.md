@@ -9,15 +9,17 @@ chats onde a venda foi declinada (aprendizado).
 
 ## Estrutura do repositório
 
-O projeto é organizado nas **três camadas de um agente de IA**:
+O projeto é organizado nas **quatro camadas de um agente de IA**:
 
 ```
-00-nucleo/     → CONTEXTO DE EXECUÇÃO (system prompt, sempre ativo)
-                 quem o agente é, missão, processo de venda, regras éticas
-10-skills/     → BASE DE CONHECIMENTO (consultada sob demanda)
-                 copy, gatilhos, ofertas, provas, aquisição, sequências
-20-memoria/    → MEMÓRIA OPERACIONAL (cresce a cada conversa)
-                 schema de lead, de conversa e de aprendizado
+00-nucleo/         → CONTEXTO DE EXECUÇÃO (system prompt, sempre ativo)
+                      quem o agente é, missão, processo de venda, regras éticas
+10-skills/         → BASE DE CONHECIMENTO (consultada sob demanda)
+                      copy, gatilhos, ofertas, provas, aquisição, sequências
+20-memoria/        → MEMÓRIA OPERACIONAL (cresce a cada conversa)
+                      schema de lead, de conversa e de aprendizado
+30-integracoes/    → FERRAMENTAS (tools) — o encanamento real
+                      catálogo de produtos, integração BlackCat, workflow lead→cliente
 ```
 
 | Camada | Analogia | Detalhes |
@@ -25,9 +27,11 @@ O projeto é organizado nas **três camadas de um agente de IA**:
 | [`00-nucleo/`](00-nucleo/) | A constituição do agente | [ver README](00-nucleo/README.md) |
 | [`10-skills/`](10-skills/) | Os livros na estante | [ver README](10-skills/README.md) · [conformidade](10-skills/CONFORMIDADE.md) |
 | [`20-memoria/`](20-memoria/) | O caderno de anotações | [ver README](20-memoria/README.md) |
+| [`30-integracoes/`](30-integracoes/) | As mãos do agente | [catálogo](30-integracoes/catalogo-produtos.md) · [BlackCat](30-integracoes/blackcat/) · [workflow](30-integracoes/workflow-lead-a-cliente.md) |
 
-Falta ainda a 4ª camada — **Ferramentas (tools)**: integração com WhatsApp,
-link de pagamento e o banco de dados de memória. Será definida na etapa de stack.
+## Stack definida
+WhatsApp Cloud API (oficial) · OpenAI · orquestrador n8n (Hermes Agent em
+avaliação) · checkout BlackCat · memória em Supabase.
 
 ## Governança
 O bloco **CONTEXT8 (Regras Éticas)** em [`00-nucleo/objetivo.md`](00-nucleo/objetivo.md)

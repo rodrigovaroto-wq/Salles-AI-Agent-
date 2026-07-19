@@ -28,6 +28,19 @@ Ao encerrar a conversa, gravar um evento-resumo com:
 | `mensagem_pivo` | A mensagem que virou (ou quebrou) a conversa |
 | `tempo_ate_decisao` | Minutos entre 1ª mensagem e desfecho |
 
+## Campos de oferta (stack e pivô)
+Gravados no momento em que o agente monta o carrinho, ver
+[`../30-integracoes/catalogo-produtos.md`](../30-integracoes/catalogo-produtos.md).
+
+| Campo | Tipo | Descrição | Exemplo |
+|---|---|---|---|
+| `produtos_ofertados` | array | `produto_id`s apresentados no stack | `["principal", "bump_1", "bump_2"]` |
+| `produtos_aceitos` | array | `produto_id`s que o lead incluiu no carrinho | `["principal", "bump_1"]` |
+| `desconto_aplicado_pct` | number | % de desconto no pedido (10% por item adicional) | `10` |
+| `pivo_catalogo` | bool | Se houve pivô para produto alternativo por objeção/recusa | `true` |
+| `produto_pivo_id` | string \| null | `produto_id` alternativo ofertado no pivô | `alternativo_1` |
+| `link_blackcat_id` | string \| null | Referência da transação criada (`externalRef`/id BlackCat) | `txn_abc123` |
+
 ## Uso
 Estes eventos são a matéria-prima de `schema-aprendizado.md`. Sem eles, não há
 como o agente saber o que realmente funciona.
