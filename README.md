@@ -42,7 +42,8 @@ aval, inclusive as de risco alto. Ver
 [`30-integracoes/hermes/ciclo-aprendizado.md`](30-integracoes/hermes/ciclo-aprendizado.md).
 
 ## Governança
-O bloco **CONTEXT8 (Regras Éticas)** em [`00-nucleo/objetivo.md`](00-nucleo/objetivo.md)
-é a autoridade máxima do projeto. Sempre que uma skill conflitar com ele, o núcleo
-vence. O mapa do que precisa ser corrigido está em
+As restrições de conduta do agente estão num arquivo único, a autoridade máxima
+do projeto: [`00-nucleo/compliance-e-etica.md`](00-nucleo/compliance-e-etica.md).
+Sempre que uma skill conflitar com ele, o compliance vence. O mapa do que
+precisa ser corrigido está em
 [`10-skills/CONFORMIDADE.md`](10-skills/CONFORMIDADE.md).

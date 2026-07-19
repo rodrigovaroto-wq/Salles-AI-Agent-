@@ -44,8 +44,9 @@ descarta nada) e **todas** seguem para a **fila de aprovação humana**. Ver
 
 ## Princípio inegociável
 As sugestões devem nascer de **dados reais** (eventos de conversa efetivamente
-ocorridos). Uma métrica bonita construída sobre provas fabricadas não mede nada —
-só esconde o problema. Ver CONTEXT8 e CONTEXT9 do núcleo.
+ocorridos). Uma métrica bonita construída sobre dados irreais não mede nada —
+só esconde o problema. Ver `../00-nucleo/compliance-e-etica.md` e o CONTEXT9 do
+núcleo.
 
 Nenhuma sugestão vira mudança ativa sem aprovação humana explícita — nem as de
 alta confiança/alto impacto de conversão. O classificador de conformidade
