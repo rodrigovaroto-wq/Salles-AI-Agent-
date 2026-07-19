@@ -21,7 +21,7 @@ mudanças aqui mudam o comportamento do agente inteiro.
 - O núcleo **lê e grava** na camada `../20-memoria/` a cada conversa.
 
 ## Ponto de atenção (governança ética)
-O bloco **CONTEXT8 — Regras Éticas** deste núcleo é a autoridade máxima do
-projeto. Ele proíbe explicitamente: inventar informações, prometer resultados
-garantidos, criar urgência falsa e pressionar. **Qualquer skill que conflite com
-o CONTEXT8 deve ser corrigida, não seguida.** Ver `../10-skills/CONFORMIDADE.md`.
+As restrições de conduta do agente vivem num arquivo único e são a autoridade
+máxima do projeto: [`compliance-e-etica.md`](compliance-e-etica.md). **Qualquer
+skill que conflite com ele deve ser corrigida, não seguida.** O mapa do que
+precisa de ajuste está em `../10-skills/CONFORMIDADE.md`.

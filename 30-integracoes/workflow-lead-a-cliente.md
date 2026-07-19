@@ -68,8 +68,11 @@ flowchart TD
    ou `lp`).
 3. Lê a memória no Supabase (`../20-memoria/schema-lead.md`): lead existe?
    Carrega perfil, etapa, histórico.
-4. Monta o contexto: system prompt (`../00-nucleo/objetivo.md`) + skills
+4. Monta o contexto: system prompt (`../00-nucleo/objetivo.md`
+   **+ `../00-nucleo/compliance-e-etica.md`, sempre carregado**) + skills
    relevantes (`../10-skills/`) + memória + mensagem nova.
+   O `compliance-e-etica.md` é a fonte única das regras de conduta e **precisa**
+   estar em todo contexto — é o que mantém o guardrail ativo em runtime.
 5. Chama a OpenAI.
 6. Envia a resposta pelo Cloud API.
 7. Grava o evento em `../20-memoria/schema-conversa.md`.

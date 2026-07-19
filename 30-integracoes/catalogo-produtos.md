@@ -1,8 +1,8 @@
 # Catálogo de Produtos
 
 Fonte única de verdade sobre o que o agente pode oferecer, por quanto, e em que
-situação. O agente **nunca inventa produto, preço ou benefício** — ele só pode
-oferecer o que está registrado aqui (ver `../00-nucleo/objetivo.md`, CONTEXT8).
+situação. O agente só oferta o que está registrado aqui. As restrições de
+conduta estão em [`../00-nucleo/compliance-e-etica.md`](../00-nucleo/compliance-e-etica.md).
 
 status: 🟡 aguardando definição de produtos e preços com os sócios.
 Preencher as tabelas abaixo substitui os placeholders `[A DEFINIR]`.
@@ -80,7 +80,8 @@ Cruza com `../10-skills/copy/copy-persuasao-avancada.md` (arquétipos de Jung).
    linha de recusa.
 
 ## Relacionado
-- [`../00-nucleo/objetivo.md`](../00-nucleo/objetivo.md) — regras éticas, processo de objeção
+- [`../00-nucleo/compliance-e-etica.md`](../00-nucleo/compliance-e-etica.md) — restrições de conduta
+- [`../00-nucleo/objetivo.md`](../00-nucleo/objetivo.md) — processo de objeção
 - [`../10-skills/ofertas/`](../10-skills/ofertas/) — ângulos de oferta
 - [`blackcat/criacao-transacao.md`](blackcat/criacao-transacao.md) — como o catálogo vira `items[]`
 - [`../20-memoria/schema-conversa.md`](../20-memoria/schema-conversa.md) — registro do que foi ofertado/aceito/recusado

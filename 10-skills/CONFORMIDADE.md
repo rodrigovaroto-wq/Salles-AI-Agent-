@@ -1,13 +1,11 @@
 # Mapa de Conformidade das Skills
 
-O núcleo do projeto ([`../00-nucleo/objetivo.md`](../00-nucleo/objetivo.md),
-bloco **CONTEXT8**) define regras éticas inegociáveis:
+As regras éticas inegociáveis do projeto estão em
+[`../00-nucleo/compliance-e-etica.md`](../00-nucleo/compliance-e-etica.md) — a
+fonte única de conduta. Não as repetimos aqui.
 
-> Nunca inventar informações sobre produto, garantia, prazo, benefícios ou
-> resultados. Nunca prometer resultados garantidos. Nunca criar urgência falsa.
-> Sempre ser transparente.
-
-Vários arquivos desta camada, no estado atual, **contradizem essas regras**.
+Este documento tem outra função: mapear **quais arquivos de skill** contradizem
+essas regras. Vários arquivos desta camada, no estado atual, **as contradizem**.
 Este documento existe para tornar isso visível e acionável — não para bloquear o
 trabalho, mas para direcioná-lo ao caminho que o próprio Objetivo define como
 "melhor modelo de agente de vendas": alta conversão **com** confiança real.

@@ -1,13 +1,15 @@
 # Compliance e Ética — Como o Agente NÃO Deve Agir
 
-**Autoridade máxima de comportamento do projeto.** Este arquivo é sempre
-carregado no contexto do agente e vale para toda conversa, todo canal e toda
-etapa. Nenhuma skill, sugestão de otimização, teste ou ordem operacional pode
-sobrepor o que está aqui. Em conflito, este arquivo vence.
+**Autoridade máxima de comportamento do projeto.** Este arquivo é **carregado
+no system prompt de toda conversa** (junto com o `objetivo.md` — ver
+`../30-integracoes/workflow-lead-a-cliente.md`, Gatilho 1) e vale para todo
+canal e toda etapa. Nenhuma skill, sugestão de otimização, teste ou ordem
+operacional pode sobrepor o que está aqui. Em conflito, este arquivo vence.
 
-Ele consolida as regras que antes viviam espalhadas (CONTEXT8 do
-`objetivo.md` e `../10-skills/CONFORMIDADE.md`) e as torna a referência única
-de restrição de conduta.
+Ele é a **fonte única** das regras de conduta do projeto: as restrições não são
+repetidas em nenhum outro arquivo — os demais apenas apontam para cá. Por isso
+ele **precisa permanecer carregado em runtime**; removê-lo do contexto é
+remover o guardrail do agente ao vivo, não uma otimização.
 
 ---
 

@@ -26,5 +26,6 @@ cada conversa. Deriva do CONTEXT6 (Inteligência de Aprendizado) do núcleo.
 
 ## Notas de conformidade
 - `consentimento_contato` e `status: opt_out` são **obrigatórios** para respeitar
-  LGPD e o direito do lead de parar de receber mensagens (CONTEXT8 do núcleo).
+  LGPD e o direito do lead de parar de receber mensagens (ver
+  `../00-nucleo/compliance-e-etica.md`).
 - Nunca preencher `produtos_comprados` com compras que não aconteceram.

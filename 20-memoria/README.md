@@ -35,4 +35,4 @@ são o contrato entre o agente e o banco.
 ## Regra de ouro
 A memória só tem valor se for **preenchida com dados reais**. Nunca registrar
 resultados ou perfis inventados — isso contamina o aprendizado e leva o agente a
-otimizar na direção errada. Ver regras éticas em CONTEXT8 do núcleo.
+otimizar na direção errada. Ver `../00-nucleo/compliance-e-etica.md`.

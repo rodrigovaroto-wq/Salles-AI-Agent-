@@ -16,7 +16,8 @@ o núcleo (`../00-nucleo/`) decide *quando* abrir cada um.
 | [`sequencias/`](sequencias/) | Sequências emocionais e remarketing | ao planejar follow-up |
 
 ## ⚠️ Leia antes de usar: conformidade
-Parte deste material, no formato atual, **conflita com o CONTEXT8 (Regras Éticas)
-do núcleo** e não deve ser usada como está. O mapa completo está em
-[`CONFORMIDADE.md`](CONFORMIDADE.md). Sempre que uma skill e o núcleo divergirem,
-**o núcleo vence**.
+Parte deste material, no formato atual, **conflita com as restrições em
+[`../00-nucleo/compliance-e-etica.md`](../00-nucleo/compliance-e-etica.md)** e
+não deve ser usada como está. O mapa completo está em
+[`CONFORMIDADE.md`](CONFORMIDADE.md). Sempre que uma skill e o compliance
+divergirem, **o compliance vence**.
