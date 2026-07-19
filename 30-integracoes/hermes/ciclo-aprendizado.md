@@ -79,14 +79,17 @@ fila. A triagem é 100% sua: você vê tudo o que o Hermes propôs.
 Todas as sugestões entram na fila com status `pendente`, ordenadas por risco
 (alto no topo). Nada sai daqui sem decisão sua.
 
-### 5. Decisão humana
-Você revisa cada sugestão pendente e marca `aprovada` ou `rejeitada`. Uma
-sugestão aprovada vira uma edição real em `00-nucleo/` ou `10-skills/` — o
-Hermes prepara o diff, mas **a aplicação exige seu aprovado explícito**.
+### 5. Decisão humana (via n8n)
+Você revisa a fila do dia dentro do n8n (risco alto no topo) e dá **aprovar**
+ou **rejeitar** em cada sugestão — um toque. O Hermes já preparou a mudança
+literal; a aplicação exige apenas seu aval.
 
-### 6. Aplicação e fechamento do ciclo
-Mudança aprovada entra em produção → volta a gerar dados de conversa → o
-próximo ciclo do Hermes já mede o efeito da mudança anterior.
+### 6. Aplicação automática e fechamento do ciclo
+Ao aprovar, **o n8n aplica a mudança sozinho** na versão ativa do prompt/skill
+(sem você editar arquivo à mão), guardando a versão anterior para reversão de
+um toque. A mudança entra em produção → volta a gerar dados → o próximo ciclo
+mede o efeito. Detalhes em [`configuracao.md`](configuracao.md), seção
+"Aplicação automática pós-aprovação".
 
 ## O que garante que isso não vira burocracia lenta
 - O rótulo de risco ordena a fila: você olha o crítico primeiro e trata o resto

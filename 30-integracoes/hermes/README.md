@@ -17,16 +17,18 @@ freio antes da produção, o sistema as redescobre. O gate humano não é
 burocracia — é o único ponto de controle que impede uma sugestão dessas de
 virar mensagem real antes de alguém revisar.
 
-## Os três documentos desta pasta
+## Os documentos desta pasta
 
 | Arquivo | Papel |
 |---|---|
 | [`ciclo-aprendizado.md`](ciclo-aprendizado.md) | O fluxo completo: dados → hipótese → classificação de risco → fila → aprovação → aplicação |
 | [`filtro-conformidade.md`](filtro-conformidade.md) | Classificador que rotula o risco de cada sugestão — não descarta nada, só orienta a triagem |
 | [`fila-aprovacao.md`](fila-aprovacao.md) | Schema da fila de sugestões pendentes e o formato de decisão |
+| [`configuracao.md`](configuracao.md) | Decisões operacionais: VPS, cadência diária, volume mínimo, LLM, e a aplicação automática pós-aprovação |
 
 ## Regra de ouro
 Nenhuma sugestão do Hermes se torna comportamento ativo do agente sem
-aprovação manual explícita registrada na fila. Sem exceção — inclusive as de
-risco alto. O classificador de conformidade **não descarta** nada sozinho:
-toda a triagem é humana.
+aprovação humana explícita. Sem exceção — inclusive as de risco alto. Depois
+do seu "aprovar", a aplicação é **automatizada pelo n8n** (você não edita
+arquivo à mão), mas o toque de aprovação nunca é pulado. O classificador de
+conformidade **não descarta** nada sozinho: toda a triagem é humana.

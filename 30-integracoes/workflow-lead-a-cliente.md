@@ -117,15 +117,16 @@ flowchart TD
 Não interage com o lead. Roda em paralelo aos Gatilhos 1-4, lendo o que eles
 produziram. Ver especificação completa em [`hermes/ciclo-aprendizado.md`](hermes/ciclo-aprendizado.md).
 
-1. Cron (ex.: semanal) dispara a análise do Hermes sobre
-   `../20-memoria/schema-conversa.md` e `schema-aprendizado.md`.
+1. Cron **diário** dispara o Hermes; ele só analisa se houver **≥ 25 conversas
+   novas** desde o último ciclo (senão pula o dia). Ver `hermes/configuracao.md`.
 2. Hermes gera hipóteses `[SUGESTÃO N]`.
 3. Classificador de conformidade rotula o risco de cada sugestão
    (`alto`/`medio`/`baixo`) sem descartar nenhuma.
 4. **Todas** as sugestões entram na fila de aprovação
    (`hermes/fila-aprovacao.md`), com as de risco alto no topo.
-5. Você aprova ou rejeita. **Só mudança aprovada** entra em
-   `00-nucleo/` ou `10-skills/`.
+5. Você aprova ou rejeita no n8n. Ao aprovar, **o n8n aplica a mudança
+   automaticamente** na versão ativa do prompt/skill (sem edição manual;
+   versão anterior guardada para reverter).
 6. Mudança aplicada volta a gerar dados nos Gatilhos 1-4 → fecha o ciclo.
 
 ---
@@ -135,5 +136,5 @@ produziram. Ver especificação completa em [`hermes/ciclo-aprendizado.md`](herm
       definição com os sócios.
 - [ ] Texto do template de follow-up pós-24h, para submissão à aprovação da
       Meta.
-- [ ] Definir a cadência do cron do Hermes (diário vs. semanal) e o volume
-      mínimo de dados por ciclo antes da primeira execução real.
+- [x] Cadência e volume mínimo do Hermes: **diário, ≥ 25 conversas novas**
+      (ver `hermes/configuracao.md`).

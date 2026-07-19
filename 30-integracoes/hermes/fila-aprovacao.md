@@ -33,13 +33,17 @@ decide é sempre você.
 ## Fluxo de status
 
 ```
-pendente ──(você aprova)──► aprovada ──► (aplicada em 00-nucleo/ ou 10-skills/)
-    │
+pendente ──(você aprova no n8n)──► aprovada ──► n8n aplica automaticamente
+    │                                            na versão ativa do prompt/skill
+    │                                            (versão anterior guardada p/ reverter)
     └──(você rejeita)──► rejeitada ──► (registrada como aprendizado negativo)
 ```
 
 Não existe transição automática para `aprovada`. O campo `decidido_por` é
-sempre um humano — nunca um processo.
+sempre um humano — nunca um processo. A automação do item 7 age **somente
+depois** de `aprovada`: ela aplica a mudança sem edição manual, mas não decide
+por você. Ver [`configuracao.md`](configuracao.md), "Aplicação automática
+pós-aprovação".
 
 ## Aprendizado a partir de rejeições
 Sugestões rejeitadas alimentam `../../20-memoria/schema-aprendizado.md`: se o
