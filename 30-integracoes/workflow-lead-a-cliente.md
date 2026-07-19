@@ -11,7 +11,8 @@ ele (o que o agente diz) vem do núcleo (`../00-nucleo/`) e das skills
 |---|---|
 | WhatsApp | Cloud API oficial (Meta) |
 | LLM | OpenAI |
-| Orquestrador | n8n (Hermes Agent em avaliação — ver nota no fim) |
+| Orquestrador (tempo real) | n8n — webhooks, timers, cron, envio de mensagens |
+| Inteligência (assíncrona) | Hermes Agent — análise periódica, gera sugestões, nunca fala com lead nem edita o núcleo direto (ver `hermes/`) |
 | Checkout | BlackCat, com `items[]` cobrindo produto + bumps num link único |
 | Memória | Supabase (ver `../20-memoria/`) |
 | Caminho A (Meta → LP) | Lead chega **quente**: já quer comprar. Agente assiste a compra e oferta bumps — pula descoberta longa. |
@@ -112,13 +113,28 @@ flowchart TD
    cumprida) para reabrir a conversa.
 3. Se o lead responde, a janela de 24h reabre → volta ao Gatilho 1.
 
+### GATILHO 5 — Ciclo de aprendizado (Hermes, assíncrono, fora do tempo real)
+Não interage com o lead. Roda em paralelo aos Gatilhos 1-4, lendo o que eles
+produziram. Ver especificação completa em [`hermes/ciclo-aprendizado.md`](hermes/ciclo-aprendizado.md).
+
+1. Cron **diário** dispara o Hermes; ele só analisa se houver **≥ 25 conversas
+   novas** desde o último ciclo (senão pula o dia). Ver `hermes/configuracao.md`.
+2. Hermes gera hipóteses `[SUGESTÃO N]`.
+3. Classificador de conformidade rotula o risco de cada sugestão
+   (`alto`/`medio`/`baixo`) sem descartar nenhuma.
+4. **Todas** as sugestões entram na fila de aprovação
+   (`hermes/fila-aprovacao.md`), com as de risco alto no topo.
+5. Você aprova ou rejeita no n8n. Ao aprovar, **o n8n aplica a mudança
+   automaticamente** na versão ativa do prompt/skill (sem edição manual;
+   versão anterior guardada para reverter).
+6. Mudança aplicada volta a gerar dados nos Gatilhos 1-4 → fecha o ciclo.
+
 ---
 
 ## Pendências (bloqueiam a implementação, não o desenho)
 - [ ] Preços e produtos reais do catálogo (`../catalogo-produtos.md`) —
       definição com os sócios.
-- [ ] Confirmar papel do **Hermes Agent**: pode substituir parte do n8n como
-      orquestrador, ou atuar só como camada de WhatsApp? A decidir antes da
-      implementação do Gatilho 1.
 - [ ] Texto do template de follow-up pós-24h, para submissão à aprovação da
       Meta.
+- [x] Cadência e volume mínimo do Hermes: **diário, ≥ 25 conversas novas**
+      (ver `hermes/configuracao.md`).

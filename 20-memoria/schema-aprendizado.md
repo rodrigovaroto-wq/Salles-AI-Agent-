@@ -26,16 +26,30 @@ Gerado a partir de `gatilho_usado` + `resultado_parcial`:
 
 ## 3. Sugestões de melhoria (formato CONTEXT10)
 
-O agente produz, sem editar o núcleo diretamente, blocos como:
+O Hermes Agent produz, sem editar o núcleo diretamente, blocos como:
 
 ```
 [SUGESTÃO 1] — <área>
 Problema observado: <evidência dos dados>
 Hipótese de impacto: <conversão / ticket / satisfação>
+Mudança proposta: <texto literal>
 Teste proposto: <A/B ou experimento>
+Confiança: <alta / média / baixa>
 ```
+
+Essas sugestões não viram comportamento ativo diretamente a partir daqui —
+cada uma recebe um **rótulo de risco de conformidade** (o classificador não
+descarta nada) e **todas** seguem para a **fila de aprovação humana**. Ver
+[`../30-integracoes/hermes/ciclo-aprendizado.md`](../30-integracoes/hermes/ciclo-aprendizado.md).
 
 ## Princípio inegociável
 As sugestões devem nascer de **dados reais** (eventos de conversa efetivamente
 ocorridos). Uma métrica bonita construída sobre provas fabricadas não mede nada —
 só esconde o problema. Ver CONTEXT8 e CONTEXT9 do núcleo.
+
+Nenhuma sugestão vira mudança ativa sem aprovação humana explícita — nem as de
+alta confiança/alto impacto de conversão. O classificador de conformidade
+apenas rotula o risco de cada sugestão (não descarta nenhuma); a triagem é
+100% humana. Ver
+[`../30-integracoes/hermes/filtro-conformidade.md`](../30-integracoes/hermes/filtro-conformidade.md)
+e [`../30-integracoes/hermes/fila-aprovacao.md`](../30-integracoes/hermes/fila-aprovacao.md).
