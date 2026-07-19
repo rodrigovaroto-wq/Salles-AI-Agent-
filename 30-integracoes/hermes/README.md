@@ -21,11 +21,12 @@ virar mensagem real antes de alguém revisar.
 
 | Arquivo | Papel |
 |---|---|
-| [`ciclo-aprendizado.md`](ciclo-aprendizado.md) | O fluxo completo: dados → hipótese → filtro → fila → aprovação → aplicação |
-| [`filtro-conformidade.md`](filtro-conformidade.md) | Regras automáticas de pré-triagem — o que é descartado antes mesmo de chegar à fila |
+| [`ciclo-aprendizado.md`](ciclo-aprendizado.md) | O fluxo completo: dados → hipótese → classificação de risco → fila → aprovação → aplicação |
+| [`filtro-conformidade.md`](filtro-conformidade.md) | Classificador que rotula o risco de cada sugestão — não descarta nada, só orienta a triagem |
 | [`fila-aprovacao.md`](fila-aprovacao.md) | Schema da fila de sugestões pendentes e o formato de decisão |
 
 ## Regra de ouro
 Nenhuma sugestão do Hermes se torna comportamento ativo do agente sem
-aprovação manual explícita registrada na fila. Sem exceção — inclusive
-sugestões que passaram no filtro automático.
+aprovação manual explícita registrada na fila. Sem exceção — inclusive as de
+risco alto. O classificador de conformidade **não descarta** nada sozinho:
+toda a triagem é humana.

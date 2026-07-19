@@ -19,13 +19,15 @@ HERMES roda em cron (ex.: diário ou semanal)
   → gera hipóteses de melhoria no formato [SUGESTÃO N]
         │
         ▼
-FILTRO DE CONFORMIDADE (automático — ver filtro-conformidade.md)
-  → descarta sugestões que violam CONTEXT8/CONFORMIDADE.md
-  → tudo descartado fica registrado (nunca invisível)
+CLASSIFICADOR DE CONFORMIDADE (automático — ver filtro-conformidade.md)
+  → NÃO descarta nada; anexa a cada sugestão um rótulo de risco
+    (alto / medio / baixo) + o padrão que disparou
+  → encaminha TODAS as sugestões para a fila
         │
         ▼
 FILA DE APROVAÇÃO (ver fila-aprovacao.md)
-  → sugestões que passaram no filtro esperam decisão humana
+  → todas as sugestões esperam decisão humana; as de risco alto
+    aparecem no topo, sinalizadas para atenção
         │
         ▼
 VOCÊ (Rodrigo): aprova ou rejeita cada uma
@@ -64,16 +66,18 @@ Confiança: <alta / média / baixa, baseada em volume de dados>
 ```
 
 A "Mudança proposta" precisa ser **literal** — o texto exato que entraria no
-núcleo ou na skill, não uma ideia vaga. Isso é o que o filtro e você avaliam.
+núcleo ou na skill, não uma ideia vaga. Isso é o que o classificador rotula e
+você avalia.
 
-### 3. Filtro automático (ver `filtro-conformidade.md`)
-Toda sugestão passa por uma checagem de padrões antes de chegar à fila.
-Sugestões reprovadas **não desaparecem** — ficam registradas com o motivo da
-reprovação, para você poder auditar o que o Hermes tentou propor e foi barrado.
+### 3. Classificador de conformidade (ver `filtro-conformidade.md`)
+Toda sugestão passa por uma checagem de padrões que **não descarta nada** —
+apenas anexa um rótulo de risco (`alto`/`medio`/`baixo`) e o padrão que
+disparou. **Todas** as sugestões, inclusive as de risco alto, seguem para a
+fila. A triagem é 100% sua: você vê tudo o que o Hermes propôs.
 
 ### 4. Fila de aprovação (ver `fila-aprovacao.md`)
-Sugestões aprovadas no filtro entram numa fila com status `pendente`. Nada
-sai daqui sem decisão sua.
+Todas as sugestões entram na fila com status `pendente`, ordenadas por risco
+(alto no topo). Nada sai daqui sem decisão sua.
 
 ### 5. Decisão humana
 Você revisa cada sugestão pendente e marca `aprovada` ou `rejeitada`. Uma
@@ -85,7 +89,8 @@ Mudança aprovada entra em produção → volta a gerar dados de conversa → o
 próximo ciclo do Hermes já mede o efeito da mudança anterior.
 
 ## O que garante que isso não vira burocracia lenta
-- O filtro automático já elimina o volume óbvio antes de chegar a você.
+- O rótulo de risco ordena a fila: você olha o crítico primeiro e trata o resto
+  mais rápido, sem precisar ler tudo com a mesma profundidade.
 - Sugestões de baixo risco/alta confiança podem ser aprovadas em lote (ex.:
   revisão de 10-15 min por ciclo, não uma por uma em profundidade).
 - O Hermes nunca fica bloqueado esperando: ele continua analisando o próximo
@@ -95,6 +100,7 @@ próximo ciclo do Hermes já mede o efeito da mudança anterior.
 - O Hermes não tem permissão de escrita direta em `00-nucleo/` ou
   `10-skills/`. Ele só escreve na fila (`fila-aprovacao.md` / equivalente em
   banco).
-- Nenhuma mudança pula o filtro de conformidade, mesmo com alta confiança de
-  conversão.
-- Nenhuma mudança pula a aprovação humana, mesmo passando no filtro.
+- O classificador de conformidade nunca descarta uma sugestão sozinho — só
+  rotula. A triagem é sempre humana.
+- Nenhuma mudança pula a aprovação humana, qualquer que seja o rótulo de risco
+  ou a confiança de conversão.

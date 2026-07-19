@@ -120,9 +120,10 @@ produziram. Ver especificação completa em [`hermes/ciclo-aprendizado.md`](herm
 1. Cron (ex.: semanal) dispara a análise do Hermes sobre
    `../20-memoria/schema-conversa.md` e `schema-aprendizado.md`.
 2. Hermes gera hipóteses `[SUGESTÃO N]`.
-3. Filtro automático de conformidade descarta o que viola `CONTEXT8`/
-   `CONFORMIDADE.md` (registrado, não invisível).
-4. O que passa entra na fila de aprovação (`hermes/fila-aprovacao.md`).
+3. Classificador de conformidade rotula o risco de cada sugestão
+   (`alto`/`medio`/`baixo`) sem descartar nenhuma.
+4. **Todas** as sugestões entram na fila de aprovação
+   (`hermes/fila-aprovacao.md`), com as de risco alto no topo.
 5. Você aprova ou rejeita. **Só mudança aprovada** entra em
    `00-nucleo/` ou `10-skills/`.
 6. Mudança aplicada volta a gerar dados nos Gatilhos 1-4 → fecha o ciclo.

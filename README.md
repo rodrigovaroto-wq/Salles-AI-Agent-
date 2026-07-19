@@ -35,9 +35,10 @@ Hermes Agent (análise assíncrona) · checkout BlackCat · memória em Supabase
 
 ## Ciclo de aprendizado
 O agente aprende com as próprias conversas: o Hermes analisa os dados
-acumulados e gera sugestões de melhoria, mas **nenhuma sugestão vira
-comportamento ativo sem passar por um filtro automático de conformidade e,
-em seguida, por aprovação humana explícita**. Ver
+acumulados e gera sugestões de melhoria. Cada sugestão recebe um **rótulo de
+risco de conformidade** (nada é descartado automaticamente) e **todas** vão
+para **aprovação humana explícita** — nenhuma vira comportamento ativo sem seu
+aval, inclusive as de risco alto. Ver
 [`30-integracoes/hermes/ciclo-aprendizado.md`](30-integracoes/hermes/ciclo-aprendizado.md).
 
 ## Governança

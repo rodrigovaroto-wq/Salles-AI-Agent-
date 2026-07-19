@@ -38,8 +38,8 @@ Confiança: <alta / média / baixa>
 ```
 
 Essas sugestões não viram comportamento ativo diretamente a partir daqui —
-elas seguem para o **filtro de conformidade** e depois para a **fila de
-aprovação humana**. Ver
+cada uma recebe um **rótulo de risco de conformidade** (o classificador não
+descarta nada) e **todas** seguem para a **fila de aprovação humana**. Ver
 [`../30-integracoes/hermes/ciclo-aprendizado.md`](../30-integracoes/hermes/ciclo-aprendizado.md).
 
 ## Princípio inegociável
@@ -47,9 +47,9 @@ As sugestões devem nascer de **dados reais** (eventos de conversa efetivamente
 ocorridos). Uma métrica bonita construída sobre provas fabricadas não mede nada —
 só esconde o problema. Ver CONTEXT8 e CONTEXT9 do núcleo.
 
-Nenhuma sugestão vira mudança ativa sem passar pelo filtro automático de
-conformidade e, em seguida, por aprovação humana explícita. Isso vale mesmo
-para sugestões de alta confiança/alto impacto de conversão — a confiança
-estatística não substitui a checagem ética. Ver
+Nenhuma sugestão vira mudança ativa sem aprovação humana explícita — nem as de
+alta confiança/alto impacto de conversão. O classificador de conformidade
+apenas rotula o risco de cada sugestão (não descarta nenhuma); a triagem é
+100% humana. Ver
 [`../30-integracoes/hermes/filtro-conformidade.md`](../30-integracoes/hermes/filtro-conformidade.md)
 e [`../30-integracoes/hermes/fila-aprovacao.md`](../30-integracoes/hermes/fila-aprovacao.md).

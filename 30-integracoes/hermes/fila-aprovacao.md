@@ -4,6 +4,11 @@ O único ponto de entrada de qualquer mudança gerada pelo Hermes para o
 comportamento ativo do agente. Vive no mesmo banco da camada de memória
 (Supabase, ver `../../20-memoria/`) como uma tabela dedicada.
 
+**Toda** sugestão do Hermes entra aqui — inclusive as de risco alto. Nada é
+descartado automaticamente antes desta fila (ver `filtro-conformidade.md`): o
+classificador só anexa um rótulo de risco para orientar sua triagem, mas quem
+decide é sempre você.
+
 ## Schema
 
 | Campo | Tipo | Descrição | Exemplo |
@@ -17,7 +22,8 @@ comportamento ativo do agente. Vive no mesmo banco da camada de memória
 | `mudanca_proposta` | text | O texto/regra **literal** que entraria no arquivo | (diff ou trecho exato) |
 | `teste_sugerido` | text | Como validar após aplicar | "A/B por 200 conversas" |
 | `confianca` | enum | Baseado em volume de dados | `alta` / `media` / `baixa` |
-| `passou_filtro` | bool | Se passou no filtro automático | `true` |
+| `risco_conformidade` | enum | Rótulo do classificador (não bloqueia, só orienta) | `alto` / `medio` / `baixo` |
+| `padrao_disparado` | text \| null | Qual padrão de conformidade a sugestão tocou | `promessa de cura` |
 | `status` | enum | Estado atual | `pendente` / `aprovada` / `rejeitada` |
 | `decidido_por` | string | Quem decidiu (sempre humano) | `rodrigo` |
 | `decidido_em` | datetime \| null | Quando a decisão foi tomada | `2026-07-21T10:00:00Z` |
@@ -44,7 +50,13 @@ insistir com pequenas variações até passar.
 ## Interface de revisão
 Para o fluxo ser rápido (ver `ciclo-aprendizado.md`), a fila deve ser
 consultável de forma simples — uma view no Supabase, uma planilha sincronizada,
-ou um painel simples no n8n. Formato de decisão sugerido: revisão em lote,
-sugestões de `confianca: alta` e área de baixo risco (`abertura`,
-`follow_up`) agrupadas para aprovação rápida; `stack_oferta` e `catalogo`
-revisadas individualmente por afetarem preço/produto diretamente.
+ou um painel simples no n8n. Ordenação sugerida da triagem:
+
+1. **`risco_conformidade: alto` primeiro** — é o que você mais quer inspecionar
+   com atenção (e provavelmente rejeitar), então vem no topo.
+2. Depois, `risco_conformidade: medio` — conferir se o volume de dados sustenta.
+3. Por fim, `risco_conformidade: baixo` com `confianca: alta` em áreas de baixo
+   impacto (`abertura`, `follow_up`) — candidatas a aprovação em lote.
+
+`stack_oferta` e `catalogo` são sempre revisadas individualmente, por afetarem
+preço/produto diretamente, qualquer que seja o rótulo de risco.
