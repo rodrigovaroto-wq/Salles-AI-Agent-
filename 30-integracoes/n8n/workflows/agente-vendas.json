@@ -1,0 +1,302 @@
+{
+  "name": "agente-vendas (Gatilho 1)",
+  "active": false,
+  "settings": {},
+  "nodes": [
+    {
+      "id": "n1",
+      "name": "WhatsApp IN",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-in",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "id": "n2",
+      "name": "Extrair mensagem e origem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0],
+      "notes": "Fallback seguro: sem marcador [ref:lp]/[ref:tiktok] => trata como tiktok (nunca assume compra sem confirmar). Ver ../../whatsapp/README.md secao 8.",
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\nconst entry = body.entry?.[0]?.changes?.[0]?.value;\nconst msg = entry?.messages?.[0];\nconst contato = entry?.contacts?.[0];\n\nconst wa_id = msg?.from;\nconst nome = contato?.profile?.name || null;\nconst texto = msg?.text?.body || '';\n\nlet origem = 'tiktok';\nif (/\\[ref:lp\\]/i.test(texto)) origem = 'lp';\nelse if (/\\[ref:tiktok\\]/i.test(texto)) origem = 'tiktok';\n\nreturn [{ json: { wa_id, nome, texto_recebido: texto, origem } }];"
+      }
+    },
+    {
+      "id": "n3",
+      "name": "Upsert lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0],
+      "notes": "Upsert evita branch IF de 'lead existe?': Prefer=resolution=merge-duplicates atualiza se ja existir.",
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?on_conflict=lead_id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, nome: $node[\"Extrair mensagem e origem\"].json.nome, origem_canal: $node[\"Extrair mensagem e origem\"].json.origem === 'lp' ? 'meta_ads' : 'tiktok_ads', ultima_interacao: new Date().toISOString(), status: 'ativo' } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n4",
+      "name": "Buscar historico",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, -80],
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/conversas?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}&order=ocorrido_em.desc&limit=10",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n5",
+      "name": "Buscar prompt ativo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 80],
+      "notes": "chave=objetivo e chave=compliance devem ter sido inseridas em prompt_ativo a partir de 00-nucleo/objetivo.md e compliance-e-etica.md.",
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/prompt_ativo?chave=in.(objetivo,compliance)&ativo=eq.true",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n5b",
+      "name": "Merge contexto",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [880, 0],
+      "notes": "Barreira de sincronizacao: garante que Buscar historico E Buscar prompt ativo terminaram antes de montar o prompt. Sem isso, o proximo node roda 2x (duplica chamada OpenAI/envio).",
+      "parameters": { "mode": "combine", "combinationMode": "mergeByPosition" }
+    },
+    {
+      "id": "n6",
+      "name": "Montar mensagens OpenAI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 0],
+      "notes": "Pede saida em JSON estruturado (resposta + intent) para o n8n poder ramificar sem regex na linguagem natural. Selecao fina de skills (10-skills/) fica manual/futuro.",
+      "parameters": {
+        "jsCode": "const promptRows = $node[\"Buscar prompt ativo\"].json;\nconst objetivo = promptRows.find(r => r.chave === 'objetivo')?.conteudo || '';\nconst compliance = promptRows.find(r => r.chave === 'compliance')?.conteudo || '';\nconst historico = ($node[\"Buscar historico\"].json || []).reverse();\nconst extra = $node[\"Extrair mensagem e origem\"].json;\n\nconst systemPrompt = objetivo + '\\n\\n' + compliance + '\\n\\nOrigem do lead nesta conversa: ' + extra.origem + '.\\n\\nResponda SEMPRE em JSON no formato: {\"resposta\": string, \"intent\": \"qualificando\"|\"objecao\"|\"aceitou_stack\"|\"gerar_link\"|\"recusou\", \"produtos_aceitos\": string[]}';\n\nconst messages = [{ role: 'system', content: systemPrompt }];\nfor (const h of historico) {\n  if (h.mensagem_lead) messages.push({ role: 'user', content: h.mensagem_lead });\n  if (h.mensagem_agente) messages.push({ role: 'assistant', content: h.mensagem_agente });\n}\nmessages.push({ role: 'user', content: extra.texto_recebido });\n\nreturn [{ json: { model: 'gpt-4.1', response_format: { type: 'json_object' }, messages } }];"
+      }
+    },
+    {
+      "id": "n7",
+      "name": "Chamar OpenAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$env.OPENAI_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n8",
+      "name": "Extrair resposta e intent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 0],
+      "parameters": {
+        "jsCode": "const content = $input.first().json.choices[0].message.content;\nconst parsed = JSON.parse(content);\nreturn [{ json: parsed }];"
+      }
+    },
+    {
+      "id": "n9",
+      "name": "Enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$env.WHATSAPP_TOKEN}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"Extrair mensagem e origem\"].json.wa_id, type: 'text', text: { body: $json.resposta } } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Gravar evento conversa",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1760, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/conversas",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, mensagem_agente: $node[\"Extrair resposta e intent\"].json.resposta, mensagem_lead: $node[\"Extrair mensagem e origem\"].json.texto_recebido, produtos_aceitos: $node[\"Extrair resposta e intent\"].json.produtos_aceitos || [] } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n11",
+      "name": "Intent = gerar_link?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1980, 0],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "leftValue": "={{$node[\"Extrair resposta e intent\"].json.intent}}",
+              "rightValue": "gerar_link",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "n12",
+      "name": "Montar items do carrinho",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2200, -80],
+      "notes": "TODO: depende dos precos reais em ../../catalogo-produtos.md (pendente definicao com os socios). Formula de desconto (10% por item adicional sobre o total) ja implementada.",
+      "parameters": {
+        "jsCode": "const produtos = $node[\"Extrair resposta e intent\"].json.produtos_aceitos || [];\n// TODO: substituir pelo lookup real em catalogo-produtos.md (produto_id -> nome/preco/item_blackcat)\nconst CATALOGO = {\n  // 'principal': { title: 'TODO', unitPrice: 0 },\n};\nconst items = produtos.map(p => CATALOGO[p]).filter(Boolean);\nconst descontoPct = Math.max(0, items.length - 1) * 10;\nreturn [{ json: { items, descontoPct } }];"
+      }
+    },
+    {
+      "id": "n13",
+      "name": "Criar venda BlackCat",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2420, -80],
+      "notes": "Confirmar header de autenticacao exato na doc BlackCat (docs.blackcatoficial.com) antes de usar em producao.",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.blackcathub.com/api/sales/create-sale",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$env.BLACKCAT_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { items: $json.items, externalRef: $node[\"Extrair mensagem e origem\"].json.wa_id, postbackUrl: $env.N8N_BASE_URL + '/webhook/blackcat', metadata: { origem: $node[\"Extrair mensagem e origem\"].json.origem } } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n14",
+      "name": "Enviar link WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2640, -80],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$env.WHATSAPP_TOKEN}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"Extrair mensagem e origem\"].json.wa_id, type: 'text', text: { body: 'Aqui esta o seu link: ' + $json.paymentUrl } } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n15",
+      "name": "Fim (sem link ainda)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2200, 80],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "WhatsApp IN": { "main": [[{ "node": "Extrair mensagem e origem", "type": "main", "index": 0 }]] },
+    "Extrair mensagem e origem": { "main": [[{ "node": "Upsert lead", "type": "main", "index": 0 }]] },
+    "Upsert lead": {
+      "main": [[
+        { "node": "Buscar historico", "type": "main", "index": 0 },
+        { "node": "Buscar prompt ativo", "type": "main", "index": 0 }
+      ]]
+    },
+    "Buscar historico": { "main": [[{ "node": "Merge contexto", "type": "main", "index": 0 }]] },
+    "Buscar prompt ativo": { "main": [[{ "node": "Merge contexto", "type": "main", "index": 1 }]] },
+    "Merge contexto": { "main": [[{ "node": "Montar mensagens OpenAI", "type": "main", "index": 0 }]] },
+    "Montar mensagens OpenAI": { "main": [[{ "node": "Chamar OpenAI", "type": "main", "index": 0 }]] },
+    "Chamar OpenAI": { "main": [[{ "node": "Extrair resposta e intent", "type": "main", "index": 0 }]] },
+    "Extrair resposta e intent": { "main": [[{ "node": "Enviar WhatsApp", "type": "main", "index": 0 }]] },
+    "Enviar WhatsApp": { "main": [[{ "node": "Gravar evento conversa", "type": "main", "index": 0 }]] },
+    "Gravar evento conversa": { "main": [[{ "node": "Intent = gerar_link?", "type": "main", "index": 0 }]] },
+    "Intent = gerar_link?": {
+      "main": [
+        [{ "node": "Montar items do carrinho", "type": "main", "index": 0 }],
+        [{ "node": "Fim (sem link ainda)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Montar items do carrinho": { "main": [[{ "node": "Criar venda BlackCat", "type": "main", "index": 0 }]] },
+    "Criar venda BlackCat": { "main": [[{ "node": "Enviar link WhatsApp", "type": "main", "index": 0 }]] }
+  }
+}

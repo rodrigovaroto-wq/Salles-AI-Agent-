@@ -16,9 +16,16 @@ analista assíncrono). Complementa `ciclo-aprendizado.md` (o fluxo) e
 | 6 | **Entrega da fila** | Via n8n — a fila de sugestões (`fila-aprovacao.md`) é apresentada e decidida dentro do n8n. |
 | 7 | **Aplicação** | Após a aprovação humana, a mudança é aplicada **pelo sistema** (n8n), sem edição manual. Ver seção "Aplicação automática pós-aprovação". |
 
+## Correção de arquitetura (vs. versão anterior deste documento)
+O Hermes tem **cron nativo embutido** (não precisa do n8n para ser disparado).
+Ele se agenda sozinho na VPS, lê o Supabase direto (credencial própria,
+somente leitura) e grava direto na tabela `fila_sugestoes`. O n8n **não
+dispara o Hermes** — o papel do n8n fica só na ponta humana: notificar a fila
+e aplicar o que for aprovado (ver `../n8n/workflows/`).
+
 ## Como o dia do Hermes funciona (passo a passo)
 
-1. **Cron diário no n8n** dispara o Hermes na VPS.
+1. **Cron nativo do Hermes** (interno, na VPS) dispara a análise 1x/dia.
 2. Hermes verifica: houve **≥ 25 conversas novas** desde o último ciclo?
    - Não → encerra, tenta de novo no dia seguinte.
    - Sim → segue.
@@ -65,9 +72,11 @@ Decisão pendente: confirmar se você quer o espelhamento automático para o git
 - Vale integralmente o `../../00-nucleo/compliance-e-etica.md`.
 
 ## Pendências desta camada
-- [ ] Escolher a VPS específica (PikaPods ou similar) e subir o Hermes lá.
+- [ ] Escolher a VPS específica (PikaPods não serve — não roda Docker
+      customizado; ver `../setup-plataformas.md`) e subir o Hermes lá.
 - [ ] Definir o modelo OpenAI exato para a análise.
-- [ ] Criar a tabela `prompt_ativo` (versionada) no Supabase.
-- [ ] Montar o fluxo de aprovação no n8n (listar fila, botões aprovar/rejeitar,
-      aplicar + versionar).
+- [x] Tabela `prompt_ativo` (versionada) criada no Supabase — ver
+      `../supabase/schema.sql`.
+- [x] Esqueleto do fluxo de aprovação no n8n montado — ver
+      `../n8n/workflows/fila-notificar.json` e `fila-decidir.json`.
 - [ ] Decidir sobre o espelhamento automático para o git.
