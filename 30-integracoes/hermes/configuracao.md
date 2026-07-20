@@ -72,8 +72,9 @@ Decisão pendente: confirmar se você quer o espelhamento automático para o git
 - Vale integralmente o `../../00-nucleo/compliance-e-etica.md`.
 
 ## Pendências desta camada
-- [ ] Escolher a VPS específica (PikaPods não serve — não roda Docker
-      customizado; ver `../setup-plataformas.md`) e subir o Hermes lá.
+- [x] Guia de deploy na VPS (Docker, `.env`, volume de leitura, tarefa diária)
+      escrito — ver [`deploy-vps.md`](deploy-vps.md). Falta executar na VPS
+      real.
 - [ ] Definir o modelo OpenAI exato para a análise.
 - [x] Tabela `prompt_ativo` (versionada) criada no Supabase — ver
       `../supabase/schema.sql`.
