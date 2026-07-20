@@ -4,8 +4,9 @@ Fonte única de verdade sobre o que o agente pode oferecer, por quanto, e em que
 situação. O agente só oferta o que está registrado aqui. As restrições de
 conduta estão em [`../00-nucleo/compliance-e-etica.md`](../00-nucleo/compliance-e-etica.md).
 
-status: 🟢 produtos e preços principais definidos. Pivô/downsell (seção 3) e
-mapa de arquétipo (seção 4) ainda pendentes.
+status: 🟢 catálogo fechado — produtos, preços, desconto real, pivô por
+objeção e mapa de arquétipo definidos e conectados em runtime (não só
+documentação).
 
 **Fonte de verdade em runtime:** a tabela `produtos` no Supabase (ver
 `supabase/schema.sql`) — o agente e o node que monta o carrinho leem de lá,
@@ -69,24 +70,45 @@ alternativa cadastrada.
 
 | Objeção / sinal | `produto_id` alternativo a ofertar | Observação |
 |---|---|---|
-| "Está caro" | `[A DEFINIR]` (versão mais barata) | Downsell real, não o mesmo produto com desconto inventado |
-| "Não tenho interesse no principal" | `[A DEFINIR]` | Produto lateral que resolve outra dor do mesmo avatar |
-| "Vou pensar" (2ª recusa) | `[A DEFINIR]` | Opcional: oferta de menor compromisso |
+| "Está caro" | `oracao_audio` (R$13,90 — mais barato que o principal) | Downsell real, não o mesmo produto com desconto inventado |
+| "Não tenho interesse no principal" | `oracao_audio` | Formato diferente (áudio) e menor compromisso, mesma linha de proteção |
+| "Vou pensar" (2ª recusa) | `oracao_audio` | Oferta de menor compromisso, mais fácil de decidir agora |
+
+**Limitação atual:** hoje só existe **um** produto realmente mais barato que
+o principal no catálogo, então as 3 linhas convergem no mesmo `produto_id`.
+Isso é honesto (não fabricamos variedade que não existe), mas se quiser
+respostas mais diferenciadas por tipo de objeção no futuro, o caminho é criar
+um produto de entrada dedicado — não inflar preço nem fingir opções.
 
 Regra: o pivô só acontece **depois** de ao menos uma tentativa honesta de
 tratar a objeção (ver `../00-nucleo/objetivo.md`, PROCESSO 4). Ele não substitui
 o tratamento de objeção — entra quando o tratamento não resolveu.
 
+**Runtime:** implementado via a coluna `resolve_objecao` (array) na tabela
+`produtos` do Supabase — o agente recebe essa tag no catálogo injetado no
+system prompt e é instruído a usá-la nesse cenário. Não é só documentação.
+
 ## 4. Mapa de perfil (arquétipo) → produto em destaque
 
-Cruza com `../10-skills/copy/copy-persuasao-avancada.md` (arquétipos de Jung).
+Cruza com `../10-skills/copy/copy-persuasao-avancada.md` (arquétipos de Jung)
+e os ângulos já existentes em `../10-skills/ofertas/angulos-upsell.md`.
 
-| Arquétipo | Produto priorizado no stack |
-|---|---|
-| Mãe Protetora | `[A DEFINIR]` |
-| Guerreira de Fé | `[A DEFINIR]` |
-| Devota em Busca | `[A DEFINIR]` |
-| Mulher que Pertence | `[A DEFINIR]` |
+| Arquétipo | Produto priorizado no stack | Por quê |
+|---|---|---|
+| Mãe Protetora | `comunidade` | Ângulo "legado para a família" — a proteção da comunidade se estende aos filhos/netos |
+| Guerreira de Fé | `oracao_audio` | Ferramenta prática de uso diário — ouvir a oração para seguir "na batalha" sem desistir |
+| Devota em Busca | `contato_padre` | Busca ativa por resposta/sinal — contato direto entrega isso literalmente |
+| Mulher que Pertence | `comunidade` | Pertencimento é o próprio produto — match direto |
+
+`comunidade` atende dois arquétipos com ângulos diferentes (família/legado vs.
+pertencimento) — isso é normal, não uma inconsistência: o mesmo produto pode
+resolver dores distintas dependendo de como é apresentado.
+
+**Runtime:** implementado via a coluna `arquetipos` (array) em `produtos`, e
+o agente agora também **detecta e grava** o arquétipo do lead
+(`leads.arquetipo`) a partir de sinais da própria conversa — não inventa sem
+evidência (ver `n8n/workflows/agente-vendas.json`, nodes "Arquetipo
+detectado?" e "Atualizar arquetipo do lead").
 
 ## 5. Como o agente consulta este catálogo
 

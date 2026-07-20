@@ -4,7 +4,7 @@
 
 Os 5 gatilhos consolidados numa única importação: **5 triggers de entrada**
 (2 webhooks de mensagem, 1 webhook de decisão, 2 crons) coexistindo no mesmo
-workflow, cada um puxando sua própria cadeia de nós — 56 nós ao todo,
+workflow, cada um puxando sua própria cadeia de nós — 59 nós ao todo,
 validado (sem nó órfão, sem ID/nome duplicado).
 
 **Por que os 5 "ramos" não têm conexão entre si dentro do arquivo:** eles não
@@ -50,7 +50,7 @@ adicionar.
 
 | Arquivo | Gatilho | O que faz |
 |---|---|---|
-| `agente-vendas.json` | 1 | Recebe mensagem → busca lead/histórico/prompt ativo/**catálogo de produtos** (2 Merges) → chama OpenAI já informado dos produtos e preços reais (saída em JSON estruturado: `resposta` + `intent`) → envia WhatsApp → grava evento → se `intent=gerar_link`, monta carrinho com preço **real do Supabase** e desconto **efetivamente aplicado**, cria venda no BlackCat, e grava o desconto/link de volta no evento |
+| `agente-vendas.json` | 1 | Recebe mensagem → busca lead/histórico/prompt ativo/**catálogo de produtos** (2 Merges) → chama OpenAI já informado dos produtos, preços e tags de **pivô por objeção/arquétipo** (saída em JSON estruturado: `resposta` + `intent` + `arquetipo`) → envia WhatsApp → grava evento → **detecta e grava o arquétipo do lead** (se houver sinal real) → se `intent=gerar_link`, monta carrinho com preço **real do Supabase** e desconto **efetivamente aplicado**, cria venda no BlackCat, e grava o desconto/link de volta no evento |
 | `pagamento-blackcat.json` | 2 e 3 | Recebe webhook do BlackCat → roteia por `event` (cadeia de IFs) → `paid`: marca cliente e confirma → `created`: marca abandonado, **espera 2h** (node `Wait`, sobrevive a reinício do pod) e reabre se ainda abandonado → `failed`: libera para follow-up |
 | `followup-24h.json` | 4 | A cada hora, busca leads sem compra há >24h, separa em itens e envia o template aprovado |
 | `fila-notificar.json` | ciclo Hermes | Todo dia às 8h, busca sugestões pendentes (risco alto primeiro) e manda um resumo com links de aprovar/rejeitar para você no WhatsApp |
@@ -104,3 +104,13 @@ bumps) já estão populados na tabela `produtos` do Supabase
   do n8n mantém um array de resposta como um único item por padrão. Em
   `followup-24h`, um node `Code` separa explicitamente em N itens antes de
   processar por lead.
+- **Pivô por objeção e arquétipo são runtime, não só documentação:** as
+  colunas `resolve_objecao` e `arquetipos` da tabela `produtos` (Supabase)
+  são injetadas no system prompt, e o modelo é instruído a usá-las para
+  oferecer a alternativa certa numa objeção forte e priorizar o order bump
+  certo por perfil (ver `../../catalogo-produtos.md`, seções 3 e 4).
+- **Arquétipo do lead nunca é sobrescrito com "nada detectado":** o IF
+  "Arquetipo detectado?" só dispara a gravação em `leads.arquetipo` quando o
+  modelo retorna um valor não vazio — evita apagar um arquétipo já
+  identificado numa mensagem anterior só porque a mensagem atual não deu
+  sinal novo.

@@ -89,22 +89,28 @@ create unique index if not exists idx_prompt_ativo_unico on prompt_ativo(chave) 
 
 -- ========== PRODUTOS (catálogo real — fonte de verdade em runtime) ==========
 create table if not exists produtos (
-  produto_id     text primary key,
-  nome           text not null,
-  tipo           text not null check (tipo in ('principal','order_bump','alternativo')),
-  preco_centavos integer not null,
-  ordem          integer not null default 0,   -- ordem de apresentacao no stack
-  ativo          boolean not null default true
+  produto_id      text primary key,
+  nome            text not null,
+  tipo            text not null check (tipo in ('principal','order_bump','alternativo')),
+  preco_centavos  integer not null,
+  ordem           integer not null default 0,   -- ordem de apresentacao no stack
+  resolve_objecao text[] not null default '{}', -- pivo: objecoes que este produto ajuda a resolver
+  arquetipos      text[] not null default '{}', -- perfis para os quais este produto e destaque
+  ativo           boolean not null default true
 );
+-- idempotente para reruns num banco onde a tabela ja existe sem essas colunas
+alter table produtos add column if not exists resolve_objecao text[] not null default '{}';
+alter table produtos add column if not exists arquetipos      text[] not null default '{}';
 
-insert into produtos (produto_id, nome, tipo, preco_centavos, ordem) values
-  ('oracao_sagrada', 'Oração Sagrada',              'principal',   2290, 0),
-  ('oracao_audio',   'Oração em Áudio',              'order_bump', 1390, 1),
-  ('comunidade',     'Comunidade',                   'order_bump', 4490, 2),
-  ('contato_padre',  'Contato Direto com o Padre',   'order_bump', 1990, 3)
+insert into produtos (produto_id, nome, tipo, preco_centavos, ordem, resolve_objecao, arquetipos) values
+  ('oracao_sagrada', 'Oração Sagrada',              'principal',   2290, 0, '{}',                                              '{}'),
+  ('oracao_audio',   'Oração em Áudio',              'order_bump', 1390, 1, '{preco,sem_interesse_principal,vou_pensar}',      '{guerreira_fe}'),
+  ('comunidade',     'Comunidade',                   'order_bump', 4490, 2, '{}',                                              '{mae_protetora,mulher_pertence}'),
+  ('contato_padre',  'Contato Direto com o Padre',   'order_bump', 1990, 3, '{}',                                              '{devota_busca}')
 on conflict (produto_id) do update set
   nome = excluded.nome, tipo = excluded.tipo,
-  preco_centavos = excluded.preco_centavos, ordem = excluded.ordem;
+  preco_centavos = excluded.preco_centavos, ordem = excluded.ordem,
+  resolve_objecao = excluded.resolve_objecao, arquetipos = excluded.arquetipos;
 
 -- ========== MÉTRICAS DE PERÍODO (snapshot p/ o Hermes analisar) ==========
 create table if not exists metricas_periodo (
