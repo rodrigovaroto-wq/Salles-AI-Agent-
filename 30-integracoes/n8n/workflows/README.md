@@ -1,14 +1,33 @@
 # Workflows do n8n — Esqueleto Pronto para Importar
 
-5 arquivos `.json` com a lógica completa dos gatilhos, prontos para importar no
-n8n. Usam **variáveis de ambiente** (`$env.X`) no lugar de credenciais reais —
-por isso funcionam sem nenhuma conta conectada ainda. Quando você conectar as
-credenciais de verdade, basta configurar as env vars no pod do PikaPods.
+## `workflow-completo.json` — a operação inteira num arquivo só
+
+Os 5 gatilhos consolidados numa única importação: **5 triggers de entrada**
+(2 webhooks de mensagem, 1 webhook de decisão, 2 crons) coexistindo no mesmo
+workflow, cada um puxando sua própria cadeia de nós — 53 nós ao todo,
+validado (sem nó órfão, sem ID/nome duplicado).
+
+**Por que os 5 "ramos" não têm conexão entre si dentro do arquivo:** eles não
+se conectam por *nó do n8n* porque, no sistema real, eles não deveriam — quem
+liga um gatilho ao outro é uma chamada HTTP **externa** que já existe no
+desenho:
+- `agente-vendas` → `pagamento-blackcat`: liga via `postbackUrl` do BlackCat
+  (uma chamada de fora pra dentro do n8n, não uma aresta interna).
+- `fila-notificar` → `fila-decidir`: liga via o link que você clica no
+  WhatsApp (mesma lógica — é o BlackCat/WhatsApp quem "conecta", não o n8n).
+
+Ou seja: já estão conectados onde deveriam estar — a ausência de aresta
+interna entre os ramos é o desenho correto, não uma lacuna.
+
+Os 5 arquivos individuais (abaixo) continuam existindo — úteis para importar/
+testar um gatilho isolado sem carregar o resto. O `workflow-completo.json` é
+a soma exata deles (mesmos nós, mesmas conexões, só com IDs prefixados para
+não colidir e posições deslocadas para não sobrepor no canvas).
 
 ## Como importar
-No n8n: `Workflows` → `Import from File` → selecione cada `.json`. Eles chegam
-**inativos** (`active: false`) de propósito — ative só depois de configurar as
-env vars e revisar a lógica.
+No n8n: `Workflows` → `Import from File` → selecione o `.json` (o completo, ou
+um dos 5 individuais). Chegam **inativos** (`active: false`) de propósito —
+ative só depois de configurar as env vars e revisar a lógica.
 
 ## Variáveis de ambiente necessárias
 
@@ -27,7 +46,7 @@ env vars e revisar a lógica.
 No PikaPods: `Pod` → `Environment` → adicionar cada uma. Reinicie o pod após
 adicionar.
 
-## Os 5 workflows
+## Os 5 gatilhos (arquivos individuais == ramos do `workflow-completo.json`)
 
 | Arquivo | Gatilho | O que faz |
 |---|---|---|
