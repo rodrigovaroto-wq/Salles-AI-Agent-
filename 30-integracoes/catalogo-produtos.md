@@ -24,12 +24,12 @@ novo o `insert ... on conflict` do `schema.sql`).
 | `oracao_audio` | Oração em Áudio | `order_bump` | 13,90 | title: "Oração em Áudio", unitPrice: 1390 |
 | `comunidade` | Comunidade | `order_bump` | 44,90 | title: "Comunidade", unitPrice: 4490 |
 | `contato_padre` | Contato Direto com o Padre | `order_bump` | 19,90 | title: "Contato Direto com o Padre", unitPrice: 1990 |
-| `[A DEFINIR]` | Alternativo / downsell | `alternativo` | `[A DEFINIR]` | `[A DEFINIR]` |
 
 Tipos possíveis: `principal` (o produto-alvo da conversa) · `order_bump`
 (complemento oferecido em stack após aceite do principal) · `alternativo`
-(oferecido no pivô por objeção/recusa, ver seção 3 — ainda sem produto
-definido).
+(reservado para um futuro produto de entrada dedicado — **decisão tomada:
+não criar um agora**; o pivô por objeção reaproveita `oracao_audio`, ver
+seção 3).
 
 **Nota de integridade de preço:** os valores acima são o preço real de venda
 avulsa de cada order bump — não uma âncora inflada criada só para depois ser
@@ -58,9 +58,11 @@ Regra de aplicação:
   `agente-vendas.json` aplica o percentual diretamente no `unitPrice` de cada
   item antes de mandar pro BlackCat (nunca só mencionado em texto sem
   refletir no valor cobrado — exigência do `compliance-e-etica.md`).
-- Com os 3 order bumps disponíveis hoje, o teto natural é 30% (principal + 3).
-  Falta definir com os sócios se um teto menor faz sentido se o catálogo
-  crescer. `[A DEFINIR]`
+- **Teto de desconto — decidido:** nenhum teto artificial. Com os 3 order
+  bumps de hoje, 30% (principal + todos) já é o limite natural — não há como
+  passar disso com o catálogo atual. Revisitar esta decisão quando (e se) o
+  catálogo crescer além de 3 order bumps, para não deixar o desconto máximo
+  subir sem controle.
 
 ## 3. Mapa de objeção/recusa → alternativa (pivô)
 
