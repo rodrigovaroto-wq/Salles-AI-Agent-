@@ -25,6 +25,7 @@ virar mensagem real antes de alguém revisar.
 | [`filtro-conformidade.md`](filtro-conformidade.md) | Classificador que rotula o risco de cada sugestão — não descarta nada, só orienta a triagem |
 | [`fila-aprovacao.md`](fila-aprovacao.md) | Schema da fila de sugestões pendentes e o formato de decisão |
 | [`configuracao.md`](configuracao.md) | Decisões operacionais: VPS, cadência diária, volume mínimo, LLM, e a aplicação automática pós-aprovação |
+| [`deploy-vps.md`](deploy-vps.md) | Passo a passo de deploy: Docker, `.env`, volume de leitura do repositório, e a tarefa diária em linguagem natural (`hermes cron create`) |
 
 ## Regra de ouro
 Nenhuma sugestão do Hermes se torna comportamento ativo do agente sem
