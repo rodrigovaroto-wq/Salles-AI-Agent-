@@ -91,12 +91,33 @@ Cruza com `../10-skills/copy/copy-persuasao-avancada.md` (arquétipos de Jung).
 ## 5. Como o agente consulta este catálogo
 
 1. Lead aceita o principal → agente apresenta o **stack completo de uma vez**
-   (não item a item), citando o desconto real por item adicionado.
+   (não item a item), mostrando uma **tabela de economia** clara: quanto cai
+   o total e quanto o lead economiza a cada order bump adicionado (10%/20%/30%).
+   Ver seção 6 — os números são calculados em código, nunca pelo modelo, para
+   garantir que o que o lead vê bate com o que será cobrado.
 2. Lead monta o carrinho → agente calcula o total com desconto (seção 2) e
    monta o `items[]` do BlackCat.
 3. Lead recusa o principal ou repete objeção forte → agente consulta a
    seção 3 e oferece a alternativa, sem insistir mais de uma vez na mesma
    linha de recusa.
+
+## 6. Tabela de economia mostrada ao lead
+
+Calculada em código no node "Montar mensagens OpenAI"
+(`n8n/workflows/agente-vendas.json`), com os preços reais da seção 1 — o
+modelo recebe o texto pronto e só o apresenta, nunca recalcula. Exemplo com
+os valores atuais (adicionando na ordem do catálogo):
+
+| Ação | Subtotal sem desconto | Desconto | Total cobrado | Economia |
+|---|---|---|---|---|
+| Só a Oração Sagrada | R$ 22,90 | — | R$ 22,90 | — |
+| + Oração em Áudio | R$ 36,80 | 10% | R$ 33,12 | R$ 3,68 |
+| + Comunidade | R$ 81,70 | 20% | R$ 65,36 | R$ 16,34 |
+| + Contato Direto com o Padre | R$ 101,60 | 30% | R$ 71,12 | R$ 30,48 |
+
+Verificado: o total da linha "+ Contato Direto com o Padre" (R$ 71,12) bate
+exatamente com o que "Montar items do carrinho" cobraria no BlackCat pelos
+mesmos 4 itens — mesma fórmula, mesmo arredondamento por item.
 
 ## Relacionado
 - [`../00-nucleo/compliance-e-etica.md`](../00-nucleo/compliance-e-etica.md) — restrições de conduta

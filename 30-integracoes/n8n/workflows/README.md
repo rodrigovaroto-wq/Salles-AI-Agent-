@@ -92,6 +92,14 @@ bumps) já estão populados na tabela `produtos` do Supabase
   antes de montar o `items[]` do BlackCat — o valor cobrado já reflete o
   desconto anunciado (exigência do `compliance-e-etica.md`), em vez de só
   registrar um `descontoPct` que nunca era usado.
+- **A tabela de economia mostrada ao lead é calculada em código, não pelo
+  modelo:** "Montar mensagens OpenAI" monta um texto pronto (quanto cai o
+  total e quanto se economiza a cada order bump) usando a **mesma fórmula
+  exata** de "Montar items do carrinho", e instrui o modelo a usá-lo
+  verbatim. Isso garante que o número que o lead vê bate com o que será
+  cobrado — deixar a IA calcular/narrar isso livremente seria arriscar uma
+  divergência entre o que é dito e o que é cobrado. Exemplo verificado em
+  `../../catalogo-produtos.md`, seção 6.
 - **Arrays do Supabase não são explodidos automaticamente:** o HTTP Request
   do n8n mantém um array de resposta como um único item por padrão. Em
   `followup-24h`, um node `Code` separa explicitamente em N itens antes de
