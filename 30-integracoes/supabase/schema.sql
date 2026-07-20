@@ -87,6 +87,25 @@ create table if not exists prompt_ativo (
 -- garante só UMA versão ativa por chave (troca: ativo=false na antiga, insere nova ativa)
 create unique index if not exists idx_prompt_ativo_unico on prompt_ativo(chave) where ativo;
 
+-- ========== PRODUTOS (catálogo real — fonte de verdade em runtime) ==========
+create table if not exists produtos (
+  produto_id     text primary key,
+  nome           text not null,
+  tipo           text not null check (tipo in ('principal','order_bump','alternativo')),
+  preco_centavos integer not null,
+  ordem          integer not null default 0,   -- ordem de apresentacao no stack
+  ativo          boolean not null default true
+);
+
+insert into produtos (produto_id, nome, tipo, preco_centavos, ordem) values
+  ('oracao_sagrada', 'Oração Sagrada',              'principal',   2290, 0),
+  ('oracao_audio',   'Oração em Áudio',              'order_bump',  990, 1),
+  ('comunidade',     'Comunidade',                   'order_bump', 3490, 2),
+  ('contato_padre',  'Contato Direto com o Padre',   'order_bump', 1490, 3)
+on conflict (produto_id) do update set
+  nome = excluded.nome, tipo = excluded.tipo,
+  preco_centavos = excluded.preco_centavos, ordem = excluded.ordem;
+
 -- ========== MÉTRICAS DE PERÍODO (snapshot p/ o Hermes analisar) ==========
 create table if not exists metricas_periodo (
   id                   bigserial primary key,
@@ -109,3 +128,4 @@ alter table conversas        enable row level security;
 alter table fila_sugestoes   enable row level security;
 alter table prompt_ativo     enable row level security;
 alter table metricas_periodo enable row level security;
+alter table produtos         enable row level security;

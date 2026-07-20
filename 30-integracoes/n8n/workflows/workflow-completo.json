@@ -131,6 +131,35 @@
       }
     },
     {
+      "id": "av-n5c",
+      "name": "Buscar produtos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        160
+      ],
+      "notes": "Catalogo real (ver ../../catalogo-produtos.md). Fonte de verdade em runtime -- nunca hardcode preco no codigo do workflow.",
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/produtos?ativo=eq.true&order=ordem.asc",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
       "id": "av-n5b",
       "name": "Merge contexto",
       "type": "n8n-nodes-base.merge",
@@ -140,6 +169,21 @@
         0
       ],
       "notes": "Barreira de sincronizacao: garante que Buscar historico E Buscar prompt ativo terminaram antes de montar o prompt. Sem isso, o proximo node roda 2x (duplica chamada OpenAI/envio).",
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition"
+      }
+    },
+    {
+      "id": "av-n5d",
+      "name": "Merge contexto 2",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        940,
+        80
+      ],
+      "notes": "Segunda barreira: junta o resultado do Merge contexto com Buscar produtos, mesma razao da primeira (evita disparo duplicado).",
       "parameters": {
         "mode": "combine",
         "combinationMode": "mergeByPosition"
@@ -156,7 +200,7 @@
       ],
       "notes": "Pede saida em JSON estruturado (resposta + intent) para o n8n poder ramificar sem regex na linguagem natural. Selecao fina de skills (10-skills/) fica manual/futuro.",
       "parameters": {
-        "jsCode": "const promptRows = $node[\"Buscar prompt ativo\"].json;\nconst objetivo = promptRows.find(r => r.chave === 'objetivo')?.conteudo || '';\nconst compliance = promptRows.find(r => r.chave === 'compliance')?.conteudo || '';\nconst historico = ($node[\"Buscar historico\"].json || []).reverse();\nconst extra = $node[\"Extrair mensagem e origem\"].json;\n\nconst systemPrompt = objetivo + '\\n\\n' + compliance + '\\n\\nOrigem do lead nesta conversa: ' + extra.origem + '.\\n\\nResponda SEMPRE em JSON no formato: {\"resposta\": string, \"intent\": \"qualificando\"|\"objecao\"|\"aceitou_stack\"|\"gerar_link\"|\"recusou\", \"produtos_aceitos\": string[]}';\n\nconst messages = [{ role: 'system', content: systemPrompt }];\nfor (const h of historico) {\n  if (h.mensagem_lead) messages.push({ role: 'user', content: h.mensagem_lead });\n  if (h.mensagem_agente) messages.push({ role: 'assistant', content: h.mensagem_agente });\n}\nmessages.push({ role: 'user', content: extra.texto_recebido });\n\nreturn [{ json: { model: 'gpt-4.1', response_format: { type: 'json_object' }, messages } }];"
+        "jsCode": "const promptRows = $node[\"Buscar prompt ativo\"].json;\nconst objetivo = promptRows.find(r => r.chave === 'objetivo')?.conteudo || '';\nconst compliance = promptRows.find(r => r.chave === 'compliance')?.conteudo || '';\nconst historico = ($node[\"Buscar historico\"].json || []).reverse();\nconst extra = $node[\"Extrair mensagem e origem\"].json;\nconst produtos = $node[\"Buscar produtos\"].json || [];\n\nconst catalogoTexto = produtos.map(p => '- ' + p.produto_id + ' (' + p.tipo + '): ' + p.nome + ' - R$ ' + (p.preco_centavos/100).toFixed(2)).join('\\n');\n\nconst systemPrompt = objetivo + '\\n\\n' + compliance + '\\n\\nOrigem do lead nesta conversa: ' + extra.origem + '.\\n\\nCatalogo de produtos disponiveis (use exatamente estes produto_id em produtos_aceitos, nunca invente produto ou preco fora desta lista):\\n' + catalogoTexto + '\\n\\nQuando o lead aceitar o produto principal, apresente TODOS os order_bump de uma vez (nao um a um), mencionando o desconto real de 10% por item adicional sobre o total.\\n\\nResponda SEMPRE em JSON no formato: {\"resposta\": string, \"intent\": \"qualificando\"|\"objecao\"|\"aceitou_stack\"|\"gerar_link\"|\"recusou\", \"produtos_aceitos\": string[]}';\n\nconst messages = [{ role: 'system', content: systemPrompt }];\nfor (const h of historico) {\n  if (h.mensagem_lead) messages.push({ role: 'user', content: h.mensagem_lead });\n  if (h.mensagem_agente) messages.push({ role: 'assistant', content: h.mensagem_agente });\n}\nmessages.push({ role: 'user', content: extra.texto_recebido });\n\nreturn [{ json: { model: 'gpt-4.1', response_format: { type: 'json_object' }, messages } }];"
       }
     },
     {
@@ -260,6 +304,10 @@
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
             }
           ]
         },
@@ -308,9 +356,9 @@
         2200,
         -80
       ],
-      "notes": "TODO: depende dos precos reais em ../../catalogo-produtos.md (pendente definicao com os socios). Formula de desconto (10% por item adicional sobre o total) ja implementada.",
+      "notes": "Le o catalogo real de Buscar produtos (Supabase) e aplica o desconto DE VERDADE no unitPrice antes de mandar pro BlackCat -- nao basta calcular o percentual, o total cobrado precisa refletir o desconto (compliance-e-etica.md, secao 2/3).",
       "parameters": {
-        "jsCode": "const produtos = $node[\"Extrair resposta e intent\"].json.produtos_aceitos || [];\n// TODO: substituir pelo lookup real em catalogo-produtos.md (produto_id -> nome/preco/item_blackcat)\nconst CATALOGO = {\n  // 'principal': { title: 'TODO', unitPrice: 0 },\n};\nconst items = produtos.map(p => CATALOGO[p]).filter(Boolean);\nconst descontoPct = Math.max(0, items.length - 1) * 10;\nreturn [{ json: { items, descontoPct } }];"
+        "jsCode": "const idsAceitos = $node[\"Extrair resposta e intent\"].json.produtos_aceitos || [];\nconst catalogo = $node[\"Buscar produtos\"].json || [];\n\nconst selecionados = idsAceitos.map(id => catalogo.find(p => p.produto_id === id)).filter(Boolean);\n\nconst descontoPct = Math.max(0, selecionados.length - 1) * 10;\nconst fator = 1 - (descontoPct / 100);\n\nconst items = selecionados.map(p => ({\n  title: p.nome,\n  quantity: 1,\n  unitPrice: Math.round(p.preco_centavos * fator)\n}));\n\nreturn [{ json: { items, descontoPct } }];"
       }
     },
     {
@@ -346,6 +394,42 @@
       }
     },
     {
+      "id": "av-n13b",
+      "name": "Atualizar evento com carrinho",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        80
+      ],
+      "notes": "Fecha o loop de auditoria do desconto: grava desconto_aplicado_pct e link_blackcat_id no evento inserido em 'Gravar evento conversa' (exige Prefer:return=representation la para termos o evento_id). TODO: confirmar o nome exato do campo de id/link no retorno do create-sale do BlackCat -- usei 'id'/'paymentUrl' como suposicao razoavel, nao 100% confirmado na doc.",
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/conversas?evento_id=eq.{{$node[\"Gravar evento conversa\"].json[0].evento_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { desconto_aplicado_pct: $node[\"Montar items do carrinho\"].json.descontoPct, link_blackcat_id: $json.id || null } }}",
+        "options": {}
+      }
+    },
+    {
       "id": "av-n14",
       "name": "Enviar link WhatsApp",
       "type": "n8n-nodes-base.httpRequest",
@@ -354,6 +438,7 @@
         2640,
         -80
       ],
+      "notes": "TODO: mesma ressalva do node 'Criar venda BlackCat' -- confirmar o campo exato de retorno (usei 'paymentUrl') na doc oficial do BlackCat antes de producao.",
       "parameters": {
         "method": "POST",
         "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
@@ -372,7 +457,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"Extrair mensagem e origem\"].json.wa_id, type: 'text', text: { body: 'Aqui esta o seu link: ' + $json.paymentUrl } } }}",
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"Extrair mensagem e origem\"].json.wa_id, type: 'text', text: { body: 'Aqui esta o seu link: ' + $node[\"Criar venda BlackCat\"].json.paymentUrl } } }}",
         "options": {}
       }
     },
@@ -1378,6 +1463,11 @@
             "node": "Buscar prompt ativo",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Buscar produtos",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -1405,6 +1495,28 @@
       ]
     },
     "Merge contexto": {
+      "main": [
+        [
+          {
+            "node": "Merge contexto 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar produtos": {
+      "main": [
+        [
+          {
+            "node": "Merge contexto 2",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge contexto 2": {
       "main": [
         [
           {
@@ -1500,6 +1612,17 @@
       ]
     },
     "Criar venda BlackCat": {
+      "main": [
+        [
+          {
+            "node": "Atualizar evento com carrinho",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar evento com carrinho": {
       "main": [
         [
           {

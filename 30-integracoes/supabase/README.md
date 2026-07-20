@@ -6,8 +6,9 @@ Hermes e o prompt ativo versionado. É a camada `../../20-memoria/` materializad
 ## Passo a passo (rápido)
 
 1. Crie um projeto no Supabase (região mais perto do Brasil, ex.: São Paulo).
-2. SQL Editor → cole e rode [`schema.sql`](schema.sql). Cria as 6 tabelas com
-   índices, checks e RLS ligado.
+2. SQL Editor → cole e rode [`schema.sql`](schema.sql). Cria as 7 tabelas com
+   índices, checks, RLS ligado, e já popula `produtos` com o catálogo real
+   (ver `../catalogo-produtos.md`).
 3. Em **Project Settings → API**, copie:
    - `Project URL`
    - `service_role key` (a secreta) — usada pelo n8n e pelo Hermes.
@@ -23,6 +24,7 @@ Hermes e o prompt ativo versionado. É a camada `../../20-memoria/` materializad
 | `metricas_periodo` | Snapshots de performance p/ análise | `../../20-memoria/schema-aprendizado.md` |
 | `fila_sugestoes` | Sugestões do Hermes aguardando aprovação | `../hermes/fila-aprovacao.md` |
 | `prompt_ativo` | Versão vigente do prompt/skills (com rollback) | `../hermes/configuracao.md` |
+| `produtos` | Catálogo real (nome, tipo, preço) — o agente e o carrinho leem daqui, não de valor fixo no código | `../catalogo-produtos.md` |
 
 ## Notas
 

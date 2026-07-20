@@ -4,8 +4,14 @@ Fonte única de verdade sobre o que o agente pode oferecer, por quanto, e em que
 situação. O agente só oferta o que está registrado aqui. As restrições de
 conduta estão em [`../00-nucleo/compliance-e-etica.md`](../00-nucleo/compliance-e-etica.md).
 
-status: 🟡 aguardando definição de produtos e preços com os sócios.
-Preencher as tabelas abaixo substitui os placeholders `[A DEFINIR]`.
+status: 🟢 produtos e preços principais definidos. Pivô/downsell (seção 3) e
+mapa de arquétipo (seção 4) ainda pendentes.
+
+**Fonte de verdade em runtime:** a tabela `produtos` no Supabase (ver
+`supabase/schema.sql`) — o agente e o node que monta o carrinho leem de lá,
+não de um valor fixo no código do workflow. Esta tabela abaixo é a referência
+legível/git-tracked; ao mudar um preço, atualize os dois lugares (ou rode de
+novo o `insert ... on conflict` do `schema.sql`).
 
 ---
 
@@ -13,14 +19,16 @@ Preencher as tabelas abaixo substitui os placeholders `[A DEFINIR]`.
 
 | `produto_id` | nome | tipo | preço (R$) | `item_blackcat` (title/unitPrice em centavos) |
 |---|---|---|---|---|
-| `[A DEFINIR]` | Produto principal | `principal` | `[A DEFINIR]` | `[A DEFINIR]` |
-| `[A DEFINIR]` | Order bump 1 | `order_bump` | `[A DEFINIR]` | `[A DEFINIR]` |
-| `[A DEFINIR]` | Order bump 2 | `order_bump` | `[A DEFINIR]` | `[A DEFINIR]` |
+| `oracao_sagrada` | Oração Sagrada | `principal` | 22,90 | title: "Oração Sagrada", unitPrice: 2290 |
+| `oracao_audio` | Oração em Áudio | `order_bump` | 9,90 | title: "Oração em Áudio", unitPrice: 990 |
+| `comunidade` | Comunidade | `order_bump` | 34,90 | title: "Comunidade", unitPrice: 3490 |
+| `contato_padre` | Contato Direto com o Padre | `order_bump` | 14,90 | title: "Contato Direto com o Padre", unitPrice: 1490 |
 | `[A DEFINIR]` | Alternativo / downsell | `alternativo` | `[A DEFINIR]` | `[A DEFINIR]` |
 
 Tipos possíveis: `principal` (o produto-alvo da conversa) · `order_bump`
 (complemento oferecido em stack após aceite do principal) · `alternativo`
-(oferecido no pivô por objeção/recusa, ver seção 3).
+(oferecido no pivô por objeção/recusa, ver seção 3 — ainda sem produto
+definido).
 
 ## 2. Regra de desconto no stack (bundle)
 
@@ -36,11 +44,13 @@ adicional** aceito além do principal.
 
 Regra de aplicação:
 - O desconto incide sobre o **valor total do pedido**, não item a item.
-- É sempre **real** — calculado e aplicado no momento de montar o `items[]`
-  do BlackCat (ver `blackcat/criacao-transacao.md`), nunca apenas mencionado
-  em texto sem refletir no valor cobrado.
-- Definir com os sócios: existe um teto de desconto (ex.: máx. 30-40%) para
-  não corroer a margem em pedidos muito grandes? `[A DEFINIR]`
+- É sempre **real** — o node "Montar items do carrinho" do
+  `agente-vendas.json` aplica o percentual diretamente no `unitPrice` de cada
+  item antes de mandar pro BlackCat (nunca só mencionado em texto sem
+  refletir no valor cobrado — exigência do `compliance-e-etica.md`).
+- Com os 3 order bumps disponíveis hoje, o teto natural é 30% (principal + 3).
+  Falta definir com os sócios se um teto menor faz sentido se o catálogo
+  crescer. `[A DEFINIR]`
 
 ## 3. Mapa de objeção/recusa → alternativa (pivô)
 
