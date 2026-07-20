@@ -4,11 +4,13 @@ Passo a passo para subir o Hermes Agent (NousResearch, open-source, MIT) numa
 VPS própria — o PikaPods não roda, porque só aceita apps do catálogo dele
 (sem Docker customizado), ver `../setup-plataformas.md`.
 
-**Peça-chave da arquitetura do Hermes:** ele não usa um arquivo de config YAML
-para tarefas — as tarefas são descritas em **linguagem natural** e rodam em
-**sessões isoladas**: ele só faz o que estiver escrito explicitamente no
-prompt da tarefa, não improvisa passos. Isso muda o formato deste guia em
-relação aos outros: aqui o "código" é texto.
+**Peça-chave da arquitetura do Hermes:** as *tarefas* não vivem num YAML — são
+descritas em **linguagem natural** e rodam em **sessões isoladas**: ele só faz
+o que estiver escrito explicitamente no prompt da tarefa, não improvisa
+passos. O *modelo/LLM*, por outro lado, é configurado num YAML de verdade
+(`~/.hermes/config.yaml`, controlado por `HERMES_HOME`). Este guia foi
+validado direto no código-fonte do `NousResearch/hermes-agent` (não só na
+documentação), incluindo a sintaxe exata do `hermes cron create`.
 
 ---
 
@@ -43,13 +45,41 @@ git clone https://github.com/rodrigovaroto-wq/Salles-AI-Agent- ../salles-ai-agen
 cp .env.example .env
 ```
 
-Preencha no `.env`:
-- **Provedor LLM:** OpenAI + `OPENAI_API_KEY` (decisão já registrada em
-  `configuracao.md`, item 4).
+**Provedor LLM — atenção, não é óbvio:** o `.env.example` do Hermes **não tem
+um provedor nomeado "openai"** para o modelo principal (só usa OpenAI direto
+para transcrição de voz, que não usamos aqui). Os provedores nativos são
+Fireworks, OpenRouter, Anthropic, Gemini, GLM, Kimi, Novita, Ollama Cloud,
+entre outros.
+
+Para usar a **OpenAI de verdade, mesma conta do agente de vendas** (decisão
+registrada em `configuracao.md`, item 4), o caminho confirmado no
+código-fonte (`agent/auxiliary_client.py`) é o provedor `"custom"`, que
+aceita qualquer endpoint compatível com a API da OpenAI — incluindo a própria
+OpenAI:
+
+```
+# no .env do Hermes
+OPENAI_API_KEY=<sua chave da OpenAI>
+OPENAI_BASE_URL=https://api.openai.com/v1
+```
+
+E em `~/.hermes/config.yaml` (dentro do container, criado no passo 7):
+
+```yaml
+model:
+  default: "gpt-4.1"   # ou o modelo que preferir
+  provider: "custom"
+  base_url: "https://api.openai.com/v1"
+```
+
+Isso chama a API da OpenAI diretamente — mesma chave, mesma cobrança, sem
+markup de intermediário (ex.: OpenRouter).
+
+Também no `.env`:
 - **Não** configure tokens de Telegram/Discord/WhatsApp — o Hermes não fala
   com ninguém neste projeto (ver `README.md` desta pasta, "por que essa
   fronteira existe").
-- Adicione também (usadas na tarefa da seção 7):
+- Adicione (usadas na tarefa da seção 8):
   ```
   SUPABASE_URL=https://SEUPROJETO.supabase.co
   SUPABASE_SERVICE_KEY=<service_role key>
@@ -86,25 +116,34 @@ docker exec -it hermes-agent-hermes-1 hermes setup --portal
 
 (o nome exato do container pode variar — confirme com `docker ps`)
 
+Depois do setup, confirme/edite `~/.hermes/config.yaml` dentro do container
+com o bloco `model` mostrado no passo 4 (`provider: "custom"`, `base_url`
+apontando para a OpenAI). O `hermes setup` pode sobrescrever esse bloco se
+você escolher outro provedor na tela interativa — revise o arquivo depois.
+
 ## 8. Criar a tarefa diária (o "cron" do Hermes)
 
-Sintaxe real do agendador (não é YAML — é linguagem natural com schedule):
+Sintaxe confirmada em `hermes_cli/subcommands/cron.py` (código-fonte, não só
+doc). Usamos a flag `--workdir` apontando para o repositório montado no passo
+5 — isso injeta automaticamente o `/AGENTS.md` da raiz do repositório como
+contexto persistente (papel do Hermes, fronteiras de escrita, onde ler o
+compliance) em toda execução, então a tarefa abaixo só precisa da lógica
+específica do dia, não repete as regras:
 
 ```bash
 docker exec -it hermes-agent-hermes-1 hermes cron create "0 8 * * *" \
-"Voce e o analista de performance do agente de vendas do projeto em /data/salles-ai-agent.
+"Rode o ciclo diario de analise descrito no AGENTS.md deste diretorio.
 
-1. Leia /data/salles-ai-agent/00-nucleo/compliance-e-etica.md (secao 2 -- proibicoes absolutas) e /data/salles-ai-agent/30-integracoes/hermes/fila-aprovacao.md (schema da fila) antes de comecar.
-
-2. Consulte via HTTP GET, usando os headers apikey e Authorization Bearer com o valor da env SUPABASE_SERVICE_KEY:
+1. Consulte via HTTP GET (headers apikey e Authorization Bearer com o valor da env SUPABASE_SERVICE_KEY):
    {SUPABASE_URL}/rest/v1/conversas?ocorrido_em=gte.<24h atras em ISO>
    Se o total de linhas retornadas for menor que 25, PARE aqui e nao faca mais nada.
 
-3. Se houver 25 ou mais, analise os dados: quais gatilhos mais converteram, quais objecoes mais aparecem, onde o funil perde mais gente, mensagens-pivo. Gere de 1 a 5 hipoteses de melhoria, cada uma no formato: area, arquivo_alvo, problema_observado, hipotese_impacto, mudanca_proposta (texto literal), teste_sugerido, confianca (alta/media/baixa).
+2. Se houver 25 ou mais, analise os dados: quais gatilhos mais converteram, quais objecoes mais aparecem, onde o funil perde mais gente, mensagens-pivo. Gere de 1 a 5 hipoteses de melhoria, cada uma no formato: area, arquivo_alvo, problema_observado, hipotese_impacto, mudanca_proposta (texto literal), teste_sugerido, confianca (alta/media/baixa).
 
-4. Para CADA hipotese, classifique risco_conformidade comparando a mudanca_proposta com as proibicoes da secao 2 do compliance-e-etica.md que voce leu no passo 1: se bater com qualquer uma delas, risco_conformidade=alto e preencha padrao_disparado com qual proibicao foi tocada. Caso contrario avalie medio ou baixo conforme o volume de dados que sustenta a hipotese.
+3. Para CADA hipotese, classifique risco_conformidade e padrao_disparado seguindo exatamente o procedimento da secao 'Classificacao de risco' do AGENTS.md.
 
-5. Envie CADA hipotese via HTTP POST para {SUPABASE_URL}/rest/v1/fila_sugestoes (mesmos headers do passo 2, mais Content-Type: application/json), com status=pendente. NAO escreva em nenhuma outra tabela. NAO envie mensagem para nenhum canal de chat -- essa tarefa e so leitura de conversas/aprendizado e escrita na fila." \
+4. Envie CADA hipotese via HTTP POST para {SUPABASE_URL}/rest/v1/fila_sugestoes (mesmos headers do passo 1, mais Content-Type: application/json), com status=pendente." \
+--workdir /data/salles-ai-agent \
 --deliver local --name hermes-diario
 ```
 
@@ -116,7 +155,10 @@ tabela `fila_sugestoes` diretamente. Evita notificação duplicada.
 
 Antes de deixar rodando sozinho por 1 dia inteiro, converse diretamente com o
 Hermes pedindo para executar a tarefa **uma vez agora**, e confira:
-- Ele leu o `compliance-e-etica.md` antes de gerar sugestões?
+- Ele carregou o `AGENTS.md` (pergunte diretamente: "qual é o seu papel
+  neste projeto?" — a resposta deve refletir as fronteiras do arquivo)?
+- As sugestões de risco alto batem com as proibições reais da seção 2 do
+  `compliance-e-etica.md`, com `padrao_disparado` preenchido corretamente?
 - As sugestões chegaram na tabela `fila_sugestoes` no Supabase com os campos
   certos?
 - Nenhuma chamada foi feita a WhatsApp/Telegram/etc.?
@@ -135,15 +177,19 @@ hardening, não bloqueia o funcionamento.
 
 ## Checklist desta etapa
 - [ ] VPS provisionada, Docker instalado
-- [ ] Hermes clonado, `.env` preenchido (OpenAI + Supabase)
-- [ ] Repositório do projeto montado como volume `:ro`
+- [ ] Hermes clonado, este repositório clonado ao lado
+- [ ] `.env`: `OPENAI_API_KEY` + `OPENAI_BASE_URL` + `SUPABASE_URL` +
+      `SUPABASE_SERVICE_KEY`
+- [ ] Repositório do projeto montado como volume `:ro` em `/data/salles-ai-agent`
 - [ ] `docker-compose up -d` rodando
-- [ ] `hermes setup --portal` concluído
-- [ ] Tarefa diária criada via `hermes cron create` (seção 8)
-- [ ] Teste manual (seção 9) validado antes de confiar no agendamento
+- [ ] `hermes setup --portal` concluído + `~/.hermes/config.yaml` com
+      `provider: "custom"` confirmado
+- [ ] Tarefa diária criada via `hermes cron create --workdir` (seção 8)
+- [ ] Teste manual (seção 9) validado, incluindo checar se o `AGENTS.md` foi carregado
 - [ ] (Depois) role Postgres restrito para substituir a service_role key
 
 ## Relacionado
+- [`../../AGENTS.md`](../../AGENTS.md) — contexto persistente injetado via `--workdir`
 - [`README.md`](README.md) — por que o Hermes fica fora do caminho crítico da venda
 - [`configuracao.md`](configuracao.md) — decisões operacionais (cadência, volume mínimo, LLM)
 - [`ciclo-aprendizado.md`](ciclo-aprendizado.md) — o fluxo completo dado → sugestão → fila → aprovação
