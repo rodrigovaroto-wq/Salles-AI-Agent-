@@ -99,9 +99,9 @@ create table if not exists produtos (
 
 insert into produtos (produto_id, nome, tipo, preco_centavos, ordem) values
   ('oracao_sagrada', 'Oração Sagrada',              'principal',   2290, 0),
-  ('oracao_audio',   'Oração em Áudio',              'order_bump',  990, 1),
-  ('comunidade',     'Comunidade',                   'order_bump', 3490, 2),
-  ('contato_padre',  'Contato Direto com o Padre',   'order_bump', 1490, 3)
+  ('oracao_audio',   'Oração em Áudio',              'order_bump', 1390, 1),
+  ('comunidade',     'Comunidade',                   'order_bump', 4490, 2),
+  ('contato_padre',  'Contato Direto com o Padre',   'order_bump', 1990, 3)
 on conflict (produto_id) do update set
   nome = excluded.nome, tipo = excluded.tipo,
   preco_centavos = excluded.preco_centavos, ordem = excluded.ordem;

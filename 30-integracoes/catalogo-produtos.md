@@ -20,15 +20,24 @@ novo o `insert ... on conflict` do `schema.sql`).
 | `produto_id` | nome | tipo | preço (R$) | `item_blackcat` (title/unitPrice em centavos) |
 |---|---|---|---|---|
 | `oracao_sagrada` | Oração Sagrada | `principal` | 22,90 | title: "Oração Sagrada", unitPrice: 2290 |
-| `oracao_audio` | Oração em Áudio | `order_bump` | 9,90 | title: "Oração em Áudio", unitPrice: 990 |
-| `comunidade` | Comunidade | `order_bump` | 34,90 | title: "Comunidade", unitPrice: 3490 |
-| `contato_padre` | Contato Direto com o Padre | `order_bump` | 14,90 | title: "Contato Direto com o Padre", unitPrice: 1490 |
+| `oracao_audio` | Oração em Áudio | `order_bump` | 13,90 | title: "Oração em Áudio", unitPrice: 1390 |
+| `comunidade` | Comunidade | `order_bump` | 44,90 | title: "Comunidade", unitPrice: 4490 |
+| `contato_padre` | Contato Direto com o Padre | `order_bump` | 19,90 | title: "Contato Direto com o Padre", unitPrice: 1990 |
 | `[A DEFINIR]` | Alternativo / downsell | `alternativo` | `[A DEFINIR]` | `[A DEFINIR]` |
 
 Tipos possíveis: `principal` (o produto-alvo da conversa) · `order_bump`
 (complemento oferecido em stack após aceite do principal) · `alternativo`
 (oferecido no pivô por objeção/recusa, ver seção 3 — ainda sem produto
 definido).
+
+**Nota de integridade de preço:** os valores acima são o preço real de venda
+avulsa de cada order bump — não uma âncora inflada criada só para depois ser
+"descontada" de volta a um valor menor. O desconto da seção 2 é aplicado em
+cima desses preços reais, e o valor final cobrado reflete exatamente o
+percentual anunciado. Isso não é apenas estilo — é o que mantém a operação
+dentro do art. 37 do CDC (publicidade enganosa) e da seção 2 do
+`compliance-e-etica.md`: nunca anunciar desconto sobre um preço "de" que não
+seja o preço real do produto.
 
 ## 2. Regra de desconto no stack (bundle)
 
