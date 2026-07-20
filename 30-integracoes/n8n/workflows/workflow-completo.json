@@ -1,0 +1,1853 @@
+{
+  "name": "salles-ai-agent — operacao completa (todos os gatilhos)",
+  "active": false,
+  "settings": {},
+  "nodes": [
+    {
+      "id": "av-n1",
+      "name": "WhatsApp IN",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-in",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "id": "av-n2",
+      "name": "Extrair mensagem e origem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "notes": "Fallback seguro: sem marcador [ref:lp]/[ref:tiktok] => trata como tiktok (nunca assume compra sem confirmar). Ver ../../whatsapp/README.md secao 8.",
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\nconst entry = body.entry?.[0]?.changes?.[0]?.value;\nconst msg = entry?.messages?.[0];\nconst contato = entry?.contacts?.[0];\n\nconst wa_id = msg?.from;\nconst nome = contato?.profile?.name || null;\nconst texto = msg?.text?.body || '';\n\nlet origem = 'tiktok';\nif (/\\[ref:lp\\]/i.test(texto)) origem = 'lp';\nelse if (/\\[ref:tiktok\\]/i.test(texto)) origem = 'tiktok';\n\nreturn [{ json: { wa_id, nome, texto_recebido: texto, origem } }];"
+      }
+    },
+    {
+      "id": "av-n3",
+      "name": "Upsert lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "notes": "Upsert evita branch IF de 'lead existe?': Prefer=resolution=merge-duplicates atualiza se ja existir.",
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?on_conflict=lead_id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, nome: $node[\"Extrair mensagem e origem\"].json.nome, origem_canal: $node[\"Extrair mensagem e origem\"].json.origem === 'lp' ? 'meta_ads' : 'tiktok_ads', ultima_interacao: new Date().toISOString(), status: 'ativo' } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "av-n4",
+      "name": "Buscar historico",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        -80
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/conversas?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}&order=ocorrido_em.desc&limit=10",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "av-n5",
+      "name": "Buscar prompt ativo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        80
+      ],
+      "notes": "chave=objetivo e chave=compliance devem ter sido inseridas em prompt_ativo a partir de 00-nucleo/objetivo.md e compliance-e-etica.md.",
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/prompt_ativo?chave=in.(objetivo,compliance)&ativo=eq.true",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "av-n5b",
+      "name": "Merge contexto",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        880,
+        0
+      ],
+      "notes": "Barreira de sincronizacao: garante que Buscar historico E Buscar prompt ativo terminaram antes de montar o prompt. Sem isso, o proximo node roda 2x (duplica chamada OpenAI/envio).",
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition"
+      }
+    },
+    {
+      "id": "av-n6",
+      "name": "Montar mensagens OpenAI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        0
+      ],
+      "notes": "Pede saida em JSON estruturado (resposta + intent) para o n8n poder ramificar sem regex na linguagem natural. Selecao fina de skills (10-skills/) fica manual/futuro.",
+      "parameters": {
+        "jsCode": "const promptRows = $node[\"Buscar prompt ativo\"].json;\nconst objetivo = promptRows.find(r => r.chave === 'objetivo')?.conteudo || '';\nconst compliance = promptRows.find(r => r.chave === 'compliance')?.conteudo || '';\nconst historico = ($node[\"Buscar historico\"].json || []).reverse();\nconst extra = $node[\"Extrair mensagem e origem\"].json;\n\nconst systemPrompt = objetivo + '\\n\\n' + compliance + '\\n\\nOrigem do lead nesta conversa: ' + extra.origem + '.\\n\\nResponda SEMPRE em JSON no formato: {\"resposta\": string, \"intent\": \"qualificando\"|\"objecao\"|\"aceitou_stack\"|\"gerar_link\"|\"recusou\", \"produtos_aceitos\": string[]}';\n\nconst messages = [{ role: 'system', content: systemPrompt }];\nfor (const h of historico) {\n  if (h.mensagem_lead) messages.push({ role: 'user', content: h.mensagem_lead });\n  if (h.mensagem_agente) messages.push({ role: 'assistant', content: h.mensagem_agente });\n}\nmessages.push({ role: 'user', content: extra.texto_recebido });\n\nreturn [{ json: { model: 'gpt-4.1', response_format: { type: 'json_object' }, messages } }];"
+      }
+    },
+    {
+      "id": "av-n7",
+      "name": "Chamar OpenAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.OPENAI_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "av-n8",
+      "name": "Extrair resposta e intent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const content = $input.first().json.choices[0].message.content;\nconst parsed = JSON.parse(content);\nreturn [{ json: parsed }];"
+      }
+    },
+    {
+      "id": "av-n9",
+      "name": "Enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.WHATSAPP_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"Extrair mensagem e origem\"].json.wa_id, type: 'text', text: { body: $json.resposta } } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "av-n10",
+      "name": "Gravar evento conversa",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/conversas",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, mensagem_agente: $node[\"Extrair resposta e intent\"].json.resposta, mensagem_lead: $node[\"Extrair mensagem e origem\"].json.texto_recebido, produtos_aceitos: $node[\"Extrair resposta e intent\"].json.produtos_aceitos || [] } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "av-n11",
+      "name": "Intent = gerar_link?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$node[\"Extrair resposta e intent\"].json.intent}}",
+              "rightValue": "gerar_link",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "av-n12",
+      "name": "Montar items do carrinho",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        -80
+      ],
+      "notes": "TODO: depende dos precos reais em ../../catalogo-produtos.md (pendente definicao com os socios). Formula de desconto (10% por item adicional sobre o total) ja implementada.",
+      "parameters": {
+        "jsCode": "const produtos = $node[\"Extrair resposta e intent\"].json.produtos_aceitos || [];\n// TODO: substituir pelo lookup real em catalogo-produtos.md (produto_id -> nome/preco/item_blackcat)\nconst CATALOGO = {\n  // 'principal': { title: 'TODO', unitPrice: 0 },\n};\nconst items = produtos.map(p => CATALOGO[p]).filter(Boolean);\nconst descontoPct = Math.max(0, items.length - 1) * 10;\nreturn [{ json: { items, descontoPct } }];"
+      }
+    },
+    {
+      "id": "av-n13",
+      "name": "Criar venda BlackCat",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        -80
+      ],
+      "notes": "Confirmar header de autenticacao exato na doc BlackCat (docs.blackcatoficial.com) antes de usar em producao.",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.blackcathub.com/api/sales/create-sale",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.BLACKCAT_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { items: $json.items, externalRef: $node[\"Extrair mensagem e origem\"].json.wa_id, postbackUrl: $env.N8N_BASE_URL + '/webhook/blackcat', metadata: { origem: $node[\"Extrair mensagem e origem\"].json.origem } } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "av-n14",
+      "name": "Enviar link WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        -80
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.WHATSAPP_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"Extrair mensagem e origem\"].json.wa_id, type: 'text', text: { body: 'Aqui esta o seu link: ' + $json.paymentUrl } } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "av-n15",
+      "name": "Fim (sem link ainda)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2200,
+        80
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "pb-n1",
+      "name": "BlackCat IN",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        700
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "blackcat",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "id": "pb-n2",
+      "name": "event = paid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        220,
+        540
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.body.event}}",
+              "rightValue": "transaction.paid",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "pb-n2b",
+      "name": "event = created?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        220,
+        700
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.body.event}}",
+              "rightValue": "transaction.created",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "pb-n2c",
+      "name": "event = failed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        220,
+        860
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.body.event}}",
+              "rightValue": "transaction.failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "pb-n2d",
+      "name": "Evento desconhecido",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        440,
+        1020
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "pb-n3",
+      "name": "Marcar cliente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        540
+      ],
+      "notes": "transaction.paid: marca status=cliente e grava o(s) produto(s) comprados.",
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { status: 'cliente', etapa_funil: 'comprou_principal', produtos_comprados: $json.body.items } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "pb-n4",
+      "name": "Confirmar no WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        540
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.WHATSAPP_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"BlackCat IN\"].json.body.externalRef, type: 'text', text: { body: 'Pagamento confirmado! Em instantes voce recebe os detalhes de acesso. 🙏' } } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "pb-n5",
+      "name": "Gravar evento (venda)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        540
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/conversas",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { lead_id: $node[\"BlackCat IN\"].json.body.externalRef, etapa_processo: 'fechamento', desfecho: 'venda', link_blackcat_id: $node[\"BlackCat IN\"].json.body.id || null } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "pb-n6",
+      "name": "Marcar abandonado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        700
+      ],
+      "notes": "transaction.created sem paid ainda: arma o estado para o timer de recuperacao de 2h.",
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { status: 'abandonou' } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "pb-n7",
+      "name": "Esperar 2h",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        700
+      ],
+      "notes": "n8n persiste a execucao e retoma sozinho apos 2h, mesmo que o pod reinicie.",
+      "parameters": {
+        "unit": "hours",
+        "amount": 2
+      }
+    },
+    {
+      "id": "pb-n8",
+      "name": "Ainda abandonado?",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        700
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?lead_id=eq.{{$node[\"BlackCat IN\"].json.body.externalRef}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "pb-n9",
+      "name": "Status = abandonou?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        700
+      ],
+      "notes": "So recupera se ainda nao pagou nesse meio-tempo (transaction.paid teria mudado o status para cliente).",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json[0].status}}",
+              "rightValue": "abandonou",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "pb-n10",
+      "name": "Recuperacao texto livre",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        620
+      ],
+      "notes": "Dentro da janela de 24h (o lead iniciou a conversa) -> texto livre, sem template.",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.WHATSAPP_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"BlackCat IN\"].json.body.externalRef, type: 'text', text: { body: 'Vi que voce nao concluiu ainda. Ficou alguma duvida que eu possa te ajudar a resolver?' } } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "pb-n11",
+      "name": "Sem acao (ja resolveu)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        780
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "pb-n12",
+      "name": "Marcar falhou",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        860
+      ],
+      "notes": "transaction.failed: expirou ou falhou. Volta para follow-up padrao (Gatilho 4).",
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { status: 'ativo' } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f24-n1",
+      "name": "A cada hora",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        1400
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "f24-n2",
+      "name": "Buscar leads sem compra >24h",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        1400
+      ],
+      "notes": "HTTP Request mantem o array inteiro como 1 item por padrao (nao explode sozinho) -- por isso o node seguinte separa explicitamente.",
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?status=in.(ativo,abandonou)&ultima_interacao=lt.{{new Date(Date.now()-24*60*60*1000).toISOString()}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f24-n2b",
+      "name": "Separar leads (1 item cada)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        330,
+        1400
+      ],
+      "notes": "Transforma o array unico em N itens n8n, um por lead, para os proximos nodes rodarem por item automaticamente.",
+      "parameters": {
+        "jsCode": "const leads = $input.first().json || [];\nreturn leads.map(l => ({ json: l }));"
+      }
+    },
+    {
+      "id": "f24-n3",
+      "name": "Enviar template",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        1400
+      ],
+      "notes": "WHATSAPP_TEMPLATE_NAME = nome do template aprovado pela Meta (ver ../../whatsapp/README.md secao 9). Fora da janela 24h so template serve.",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.WHATSAPP_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $json.lead_id, type: 'template', template: { name: $env.WHATSAPP_TEMPLATE_NAME, language: { code: 'pt_BR' }, components: [{ type: 'body', parameters: [{ type: 'text', text: $json.nome || '' }] }] } } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f24-n4",
+      "name": "Gravar evento (follow-up)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        1400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/conversas",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { lead_id: $json.lead_id, etapa_processo: 'recuperacao', desfecho: 'follow_up_agendado' } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "fn-n1",
+      "name": "Digest diario",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        1700
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "fn-n2",
+      "name": "Buscar pendentes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        1700
+      ],
+      "notes": "order alfabetico de risco_conformidade coloca 'alto' antes de 'baixo' e 'medio' naturalmente (a < b < m).",
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/fila_sugestoes?status=eq.pendente&order=risco_conformidade.asc,criado_em.desc",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "fn-n3",
+      "name": "Tem pendentes?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        1700
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.length}}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "fn-n4",
+      "name": "Montar digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1620
+      ],
+      "notes": "Link de decisao aponta para o workflow fila-decidir.json. N8N_BASE_URL = URL publica do pod PikaPods.",
+      "parameters": {
+        "jsCode": "const itens = $input.first().json;\nconst base = $env.N8N_BASE_URL + '/webhook/fila-decidir';\nlet texto = 'Sugestoes do Hermes pendentes (' + itens.length + '):\\n\\n';\nfor (const s of itens) {\n  texto += '[' + s.risco_conformidade.toUpperCase() + '] ' + s.area + '\\n';\n  texto += s.problema_observado + '\\n';\n  texto += 'Aprovar: ' + base + '?id=' + s.sugestao_id + '&decisao=aprovada\\n';\n  texto += 'Rejeitar: ' + base + '?id=' + s.sugestao_id + '&decisao=rejeitada\\n\\n';\n}\nreturn [{ json: { texto } }];"
+      }
+    },
+    {
+      "id": "fn-n5",
+      "name": "Enviar digest WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        1620
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.WHATSAPP_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $env.RODRIGO_WA_NUMBER, type: 'text', text: { body: $json.texto } } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "fn-n6",
+      "name": "Nada pendente",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        660,
+        1780
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "fd-n1",
+      "name": "Clique aprovar/rejeitar",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        2000
+      ],
+      "notes": "Recebe o clique nos links do digest (fila-notificar.json): ?id=<sugestao_id>&decisao=aprovada|rejeitada",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "fila-decidir",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "id": "fd-n2",
+      "name": "Extrair id e decisao",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        2000
+      ],
+      "parameters": {
+        "jsCode": "const q = $input.first().json.query;\nreturn [{ json: { sugestao_id: q.id, decisao: q.decisao } }];"
+      }
+    },
+    {
+      "id": "fd-n3",
+      "name": "Marcar decisao na fila",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        2000
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/fila_sugestoes?sugestao_id=eq.{{$json.sugestao_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { status: $json.decisao, decidido_por: 'rodrigo', decidido_em: new Date().toISOString() } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "fd-n4",
+      "name": "Decisao = aprovada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        2000
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$node[\"Extrair id e decisao\"].json.decisao}}",
+              "rightValue": "aprovada",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "fd-n5",
+      "name": "Buscar sugestao",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        1920
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/fila_sugestoes?sugestao_id=eq.{{$node[\"Extrair id e decisao\"].json.sugestao_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "fd-n6",
+      "name": "Derivar chave do prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        1920
+      ],
+      "notes": "TODO: heuristica simples por nome de arquivo. Ajustar se o mapeamento arquivo->chave crescer (ex.: por skill individual).",
+      "parameters": {
+        "jsCode": "const s = $input.first().json[0];\nlet chave = 'skill:' + (s.arquivo_alvo || 'desconhecido');\nif (/objetivo\\.md$/.test(s.arquivo_alvo)) chave = 'objetivo';\nelse if (/compliance-e-etica\\.md$/.test(s.arquivo_alvo)) chave = 'compliance';\nreturn [{ json: { chave, conteudo: s.mudanca_proposta, sugestao_id: s.sugestao_id } }];"
+      }
+    },
+    {
+      "id": "fd-n7",
+      "name": "Buscar versao atual",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        1920
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/prompt_ativo?chave=eq.{{$node[\"Derivar chave do prompt\"].json.chave}}&ativo=eq.true",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "fd-n8",
+      "name": "Desativar versao antiga",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        1920
+      ],
+      "notes": "Nao apaga: so marca ativo=false. E o que permite reverter com 1 toque (reativar a linha antiga manualmente se preciso).",
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/prompt_ativo?chave=eq.{{$node[\"Derivar chave do prompt\"].json.chave}}&ativo=eq.true",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { ativo: false } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "fd-n9",
+      "name": "Inserir nova versao ativa",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        1920
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/prompt_ativo",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { chave: $node[\"Derivar chave do prompt\"].json.chave, versao: (($node[\"Buscar versao atual\"].json[0]?.versao) || 0) + 1, conteudo: $node[\"Derivar chave do prompt\"].json.conteudo, ativo: true, origem_sugestao_id: $node[\"Derivar chave do prompt\"].json.sugestao_id } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "fd-n10",
+      "name": "Marcar aplicado_em",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        1920
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/fila_sugestoes?sugestao_id=eq.{{$node[\"Extrair id e decisao\"].json.sugestao_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { aplicado_em: new Date().toISOString() } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "fd-n11",
+      "name": "Rejeitada (sem aplicacao)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        880,
+        2080
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "WhatsApp IN": {
+      "main": [
+        [
+          {
+            "node": "Extrair mensagem e origem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair mensagem e origem": {
+      "main": [
+        [
+          {
+            "node": "Upsert lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert lead": {
+      "main": [
+        [
+          {
+            "node": "Buscar historico",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Buscar prompt ativo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar historico": {
+      "main": [
+        [
+          {
+            "node": "Merge contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar prompt ativo": {
+      "main": [
+        [
+          {
+            "node": "Merge contexto",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge contexto": {
+      "main": [
+        [
+          {
+            "node": "Montar mensagens OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar mensagens OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Chamar OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chamar OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Extrair resposta e intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair resposta e intent": {
+      "main": [
+        [
+          {
+            "node": "Enviar WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Gravar evento conversa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gravar evento conversa": {
+      "main": [
+        [
+          {
+            "node": "Intent = gerar_link?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intent = gerar_link?": {
+      "main": [
+        [
+          {
+            "node": "Montar items do carrinho",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fim (sem link ainda)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar items do carrinho": {
+      "main": [
+        [
+          {
+            "node": "Criar venda BlackCat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar venda BlackCat": {
+      "main": [
+        [
+          {
+            "node": "Enviar link WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BlackCat IN": {
+      "main": [
+        [
+          {
+            "node": "event = paid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "event = paid?": {
+      "main": [
+        [
+          {
+            "node": "Marcar cliente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "event = created?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "event = created?": {
+      "main": [
+        [
+          {
+            "node": "Marcar abandonado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "event = failed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "event = failed?": {
+      "main": [
+        [
+          {
+            "node": "Marcar falhou",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Evento desconhecido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar cliente": {
+      "main": [
+        [
+          {
+            "node": "Confirmar no WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmar no WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Gravar evento (venda)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar abandonado": {
+      "main": [
+        [
+          {
+            "node": "Esperar 2h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperar 2h": {
+      "main": [
+        [
+          {
+            "node": "Ainda abandonado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ainda abandonado?": {
+      "main": [
+        [
+          {
+            "node": "Status = abandonou?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status = abandonou?": {
+      "main": [
+        [
+          {
+            "node": "Recuperacao texto livre",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sem acao (ja resolveu)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "A cada hora": {
+      "main": [
+        [
+          {
+            "node": "Buscar leads sem compra >24h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar leads sem compra >24h": {
+      "main": [
+        [
+          {
+            "node": "Separar leads (1 item cada)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separar leads (1 item cada)": {
+      "main": [
+        [
+          {
+            "node": "Enviar template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar template": {
+      "main": [
+        [
+          {
+            "node": "Gravar evento (follow-up)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Digest diario": {
+      "main": [
+        [
+          {
+            "node": "Buscar pendentes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar pendentes": {
+      "main": [
+        [
+          {
+            "node": "Tem pendentes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem pendentes?": {
+      "main": [
+        [
+          {
+            "node": "Montar digest",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nada pendente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar digest": {
+      "main": [
+        [
+          {
+            "node": "Enviar digest WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clique aprovar/rejeitar": {
+      "main": [
+        [
+          {
+            "node": "Extrair id e decisao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair id e decisao": {
+      "main": [
+        [
+          {
+            "node": "Marcar decisao na fila",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar decisao na fila": {
+      "main": [
+        [
+          {
+            "node": "Decisao = aprovada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decisao = aprovada?": {
+      "main": [
+        [
+          {
+            "node": "Buscar sugestao",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rejeitada (sem aplicacao)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar sugestao": {
+      "main": [
+        [
+          {
+            "node": "Derivar chave do prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Derivar chave do prompt": {
+      "main": [
+        [
+          {
+            "node": "Buscar versao atual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar versao atual": {
+      "main": [
+        [
+          {
+            "node": "Desativar versao antiga",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Desativar versao antiga": {
+      "main": [
+        [
+          {
+            "node": "Inserir nova versao ativa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inserir nova versao ativa": {
+      "main": [
+        [
+          {
+            "node": "Marcar aplicado_em",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
