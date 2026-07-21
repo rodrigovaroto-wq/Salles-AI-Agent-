@@ -35,7 +35,7 @@
       "notes": "HTTP Request mantem o array inteiro como 1 item por padrao (nao explode sozinho) -- por isso o node seguinte separa explicitamente.",
       "parameters": {
         "method": "GET",
-        "url": "=<<SUPABASE_URL>>/rest/v1/leads?status=in.(ativo,abandonou)&ultima_interacao=lt.{{new Date(Date.now()-24*60*60*1000).toISOString()}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?status=in.(ativo,abandonou)&ultima_interacao=lt.{{new Date(Date.now()-24*60*60*1000).toISOString()}}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -108,7 +108,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "=<<SUPABASE_URL>>/rest/v1/conversas",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/conversas",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

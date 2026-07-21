@@ -61,28 +61,28 @@ Depois de criar as 4 credenciais, abra cada node que usa HTTP Request neste
 workflow e confirme no campo **Authentication** se a credencial certa está
 selecionada (o import geralmente já reconhece pelo nome, mas vale conferir).
 
-### Config não-secreta → placeholders literais no texto
+### Config não-secreta → valores literais no texto
 
 Valores que não são segredo (URL do projeto, ID de telefone, nome de
-template) também não têm onde morar como env var no PikaPods. Por isso viram
-**placeholders visíveis** nos arquivos — não é sintaxe de expressão do n8n,
-então fica óbvio que precisa ser substituído por texto literal antes de
-ativar:
+template) também não têm onde morar como env var no PikaPods. Por isso
+entram como **texto literal** nos arquivos — não é sintaxe de expressão do
+n8n, é o valor puro mesmo:
 
-| Placeholder | Onde conseguir | Usado em |
+| Valor | Onde consta | Usado em |
 |---|---|---|
-| `<<SUPABASE_URL>>` | Project Settings → API → Project URL | todos os nodes que chamam Supabase |
-| `<<N8N_BASE_URL>>` | URL pública do seu pod (ex. `https://seupod.pikapods.com`) | `agente-vendas` (postbackUrl do BlackCat), `fila-notificar` (link de decisão) |
+| `https://rmvmqmcfcjmcjtonewgi.supabase.co` (URL do Supabase) | preenchido | todos os nodes que chamam Supabase |
+| `https://salles-ai-agent.pikapod.net` (URL do pod n8n) | preenchido | `agente-vendas` (postbackUrl do BlackCat), `fila-notificar` (link de decisão) |
 | `<<WHATSAPP_PHONE_NUMBER_ID>>` | `../../whatsapp/README.md` — só existe depois da verificação Meta | `agente-vendas`, `pagamento-blackcat`, `followup-24h`, `fila-notificar` |
 | `<<WHATSAPP_TEMPLATE_NAME>>` | Nome do template aprovado pela Meta | `followup-24h` |
 | `<<RODRIGO_WA_NUMBER>>` | Seu número, para receber o digest do Hermes | `fila-notificar` |
 
-**Como substituir:** me passe o valor (os 2 primeiros já existem agora — URL
-do Supabase e URL do pod — os outros 3 dependem do WhatsApp/BlackCat, que
-estão pausados) e eu troco em todos os arquivos de uma vez com um script,
-mantendo a validação de integridade. Não é seguro colar a `service_role key`
-ou qualquer chave aqui — URLs e IDs de telefone não são segredo, isso pode
-vir no chat sem problema.
+**Os 3 placeholders que restam** (`<<WHATSAPP_PHONE_NUMBER_ID>>`,
+`<<WHATSAPP_TEMPLATE_NAME>>`, `<<RODRIGO_WA_NUMBER>>`) dependem do
+WhatsApp/BlackCat, que estão pausados. Quando tiver os valores, me passe
+aqui (não é segredo — URLs, IDs de telefone e nome de template podem vir no
+chat sem problema; o que **não** deve vir aqui é a `service_role key` ou
+qualquer chave/token) e eu troco em todos os arquivos de uma vez, mantendo a
+validação de integridade.
 
 ## Os 5 gatilhos (arquivos individuais == ramos do `workflow-completo.json`)
 

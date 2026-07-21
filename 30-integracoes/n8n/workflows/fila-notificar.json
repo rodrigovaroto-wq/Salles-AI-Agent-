@@ -35,7 +35,7 @@
       "notes": "order alfabetico de risco_conformidade coloca 'alto' antes de 'baixo' e 'medio' naturalmente (a < b < m).",
       "parameters": {
         "method": "GET",
-        "url": "=<<SUPABASE_URL>>/rest/v1/fila_sugestoes?status=eq.pendente&order=risco_conformidade.asc,criado_em.desc",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?status=eq.pendente&order=risco_conformidade.asc,criado_em.desc",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -88,7 +88,7 @@
       ],
       "notes": "Link de decisao aponta para o workflow fila-decidir.json. N8N_BASE_URL = URL publica do pod PikaPods.",
       "parameters": {
-        "jsCode": "const itens = $input.first().json;\nconst base = '<<N8N_BASE_URL>>' + '/webhook/fila-decidir';\nlet texto = 'Sugestoes do Hermes pendentes (' + itens.length + '):\\n\\n';\nfor (const s of itens) {\n  texto += '[' + s.risco_conformidade.toUpperCase() + '] ' + s.area + '\\n';\n  texto += s.problema_observado + '\\n';\n  texto += 'Aprovar: ' + base + '?id=' + s.sugestao_id + '&decisao=aprovada\\n';\n  texto += 'Rejeitar: ' + base + '?id=' + s.sugestao_id + '&decisao=rejeitada\\n\\n';\n}\nreturn [{ json: { texto } }];"
+        "jsCode": "const itens = $input.first().json;\nconst base = 'https://salles-ai-agent.pikapod.net' + '/webhook/fila-decidir';\nlet texto = 'Sugestoes do Hermes pendentes (' + itens.length + '):\\n\\n';\nfor (const s of itens) {\n  texto += '[' + s.risco_conformidade.toUpperCase() + '] ' + s.area + '\\n';\n  texto += s.problema_observado + '\\n';\n  texto += 'Aprovar: ' + base + '?id=' + s.sugestao_id + '&decisao=aprovada\\n';\n  texto += 'Rejeitar: ' + base + '?id=' + s.sugestao_id + '&decisao=rejeitada\\n\\n';\n}\nreturn [{ json: { texto } }];"
       }
     },
     {

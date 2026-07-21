@@ -132,7 +132,7 @@
       "notes": "transaction.paid: marca status=cliente e grava o(s) produto(s) comprados.",
       "parameters": {
         "method": "PATCH",
-        "url": "=<<SUPABASE_URL>>/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -202,7 +202,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "=<<SUPABASE_URL>>/rest/v1/conversas",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/conversas",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -238,7 +238,7 @@
       "notes": "transaction.created sem paid ainda: arma o estado para o timer de recuperacao de 2h.",
       "parameters": {
         "method": "PATCH",
-        "url": "=<<SUPABASE_URL>>/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -288,7 +288,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "=<<SUPABASE_URL>>/rest/v1/leads?lead_id=eq.{{$node[\"BlackCat IN\"].json.body.externalRef}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"BlackCat IN\"].json.body.externalRef}}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -390,7 +390,7 @@
       "notes": "transaction.failed: expirou ou falhou. Volta para follow-up padrao (Gatilho 4).",
       "parameters": {
         "method": "PATCH",
-        "url": "=<<SUPABASE_URL>>/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

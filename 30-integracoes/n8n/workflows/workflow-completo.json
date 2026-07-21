@@ -45,7 +45,7 @@
       "notes": "Upsert evita branch IF de 'lead existe?': Prefer=resolution=merge-duplicates atualiza se ja existir.",
       "parameters": {
         "method": "POST",
-        "url": "=<<SUPABASE_URL>>/rest/v1/leads?on_conflict=lead_id",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?on_conflict=lead_id",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -84,7 +84,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "=<<SUPABASE_URL>>/rest/v1/conversas?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}&order=ocorrido_em.desc&limit=10",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/conversas?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}&order=ocorrido_em.desc&limit=10",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -108,7 +108,7 @@
       "notes": "chave=objetivo e chave=compliance devem ter sido inseridas em prompt_ativo a partir de 00-nucleo/objetivo.md e compliance-e-etica.md.",
       "parameters": {
         "method": "GET",
-        "url": "=<<SUPABASE_URL>>/rest/v1/prompt_ativo?chave=in.(objetivo,compliance)&ativo=eq.true",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/prompt_ativo?chave=in.(objetivo,compliance)&ativo=eq.true",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -132,7 +132,7 @@
       "notes": "Catalogo real (ver ../../catalogo-produtos.md). Fonte de verdade em runtime -- nunca hardcode preco no codigo do workflow.",
       "parameters": {
         "method": "GET",
-        "url": "=<<SUPABASE_URL>>/rest/v1/produtos?ativo=eq.true&order=ordem.asc",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/produtos?ativo=eq.true&order=ordem.asc",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -282,7 +282,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "=<<SUPABASE_URL>>/rest/v1/conversas",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/conversas",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -378,7 +378,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { items: $json.items, externalRef: $node[\"Extrair mensagem e origem\"].json.wa_id, postbackUrl: '<<N8N_BASE_URL>>' + '/webhook/blackcat', metadata: { origem: $node[\"Extrair mensagem e origem\"].json.origem } } }}",
+        "jsonBody": "={{ { items: $json.items, externalRef: $node[\"Extrair mensagem e origem\"].json.wa_id, postbackUrl: 'https://salles-ai-agent.pikapod.net' + '/webhook/blackcat', metadata: { origem: $node[\"Extrair mensagem e origem\"].json.origem } } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth"
@@ -402,7 +402,7 @@
       "notes": "Fecha o loop de auditoria do desconto: grava desconto_aplicado_pct e link_blackcat_id no evento inserido em 'Gravar evento conversa' (exige Prefer:return=representation la para termos o evento_id). TODO: confirmar o nome exato do campo de id/link no retorno do create-sale do BlackCat -- usei 'id'/'paymentUrl' como suposicao razoavel, nao 100% confirmado na doc.",
       "parameters": {
         "method": "PATCH",
-        "url": "=<<SUPABASE_URL>>/rest/v1/conversas?evento_id=eq.{{$node[\"Gravar evento conversa\"].json[0].evento_id}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/conversas?evento_id=eq.{{$node[\"Gravar evento conversa\"].json[0].evento_id}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -515,7 +515,7 @@
       ],
       "parameters": {
         "method": "PATCH",
-        "url": "=<<SUPABASE_URL>>/rest/v1/leads?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -679,7 +679,7 @@
       "notes": "transaction.paid: marca status=cliente e grava o(s) produto(s) comprados.",
       "parameters": {
         "method": "PATCH",
-        "url": "=<<SUPABASE_URL>>/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -749,7 +749,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "=<<SUPABASE_URL>>/rest/v1/conversas",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/conversas",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -785,7 +785,7 @@
       "notes": "transaction.created sem paid ainda: arma o estado para o timer de recuperacao de 2h.",
       "parameters": {
         "method": "PATCH",
-        "url": "=<<SUPABASE_URL>>/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -835,7 +835,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "=<<SUPABASE_URL>>/rest/v1/leads?lead_id=eq.{{$node[\"BlackCat IN\"].json.body.externalRef}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"BlackCat IN\"].json.body.externalRef}}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -937,7 +937,7 @@
       "notes": "transaction.failed: expirou ou falhou. Volta para follow-up padrao (Gatilho 4).",
       "parameters": {
         "method": "PATCH",
-        "url": "=<<SUPABASE_URL>>/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -993,7 +993,7 @@
       "notes": "HTTP Request mantem o array inteiro como 1 item por padrao (nao explode sozinho) -- por isso o node seguinte separa explicitamente.",
       "parameters": {
         "method": "GET",
-        "url": "=<<SUPABASE_URL>>/rest/v1/leads?status=in.(ativo,abandonou)&ultima_interacao=lt.{{new Date(Date.now()-24*60*60*1000).toISOString()}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?status=in.(ativo,abandonou)&ultima_interacao=lt.{{new Date(Date.now()-24*60*60*1000).toISOString()}}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -1066,7 +1066,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "=<<SUPABASE_URL>>/rest/v1/conversas",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/conversas",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -1122,7 +1122,7 @@
       "notes": "order alfabetico de risco_conformidade coloca 'alto' antes de 'baixo' e 'medio' naturalmente (a < b < m).",
       "parameters": {
         "method": "GET",
-        "url": "=<<SUPABASE_URL>>/rest/v1/fila_sugestoes?status=eq.pendente&order=risco_conformidade.asc,criado_em.desc",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?status=eq.pendente&order=risco_conformidade.asc,criado_em.desc",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -1175,7 +1175,7 @@
       ],
       "notes": "Link de decisao aponta para o workflow fila-decidir.json. N8N_BASE_URL = URL publica do pod PikaPods.",
       "parameters": {
-        "jsCode": "const itens = $input.first().json;\nconst base = '<<N8N_BASE_URL>>' + '/webhook/fila-decidir';\nlet texto = 'Sugestoes do Hermes pendentes (' + itens.length + '):\\n\\n';\nfor (const s of itens) {\n  texto += '[' + s.risco_conformidade.toUpperCase() + '] ' + s.area + '\\n';\n  texto += s.problema_observado + '\\n';\n  texto += 'Aprovar: ' + base + '?id=' + s.sugestao_id + '&decisao=aprovada\\n';\n  texto += 'Rejeitar: ' + base + '?id=' + s.sugestao_id + '&decisao=rejeitada\\n\\n';\n}\nreturn [{ json: { texto } }];"
+        "jsCode": "const itens = $input.first().json;\nconst base = 'https://salles-ai-agent.pikapod.net' + '/webhook/fila-decidir';\nlet texto = 'Sugestoes do Hermes pendentes (' + itens.length + '):\\n\\n';\nfor (const s of itens) {\n  texto += '[' + s.risco_conformidade.toUpperCase() + '] ' + s.area + '\\n';\n  texto += s.problema_observado + '\\n';\n  texto += 'Aprovar: ' + base + '?id=' + s.sugestao_id + '&decisao=aprovada\\n';\n  texto += 'Rejeitar: ' + base + '?id=' + s.sugestao_id + '&decisao=rejeitada\\n\\n';\n}\nreturn [{ json: { texto } }];"
       }
     },
     {
@@ -1265,7 +1265,7 @@
       ],
       "parameters": {
         "method": "PATCH",
-        "url": "=<<SUPABASE_URL>>/rest/v1/fila_sugestoes?sugestao_id=eq.{{$json.sugestao_id}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?sugestao_id=eq.{{$json.sugestao_id}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -1330,7 +1330,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "=<<SUPABASE_URL>>/rest/v1/fila_sugestoes?sugestao_id=eq.{{$node[\"Extrair id e decisao\"].json.sugestao_id}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?sugestao_id=eq.{{$node[\"Extrair id e decisao\"].json.sugestao_id}}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -1367,7 +1367,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "=<<SUPABASE_URL>>/rest/v1/prompt_ativo?chave=eq.{{$node[\"Derivar chave do prompt\"].json.chave}}&ativo=eq.true",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/prompt_ativo?chave=eq.{{$node[\"Derivar chave do prompt\"].json.chave}}&ativo=eq.true",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -1391,7 +1391,7 @@
       "notes": "Nao apaga: so marca ativo=false. E o que permite reverter com 1 toque (reativar a linha antiga manualmente se preciso).",
       "parameters": {
         "method": "PATCH",
-        "url": "=<<SUPABASE_URL>>/rest/v1/prompt_ativo?chave=eq.{{$node[\"Derivar chave do prompt\"].json.chave}}&ativo=eq.true",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/prompt_ativo?chave=eq.{{$node[\"Derivar chave do prompt\"].json.chave}}&ativo=eq.true",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -1426,7 +1426,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "=<<SUPABASE_URL>>/rest/v1/prompt_ativo",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/prompt_ativo",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -1461,7 +1461,7 @@
       ],
       "parameters": {
         "method": "PATCH",
-        "url": "=<<SUPABASE_URL>>/rest/v1/fila_sugestoes?sugestao_id=eq.{{$node[\"Extrair id e decisao\"].json.sugestao_id}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?sugestao_id=eq.{{$node[\"Extrair id e decisao\"].json.sugestao_id}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

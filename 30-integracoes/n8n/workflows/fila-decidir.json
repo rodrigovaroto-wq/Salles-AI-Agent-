@@ -44,7 +44,7 @@
       ],
       "parameters": {
         "method": "PATCH",
-        "url": "=<<SUPABASE_URL>>/rest/v1/fila_sugestoes?sugestao_id=eq.{{$json.sugestao_id}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?sugestao_id=eq.{{$json.sugestao_id}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -109,7 +109,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "=<<SUPABASE_URL>>/rest/v1/fila_sugestoes?sugestao_id=eq.{{$node[\"Extrair id e decisao\"].json.sugestao_id}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?sugestao_id=eq.{{$node[\"Extrair id e decisao\"].json.sugestao_id}}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -146,7 +146,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "=<<SUPABASE_URL>>/rest/v1/prompt_ativo?chave=eq.{{$node[\"Derivar chave do prompt\"].json.chave}}&ativo=eq.true",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/prompt_ativo?chave=eq.{{$node[\"Derivar chave do prompt\"].json.chave}}&ativo=eq.true",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -170,7 +170,7 @@
       "notes": "Nao apaga: so marca ativo=false. E o que permite reverter com 1 toque (reativar a linha antiga manualmente se preciso).",
       "parameters": {
         "method": "PATCH",
-        "url": "=<<SUPABASE_URL>>/rest/v1/prompt_ativo?chave=eq.{{$node[\"Derivar chave do prompt\"].json.chave}}&ativo=eq.true",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/prompt_ativo?chave=eq.{{$node[\"Derivar chave do prompt\"].json.chave}}&ativo=eq.true",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -205,7 +205,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "=<<SUPABASE_URL>>/rest/v1/prompt_ativo",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/prompt_ativo",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -240,7 +240,7 @@
       ],
       "parameters": {
         "method": "PATCH",
-        "url": "=<<SUPABASE_URL>>/rest/v1/fila_sugestoes?sugestao_id=eq.{{$node[\"Extrair id e decisao\"].json.sugestao_id}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?sugestao_id=eq.{{$node[\"Extrair id e decisao\"].json.sugestao_id}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
