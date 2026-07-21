@@ -3,22 +3,21 @@
 Nota de transição de sessão (contexto ficou muito longo). Objetivo: a próxima
 sessão retomar sem precisar reconstruir o histórico.
 
-## Estado atual
+## Estado atual (atualizado — retomada em 2026-07-21)
 
-- **`main`** está atualizado até o PR #13 (merge `9169b86`), que trouxe:
-  catálogo real de produtos populado, correção do bug de desconto anunciado
-  vs. desconto realmente cobrado, migração de `$env.*` para Credentials
-  nativas do n8n (o PikaPods não aceita env var customizada), e as URLs do
-  Supabase/pod n8n preenchidas nos workflows (antes eram placeholders
-  `<<SUPABASE_URL>>` / `<<N8N_BASE_URL>>`).
+- **`main`** está atualizado até o PR #14 (merge `1c63865`), que trouxe o
+  commit de correção do BlackCat (abaixo) já mesclado. A branch
+  `claude/catalogo-produtos-reais` está 100% integrada a `main` (sem diff),
+  e a branch de trabalho desta sessão (`claude/handoff-continuation-7gb0cr`)
+  está no mesmo commit de `main`. **Próximos passos, item 7 (abrir PR) já
+  está feito** — só falta o trabalho que depende de acesso a sistemas ao
+  vivo (n8n/BlackCat), listado abaixo.
 - O ciclo de aprendizado do Hermes (filtro de conformidade) **já** foi migrado
   de "descarta sozinho" para "classifica risco e encaminha tudo pra fila
   humana" — isso está mergeado em `main` desde o PR #2 (commit `10fc4f5`).
   Não há trabalho pendente nessa frente.
-- **Branch `claude/catalogo-produtos-reais`** tem 1 commit ainda não
-  mergeado (`Corrige integração BlackCat com base na doc oficial + registra
-  convenção de layout`), rebaseado sobre o `main` atual. Ainda sem PR aberto.
-  Esse commit:
+- **PR #14 (já mergeado)** trouxe o commit `Corrige integração BlackCat com
+  base na doc oficial + registra convenção de layout`. Esse commit:
   - Corrige `agente-vendas.json` / `pagamento-blackcat.json` /
     `workflow-completo.json`: o endpoint do BlackCat estava com domínio
     errado (`api.blackcathub.com` em vez de `api.blackcatoficial.com`),
@@ -85,9 +84,8 @@ sessão retomar sem precisar reconstruir o histórico.
 6. **Placeholders que ainda faltam** (dependem do WhatsApp/Meta, pausado):
    `<<WHATSAPP_PHONE_NUMBER_ID>>`, `<<WHATSAPP_TEMPLATE_NAME>>`,
    `<<RODRIGO_WA_NUMBER>>`.
-7. **Abrir PR** para o commit de correção do BlackCat (branch
-   `claude/catalogo-produtos-reais`) depois de resolver o item 1 — ou antes,
-   se o Rodrigo preferir revisar o texto/código já e só testar depois.
+7. ~~Abrir PR para o commit de correção do BlackCat~~ — **feito**: PR #14,
+   mergeado em `main` (`1c63865`).
 
 ## Padrões relevantes (para manter consistência)
 
