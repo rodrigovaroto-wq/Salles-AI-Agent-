@@ -6,6 +6,8 @@
 create table if not exists leads (
   lead_id               text primary key,                 -- wa_id normalizado
   nome                  text,
+  email                 text,                              -- coletado na conversa antes do gerar_link (exigido pelo BlackCat)
+  cpf                   text,                              -- so digitos, coletado junto com o email
   criado_em             timestamptz not null default now(),
   origem_canal          text check (origem_canal in ('meta_ads','tiktok_ads','organico')),
   origem_campanha       text,
@@ -101,6 +103,8 @@ create table if not exists produtos (
 -- idempotente para reruns num banco onde a tabela ja existe sem essas colunas
 alter table produtos add column if not exists resolve_objecao text[] not null default '{}';
 alter table produtos add column if not exists arquetipos      text[] not null default '{}';
+alter table leads    add column if not exists email text;
+alter table leads    add column if not exists cpf   text;
 
 insert into produtos (produto_id, nome, tipo, preco_centavos, ordem, resolve_objecao, arquetipos) values
   ('oracao_sagrada', 'Oração Sagrada',              'principal',   2290, 0, '{}',                                              '{}'),

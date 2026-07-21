@@ -3,89 +3,70 @@
 Nota de transição de sessão (contexto ficou muito longo). Objetivo: a próxima
 sessão retomar sem precisar reconstruir o histórico.
 
-## Estado atual (atualizado — retomada em 2026-07-21)
+## Estado atual
 
-- **`main`** está atualizado até o PR #14 (merge `1c63865`), que trouxe o
-  commit de correção do BlackCat (abaixo) já mesclado. A branch
-  `claude/catalogo-produtos-reais` está 100% integrada a `main` (sem diff),
-  e a branch de trabalho desta sessão (`claude/handoff-continuation-7gb0cr`)
-  está no mesmo commit de `main`. **Próximos passos, item 7 (abrir PR) já
-  está feito** — só falta o trabalho que depende de acesso a sistemas ao
-  vivo (n8n/BlackCat), listado abaixo.
-- O ciclo de aprendizado do Hermes (filtro de conformidade) **já** foi migrado
-  de "descarta sozinho" para "classifica risco e encaminha tudo pra fila
-  humana" — isso está mergeado em `main` desde o PR #2 (commit `10fc4f5`).
-  Não há trabalho pendente nessa frente.
-- **PR #14 (já mergeado)** trouxe o commit `Corrige integração BlackCat com
-  base na doc oficial + registra convenção de layout`. Esse commit:
-  - Corrige `agente-vendas.json` / `pagamento-blackcat.json` /
-    `workflow-completo.json`: o endpoint do BlackCat estava com domínio
-    errado (`api.blackcathub.com` em vez de `api.blackcatoficial.com`),
-    autenticação errada (`Authorization: Bearer` em vez de header
-    `X-API-Key`), e nomes de campo incorretos na resposta do `create-sale`
-    e no webhook de retorno (`id`/`paymentUrl`/`externalRef` em vez de
-    `data.transactionId`/`data.invoiceUrl`/`externalReference`). Tudo
-    confirmado em docs.blackcatoficial.com (fetch feito nesta sessão).
-  - Adiciona `amount` (total em centavos) e `paymentMethod: 'pix'` ao corpo
-    da requisição — a API exige os dois e antes só os `items` eram enviados.
-  - Atualiza o README de `30-integracoes/n8n/workflows/` com a credencial
-    do BlackCat corrigida e uma nova seção de **convenção de layout** dos
-    nodes (ver "Padrões relevantes" abaixo).
-  - Todos os 6 JSON (5 individuais + completo) validados: sintaxe ok, sem nó
-    órfão, sem ID/nome duplicado.
+- **`main`** está atualizado até o PR #14 (merge `1c63865`) — catálogo real,
+  correção de desconto, migração `$env` → Credentials nativas, URLs
+  preenchidas, e a correção completa da integração BlackCat (endpoint,
+  autenticação, nomes de campo).
+- Nesta sessão, coleta de **email + CPF** foi implementada em cima disso
+  (ainda não commitada — ver "Arquivos tocados"). Resolve o TODO bloqueante
+  que ficara pendente: a API do BlackCat exige `customer{name,email,phone,
+  document{number,type}}` completo no próprio `create-sale` (não dá pra
+  completar depois na página de checkout hospedada — o link só é gerado se
+  o `customer` já vier completo). Confirmado via docs.blackcatoficial.com
+  nesta sessão: `document.type` é `cpf`|`cnpj` em minúsculo, `phone` e
+  `document.number` são digits-only.
+- O ciclo de aprendizado do Hermes (filtro de conformidade) já está migrado
+  para "classifica risco e encaminha tudo pra fila humana" — mergeado desde
+  o PR #2. Não há trabalho pendente nessa frente.
 
-## Decisões tomadas nesta sessão
+## Decisão tomada nesta sessão (substitui a decisão 3 do handoff anterior)
 
-1. **Placeholders preenchidos**: `<<SUPABASE_URL>>` →
-   `https://rmvmqmcfcjmcjtonewgi.supabase.co`, `<<N8N_BASE_URL>>` →
-   `https://salles-ai-agent.pikapod.net`. Já em `main`.
-2. **BlackCat — dados de autenticação/endpoint/resposta**: confirmados via
-   documentação oficial (não eram mais suposição). Rodrigo já tem acesso à
-   conta e à API key do BlackCat.
-3. **Fluxo de coleta de dados do comprador (decisão do Rodrigo, ainda não
-   implementada em código)**:
-   - **Antes do checkout** (na conversa via WhatsApp): o agente coleta
-     **só nome + telefone (wa_id)** — é exatamente o que o funil já faz
-     hoje, nada muda aqui.
-   - **email + CPF + endereço**: são coletados **depois**, na própria
-     página de checkout hospedada pelo BlackCat (`invoiceUrl`) — **não**
-     pelo agente na conversa.
-   - **Risco técnico em aberto**: a documentação do BlackCat lista
-     `customer.email` e `customer.document` (CPF) como obrigatórios no
-     corpo do `create-sale`, sem mencionar um modo de "dados mínimos +
-     completar no checkout". O node `Criar venda BlackCat` **ainda não
-     envia** o objeto `customer` (ver TODO bloqueante no próprio node e no
-     README). Precisa validar na prática antes de ativar em produção —
-     ver Próximos passos, item 1.
-4. **Convenção de layout dos nodes n8n** documentada no README (trilha
-   principal em `y=0` avançando 220px em `x`; ramos paralelos se afastam em
-   ±80px de `y` a partir de onde nascem; nomes de node em português
-   descrevendo a ação, não o tipo técnico).
+A decisão anterior (email/CPF só no checkout hospedado) foi **revertida**
+porque contradizia a doc oficial do BlackCat. Fluxo atual:
+
+- O agente continua coletando só nome + telefone (wa_id) no início da
+  conversa, como sempre.
+- Assim que o lead aceita o stack (`intent=aceitou_stack`), antes de gerar o
+  link, o agente pede e-mail e CPF numa única mensagem objetiva.
+- O modelo só retorna `intent=gerar_link` quando já tiver os dois (na
+  mensagem atual ou em qualquer ponto anterior do histórico) — instrução
+  em "Montar mensagens OpenAI" (`agente-vendas.json` / `workflow-completo.json`).
+- Email e CPF (digits-only) são gravados em `leads.email`/`leads.cpf`
+  (novo node **"Salvar dados de pagamento do lead"**, PATCH ao Supabase,
+  disparado em paralelo a "Montar items do carrinho" a partir do IF
+  `Intent = gerar_link?`).
+- `Criar venda BlackCat` agora monta o objeto `customer` completo
+  (`name` do WhatsApp, `email`/`cpf` extraídos pelo modelo, `phone` = wa_id,
+  `document.type = 'cpf'`).
+- Schema do Supabase (`30-integracoes/supabase/schema.sql`) ganhou colunas
+  `leads.email` / `leads.cpf`, com `alter table ... add column if not
+  exists` pra rodar em cima do banco que o Rodrigo já tem.
 
 ## Próximos passos (ordem sugerida)
 
-1. **Validar o fluxo de customer.email/document com o BlackCat de verdade**:
-   criar uma venda de teste via API **sem** `customer.email`/`document` e
-   ver se a API aceita (deixando o checkout hospedado completar) ou rejeita.
-   Se rejeitar, decidir entre (a) enviar algum dado mínimo aceito pela API e
-   deixar o checkout corrigir/completar, ou (b) outra abordagem — e então
-   atualizar o node `Criar venda BlackCat` (`agente-vendas.json` +
-   `workflow-completo.json`) de acordo.
-2. **Criar a credencial `BlackCat`** no n8n: Header Auth, Name `X-API-Key`,
+1. **Commitar e dar push** das mudanças desta sessão (ver "Arquivos
+   tocados" — ainda não commitadas no momento em que este handoff foi
+   escrito) e abrir PR.
+2. **Rodar o `alter table` do schema.sql** no Supabase do Rodrigo (banco já
+   existente, só precisa das 2 colunas novas).
+3. **Criar a credencial `BlackCat`** no n8n: Header Auth, Name `X-API-Key`,
    Value = chave real (sem prefixo `Bearer`).
-3. **Reimportar os 6 workflows atualizados** no n8n (PikaPods) e criar as 4
+4. **Reimportar os 6 workflows atualizados** no n8n (PikaPods) e criar as
    credenciais nativas (nomes exatos na tabela do
    `30-integracoes/n8n/workflows/README.md`).
-4. **Testar os nodes Supabase isoladamente** antes do fluxo completo: Pin
+5. **Testar os nodes Supabase isoladamente** antes do fluxo completo: Pin
    Data no trigger + "Test step" node a node (evita disparar OpenAI/WhatsApp/
    BlackCat sem querer).
-5. **Confirmar o handshake do webhook BlackCat** (`/webhook/blackcat`) com
+6. **Testar o fluxo de coleta de email/CPF de ponta a ponta** com uma venda
+   de teste real no BlackCat (confirma que o `customer` no formato certo é
+   de fato aceito e o `invoiceUrl` volta certinho).
+7. **Confirmar o handshake do webhook BlackCat** (`/webhook/blackcat`) com
    um evento de teste real (`transaction.created`/`paid`/`failed`).
-6. **Placeholders que ainda faltam** (dependem do WhatsApp/Meta, pausado):
+8. **Placeholders que ainda faltam** (dependem do WhatsApp/Meta, pausado):
    `<<WHATSAPP_PHONE_NUMBER_ID>>`, `<<WHATSAPP_TEMPLATE_NAME>>`,
    `<<RODRIGO_WA_NUMBER>>`.
-7. ~~Abrir PR para o commit de correção do BlackCat~~ — **feito**: PR #14,
-   mergeado em `main` (`1c63865`).
 
 ## Padrões relevantes (para manter consistência)
 
@@ -108,20 +89,21 @@ sessão retomar sem precisar reconstruir o histórico.
   no JSON exportado. Config não-secreta (URLs, IDs) pode ser texto literal.
 - **Convenção de layout dos nodes n8n**: ver
   `30-integracoes/n8n/workflows/README.md`, seção "Convenção de layout".
-- **Sobre branches**: o PR original desta linha de trabalho apontava para
-  `claude/estruturar-agente-ia-29la6r`, mas o trabalho real acabou seguindo
-  em `claude/catalogo-produtos-reais` (branch do PR #13, já mergeada em
-  `main`). Ao retomar, sempre `git fetch origin main` + checar se a branch
-  de trabalho já foi mergeada antes de continuar commitando nela — se foi,
-  rebasear os commits não mergeados sobre `origin/main` (feito nesta sessão
-  para o commit de correção do BlackCat).
+- **Dados de pagamento (email/CPF) são coletados na conversa, não no
+  checkout**: decisão revertida nesta sessão porque a API do BlackCat exige
+  `customer` completo já no `create-sale`. Não reabrir essa discussão sem
+  reconfirmar a doc oficial.
+- **Sobre branches**: sempre `git fetch origin main` + checar se a branch de
+  trabalho já foi mergeada antes de continuar commitando nela — se foi,
+  restartar a branch a partir de `origin/main`.
 
 ## Arquivos tocados nesta sessão
 
-- `30-integracoes/n8n/workflows/README.md`
-- `30-integracoes/n8n/workflows/agente-vendas.json`
-- `30-integracoes/n8n/workflows/pagamento-blackcat.json`
-- `30-integracoes/n8n/workflows/workflow-completo.json`
-- `30-integracoes/n8n/workflows/fila-notificar.json` (só placeholder)
-- `30-integracoes/n8n/workflows/fila-decidir.json` (só placeholder)
-- `30-integracoes/n8n/workflows/followup-24h.json` (só placeholder)
+- `HANDOFF.md` (este arquivo)
+- `30-integracoes/n8n/workflows/agente-vendas.json` (prompt do agente +
+  node `Criar venda BlackCat` + novo node `Salvar dados de pagamento do
+  lead`)
+- `30-integracoes/n8n/workflows/workflow-completo.json` (idem)
+- `30-integracoes/n8n/workflows/README.md` (pendência do `customer`
+  marcada como resolvida)
+- `30-integracoes/supabase/schema.sql` (colunas `leads.email`/`leads.cpf`)
