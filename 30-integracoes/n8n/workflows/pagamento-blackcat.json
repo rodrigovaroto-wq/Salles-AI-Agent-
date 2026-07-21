@@ -8,7 +8,10 @@
       "name": "BlackCat IN",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [0, 0],
+      "position": [
+        0,
+        0
+      ],
       "parameters": {
         "httpMethod": "POST",
         "path": "blackcat",
@@ -21,15 +24,25 @@
       "name": "event = paid?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [220, -160],
+      "position": [
+        220,
+        -160
+      ],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
           "conditions": [
             {
               "leftValue": "={{$json.body.event}}",
               "rightValue": "transaction.paid",
-              "operator": { "type": "string", "operation": "equals" }
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
@@ -41,15 +54,25 @@
       "name": "event = created?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [220, 0],
+      "position": [
+        220,
+        0
+      ],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
           "conditions": [
             {
               "leftValue": "={{$json.body.event}}",
               "rightValue": "transaction.created",
-              "operator": { "type": "string", "operation": "equals" }
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
@@ -61,15 +84,25 @@
       "name": "event = failed?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [220, 160],
+      "position": [
+        220,
+        160
+      ],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
           "conditions": [
             {
               "leftValue": "={{$json.body.event}}",
               "rightValue": "transaction.failed",
-              "operator": { "type": "string", "operation": "equals" }
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
@@ -81,7 +114,10 @@
       "name": "Evento desconhecido",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [440, 320],
+      "position": [
+        440,
+        320
+      ],
       "parameters": {}
     },
     {
@@ -89,23 +125,35 @@
       "name": "Marcar cliente",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, -160],
+      "position": [
+        440,
+        -160
+      ],
       "notes": "transaction.paid: marca status=cliente e grava o(s) produto(s) comprados.",
       "parameters": {
         "method": "PATCH",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
-            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { status: 'cliente', etapa_funil: 'comprou_principal', produtos_comprados: $json.body.items } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -113,21 +161,34 @@
       "name": "Confirmar no WhatsApp",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [660, -160],
+      "position": [
+        660,
+        -160
+      ],
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
+        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "=Bearer {{$env.WHATSAPP_TOKEN}}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"BlackCat IN\"].json.body.externalRef, type: 'text', text: { body: 'Pagamento confirmado! Em instantes voce recebe os detalhes de acesso. 🙏' } } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Cloud API"
+        }
       }
     },
     {
@@ -135,22 +196,34 @@
       "name": "Gravar evento (venda)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [880, -160],
+      "position": [
+        880,
+        -160
+      ],
       "parameters": {
         "method": "POST",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/conversas",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/conversas",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
-            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { lead_id: $node[\"BlackCat IN\"].json.body.externalRef, etapa_processo: 'fechamento', desfecho: 'venda', link_blackcat_id: $node[\"BlackCat IN\"].json.body.id || null } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -158,23 +231,35 @@
       "name": "Marcar abandonado",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 0],
+      "position": [
+        440,
+        0
+      ],
       "notes": "transaction.created sem paid ainda: arma o estado para o timer de recuperacao de 2h.",
       "parameters": {
         "method": "PATCH",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
-            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { status: 'abandonou' } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -182,27 +267,37 @@
       "name": "Esperar 2h",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [660, 0],
+      "position": [
+        660,
+        0
+      ],
       "notes": "n8n persiste a execucao e retoma sozinho apos 2h, mesmo que o pod reinicie.",
-      "parameters": { "unit": "hours", "amount": 2 }
+      "parameters": {
+        "unit": "hours",
+        "amount": 2
+      }
     },
     {
       "id": "n8",
       "name": "Ainda abandonado?",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [880, 0],
+      "position": [
+        880,
+        0
+      ],
       "parameters": {
         "method": "GET",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?lead_id=eq.{{$node[\"BlackCat IN\"].json.body.externalRef}}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
-            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}" }
-          ]
-        },
-        "options": {}
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"BlackCat IN\"].json.body.externalRef}}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -210,16 +305,26 @@
       "name": "Status = abandonou?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1100, 0],
+      "position": [
+        1100,
+        0
+      ],
       "notes": "So recupera se ainda nao pagou nesse meio-tempo (transaction.paid teria mudado o status para cliente).",
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
           "conditions": [
             {
               "leftValue": "={{$json[0].status}}",
               "rightValue": "abandonou",
-              "operator": { "type": "string", "operation": "equals" }
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
@@ -231,22 +336,35 @@
       "name": "Recuperacao texto livre",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1320, -80],
+      "position": [
+        1320,
+        -80
+      ],
       "notes": "Dentro da janela de 24h (o lead iniciou a conversa) -> texto livre, sem template.",
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
+        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "=Bearer {{$env.WHATSAPP_TOKEN}}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"BlackCat IN\"].json.body.externalRef, type: 'text', text: { body: 'Vi que voce nao concluiu ainda. Ficou alguma duvida que eu possa te ajudar a resolver?' } } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Cloud API"
+        }
       }
     },
     {
@@ -254,7 +372,10 @@
       "name": "Sem acao (ja resolveu)",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [1320, 80],
+      "position": [
+        1320,
+        80
+      ],
       "parameters": {}
     },
     {
@@ -262,55 +383,175 @@
       "name": "Marcar falhou",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 160],
+      "position": [
+        440,
+        160
+      ],
       "notes": "transaction.failed: expirou ou falhou. Volta para follow-up padrao (Gatilho 4).",
       "parameters": {
         "method": "PATCH",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
-            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { status: 'ativo' } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     }
   ],
   "connections": {
-    "BlackCat IN": { "main": [[{ "node": "event = paid?", "type": "main", "index": 0 }]] },
+    "BlackCat IN": {
+      "main": [
+        [
+          {
+            "node": "event = paid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "event = paid?": {
       "main": [
-        [{ "node": "Marcar cliente", "type": "main", "index": 0 }],
-        [{ "node": "event = created?", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Marcar cliente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "event = created?",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "event = created?": {
       "main": [
-        [{ "node": "Marcar abandonado", "type": "main", "index": 0 }],
-        [{ "node": "event = failed?", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Marcar abandonado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "event = failed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "event = failed?": {
       "main": [
-        [{ "node": "Marcar falhou", "type": "main", "index": 0 }],
-        [{ "node": "Evento desconhecido", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Marcar falhou",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Evento desconhecido",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Marcar cliente": { "main": [[{ "node": "Confirmar no WhatsApp", "type": "main", "index": 0 }]] },
-    "Confirmar no WhatsApp": { "main": [[{ "node": "Gravar evento (venda)", "type": "main", "index": 0 }]] },
-    "Marcar abandonado": { "main": [[{ "node": "Esperar 2h", "type": "main", "index": 0 }]] },
-    "Esperar 2h": { "main": [[{ "node": "Ainda abandonado?", "type": "main", "index": 0 }]] },
-    "Ainda abandonado?": { "main": [[{ "node": "Status = abandonou?", "type": "main", "index": 0 }]] },
+    "Marcar cliente": {
+      "main": [
+        [
+          {
+            "node": "Confirmar no WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmar no WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Gravar evento (venda)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar abandonado": {
+      "main": [
+        [
+          {
+            "node": "Esperar 2h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperar 2h": {
+      "main": [
+        [
+          {
+            "node": "Ainda abandonado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ainda abandonado?": {
+      "main": [
+        [
+          {
+            "node": "Status = abandonou?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Status = abandonou?": {
       "main": [
-        [{ "node": "Recuperacao texto livre", "type": "main", "index": 0 }],
-        [{ "node": "Sem acao (ja resolveu)", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Recuperacao texto livre",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sem acao (ja resolveu)",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   }
