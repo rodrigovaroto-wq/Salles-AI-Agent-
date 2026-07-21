@@ -50,7 +50,7 @@ próprio `N8N_ENCRYPTION_KEY` do pod — não aparecem no JSON exportado.
 | Supabase | **Custom Auth** | `Supabase (apikey+auth)` | JSON: `{"header": {"apikey": "<service_role key>", "Authorization": "Bearer <service_role key>"}}` |
 | OpenAI | **Header Auth** | `OpenAI` | Name: `Authorization` · Value: `Bearer <sua OPENAI_API_KEY>` |
 | WhatsApp Cloud API | **Header Auth** | `WhatsApp Cloud API` | Name: `Authorization` · Value: `Bearer <token permanente>` |
-| BlackCat | **Header Auth** | `BlackCat` | Name: `Authorization` · Value: `Bearer <BLACKCAT_API_KEY>` |
+| BlackCat | **Header Auth** | `BlackCat` | Name: `X-API-Key` · Value: `<BLACKCAT_API_KEY>` (sem `Bearer`, confirmado na doc oficial) |
 
 **O nome da credencial precisa bater exatamente** com a coluna acima — é por
 esse nome que cada node te pede pra selecionar a credencial certa depois do
@@ -105,19 +105,28 @@ validação de integridade.
   confira o rótulo exato dos campos — o mecanismo (JSON com headers) é
   documentado, só o nome interno da chave (`header` vs. `headers`) pode
   variar por versão.
-- **`agente-vendas.json` → "Criar venda BlackCat" e "Enviar link WhatsApp":**
-  confirmar na documentação oficial do BlackCat o header de autenticação
-  exato (usei `Authorization: Bearer`) e o nome exato dos campos de retorno
-  do `create-sale` (usei `id` e `paymentUrl`, suposição razoável mas não
-  100% confirmada) antes de ativar em produção.
 - **`fila-decidir.json` → "Derivar chave do prompt":** heurística simples por
   nome de arquivo (`objetivo.md` → chave `objetivo`, `compliance-e-etica.md` →
   `compliance`, resto → `skill:<arquivo>`). Ajustar se o mapeamento crescer.
+- **`agente-vendas.json` → "Criar venda BlackCat" (BLOQUEANTE):** a API do
+  BlackCat exige `customer` no corpo da requisição — `name`, `email`, `phone`
+  e `document` (CPF/CNPJ) são todos obrigatórios. Hoje o funil só coleta
+  nome e telefone (WhatsApp) em nenhum ponto pedimos e-mail ou CPF ao lead.
+  Esse node **vai falhar** com erro de validação da API até decidirmos como
+  coletar isso (ex.: o agente pede os dois dados na conversa antes de gerar
+  o link, adicionando fricção — ou outra abordagem). Pendente de decisão.
 
 **Resolvido:** os preços reais do catálogo (Oração Sagrada R$22,90 + 3 order
 bumps) já estão populados na tabela `produtos` do Supabase
 (`../../supabase/schema.sql`) e no `../../catalogo-produtos.md`. O node
-"Montar items do carrinho" lê de lá — nada mais hardcoded.
+"Montar items do carrinho" lê de lá — nada mais hardcoded. Os campos do
+BlackCat (endpoint, header de autenticação, nomes de retorno do
+`create-sale` e do webhook) foram confirmados na documentação oficial
+(docs.blackcatoficial.com) em 2026-07-21: endpoint correto é
+`api.blackcatoficial.com` (não `blackcathub.com`), autenticação é
+`X-API-Key` (não `Authorization: Bearer`), a resposta do `create-sale` vem
+aninhada em `data.transactionId`/`data.invoiceUrl`, e o webhook de retorno
+usa `externalReference` (não `externalRef`) e `transactionId` (não `id`).
 
 ## Notas de arquitetura (por que ficou assim)
 
@@ -167,3 +176,23 @@ bumps) já estão populados na tabela `produtos` do Supabase
   modelo retorna um valor não vazio — evita apagar um arquétipo já
   identificado numa mensagem anterior só porque a mensagem atual não deu
   sinal novo.
+
+## Convenção de layout (para novos workflows)
+
+Padrão usado em todos os arquivos deste diretório — seguir nos próximos:
+
+- **Trilha principal em `y=0`**, avançando em `x` de **220px por node**
+  (`[0,0]`, `[220,0]`, `[440,0]`, ...).
+- **Ramos paralelos** (saídas de um `IF`/`Switch`, ou buscas que rodam ao
+  mesmo tempo antes de um `Merge`) se afastam da trilha principal em
+  incrementos de **±80px em `y`** por ramo (`-80`, `80`, `160`, `240`...),
+  mantendo o mesmo `x` de quem os originou.
+  quando um `Merge` só recombina 2 branches por vez e há 3+ entradas, o
+  segundo `Merge` fica deslocado (`x` +60, `y` +80) do primeiro, não
+  alinhado — deixa visível que é um estágio extra, não paralelo.
+- **Nome dos nodes em português, descrevendo a ação** (verbo + objeto:
+  "Buscar histórico", "Montar items do carrinho"), nunca o tipo técnico do
+  node.
+- **`notes` só quando não é óbvio pelo nome** — decisão de negócio, TODO
+  pendente, ou pressuposto que pode quebrar (ex.: nome exato de campo de
+  API externa ainda não confirmado).
