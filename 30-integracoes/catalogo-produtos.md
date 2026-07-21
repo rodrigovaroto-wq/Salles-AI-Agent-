@@ -82,6 +82,30 @@ Isso é honesto (não fabricamos variedade que não existe), mas se quiser
 respostas mais diferenciadas por tipo de objeção no futuro, o caminho é criar
 um produto de entrada dedicado — não inflar preço nem fingir opções.
 
+### Desconto de recuperação (20%)
+
+Quando o agente oferece a alternativa do pivô, pode conceder **20% de
+desconto real**, aplicado de fato no preço:
+
+| Produto | Preço normal | Com desconto de recuperação |
+|---|---|---|
+| Oração em Áudio | R$13,90 | **R$11,12** |
+
+**Moldura obrigatória — sem data, sem "só hoje":** o agente é instruído a
+apresentar isso como uma concessão do momento (*"consigo liberar 20% pra
+você fechar agora"*), nunca como algo "exclusivo de hoje", "desta semana" ou
+qualquer variação datada. É um desconto **sempre disponível** para quem
+chega a esse ponto da conversa — rotulá-lo como limitado no tempo seria
+escassez fabricada (compliance-e-etica.md, seção 2, item 6), mesmo que a
+data mencionada seja tecnicamente real. O que importa não é se "hoje"
+existe no calendário — é que a oferta não desaparece amanhã, e dizer que
+desaparece seria falso.
+
+**Runtime:** mecanismo próprio, separado do desconto de stack (10%/20%/30%
+por item somado). O modelo sinaliza `pivo_downsell: true` na resposta
+quando gera o link nesse cenário, e o node "Montar items do carrinho" aplica
+os 20% fixos — nunca a fórmula de stack, nunca calculado pelo modelo.
+
 Regra: o pivô só acontece **depois** de ao menos uma tentativa honesta de
 tratar a objeção (ver `../00-nucleo/objetivo.md`, PROCESSO 4). Ele não substitui
 o tratamento de objeção — entra quando o tratamento não resolveu.

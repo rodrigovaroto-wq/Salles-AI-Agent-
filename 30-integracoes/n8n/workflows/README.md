@@ -92,6 +92,12 @@ bumps) já estão populados na tabela `produtos` do Supabase
   antes de montar o `items[]` do BlackCat — o valor cobrado já reflete o
   desconto anunciado (exigência do `compliance-e-etica.md`), em vez de só
   registrar um `descontoPct` que nunca era usado.
+- **Dois mecanismos de desconto, nunca misturados:** o desconto de *stack*
+  (10%/20%/30%, cresce com o carrinho) e o desconto de *recuperação* do
+  pivô por objeção (20% fixo, ver `../../catalogo-produtos.md` seção 3) são
+  calculados por caminhos separados em "Montar items do carrinho",
+  selecionados pelo flag `pivo_downsell` que o modelo retorna. O modelo
+  nunca inventa o percentual em nenhum dos dois casos.
 - **A tabela de economia mostrada ao lead é calculada em código, não pelo
   modelo:** "Montar mensagens OpenAI" monta um texto pronto (quanto cai o
   total e quanto se economiza a cada order bump) usando a **mesma fórmula
