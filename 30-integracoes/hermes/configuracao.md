@@ -8,10 +8,10 @@ analista assíncrono). Complementa `ciclo-aprendizado.md` (o fluxo) e
 
 | # | Item | Definição |
 |---|---|---|
-| 1 | **Onde roda** | VPS barata (ex.: PikaPods ou similar). Como a análise é diária em lote, o processo **não precisa ficar ligado 24/7** — é disparado 1x/dia, roda e encerra. |
+| 1 | **Onde roda** | VPS barata com Docker (Hetzner CX22 / Hostinger KVM — **não** PikaPods, que só roda apps do catálogo dele). Como a análise é diária em lote, o processo **não precisa ficar ligado 24/7** — é disparado 1x/dia, roda e encerra. |
 | 2 | **Cadência** | Diária. |
 | 3 | **Volume mínimo** | Só analisa se houver **≥ 25 conversas novas** com desfecho registrado desde o último ciclo. Abaixo disso, pula o dia (evita otimizar em cima de ruído). |
-| 4 | **LLM (cérebro da análise)** | **OpenAI** (mesma conta do agente de vendas), modelo forte de raciocínio. Custo irrelevante por ser 1x/dia; ganha em simplicidade e qualidade. |
+| 4 | **LLM (cérebro da análise)** | **OpenAI direto** (mesma conta do agente de vendas), via provedor `custom` do Hermes (`OPENAI_BASE_URL=https://api.openai.com/v1` + `OPENAI_API_KEY`, confirmado no código-fonte — o Hermes não tem um provedor nomeado "openai" para o modelo principal). Custo irrelevante por ser 1x/dia; ganha em simplicidade, mesma conta/cobrança e sem markup de intermediário. Detalhes em [`deploy-vps.md`](deploy-vps.md). |
 | 5 | **Acesso aos dados** | Leitura no Supabase (`../../20-memoria/`). O Hermes **só lê** os dados de conversa/aprendizado — não escreve neles. |
 | 6 | **Entrega da fila** | Via n8n — a fila de sugestões (`fila-aprovacao.md`) é apresentada e decidida dentro do n8n. |
 | 7 | **Aplicação** | Após a aprovação humana, a mudança é aplicada **pelo sistema** (n8n), sem edição manual. Ver seção "Aplicação automática pós-aprovação". |
