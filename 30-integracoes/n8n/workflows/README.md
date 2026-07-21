@@ -108,13 +108,16 @@ validação de integridade.
 - **`fila-decidir.json` → "Derivar chave do prompt":** heurística simples por
   nome de arquivo (`objetivo.md` → chave `objetivo`, `compliance-e-etica.md` →
   `compliance`, resto → `skill:<arquivo>`). Ajustar se o mapeamento crescer.
-- **`agente-vendas.json` → "Criar venda BlackCat" (BLOQUEANTE):** a API do
-  BlackCat exige `customer` no corpo da requisição — `name`, `email`, `phone`
-  e `document` (CPF/CNPJ) são todos obrigatórios. Hoje o funil só coleta
-  nome e telefone (WhatsApp) em nenhum ponto pedimos e-mail ou CPF ao lead.
-  Esse node **vai falhar** com erro de validação da API até decidirmos como
-  coletar isso (ex.: o agente pede os dois dados na conversa antes de gerar
-  o link, adicionando fricção — ou outra abordagem). Pendente de decisão.
+- **`agente-vendas.json` → "Criar venda BlackCat" (resolvido):** a API do
+  BlackCat exige `customer` no corpo da requisição (`name`, `email`, `phone`,
+  `document{number,type}`) — e o link só é gerado se isso já vier completo,
+  não dá pra completar depois na página de checkout. Por isso o agente
+  **pede e-mail e CPF na própria conversa do WhatsApp**, assim que o lead
+  aceita o stack e antes de gerar o link (ver "Montar mensagens OpenAI"):
+  o modelo só retorna `intent=gerar_link` quando já tiver os dois. Os dois
+  também são gravados em `leads.email`/`leads.cpf` (node "Salvar dados de
+  pagamento do lead") assim que confirmados, e o `cpf` vai sempre
+  digits-only (mesmo formato exigido pelo BlackCat).
 
 **Resolvido:** os preços reais do catálogo (Oração Sagrada R$22,90 + 3 order
 bumps) já estão populados na tabela `produtos` do Supabase
