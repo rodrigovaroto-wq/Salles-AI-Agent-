@@ -132,7 +132,7 @@
       "notes": "transaction.paid: marca status=cliente e grava o(s) produto(s) comprados.",
       "parameters": {
         "method": "PATCH",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalReference}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -179,7 +179,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"BlackCat IN\"].json.body.externalRef, type: 'text', text: { body: 'Pagamento confirmado! Em instantes voce recebe os detalhes de acesso. 🙏' } } }}",
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"BlackCat IN\"].json.body.externalReference, type: 'text', text: { body: 'Pagamento confirmado! Em instantes voce recebe os detalhes de acesso. 🙏' } } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth"
@@ -214,7 +214,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { lead_id: $node[\"BlackCat IN\"].json.body.externalRef, etapa_processo: 'fechamento', desfecho: 'venda', link_blackcat_id: $node[\"BlackCat IN\"].json.body.id || null } }}",
+        "jsonBody": "={{ { lead_id: $node[\"BlackCat IN\"].json.body.externalReference, etapa_processo: 'fechamento', desfecho: 'venda', link_blackcat_id: $node[\"BlackCat IN\"].json.body.transactionId || null } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -238,7 +238,7 @@
       "notes": "transaction.created sem paid ainda: arma o estado para o timer de recuperacao de 2h.",
       "parameters": {
         "method": "PATCH",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalReference}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -288,7 +288,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"BlackCat IN\"].json.body.externalRef}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"BlackCat IN\"].json.body.externalReference}}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -355,7 +355,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"BlackCat IN\"].json.body.externalRef, type: 'text', text: { body: 'Vi que voce nao concluiu ainda. Ficou alguma duvida que eu possa te ajudar a resolver?' } } }}",
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"BlackCat IN\"].json.body.externalReference, type: 'text', text: { body: 'Vi que voce nao concluiu ainda. Ficou alguma duvida que eu possa te ajudar a resolver?' } } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth"
@@ -390,7 +390,7 @@
       "notes": "transaction.failed: expirou ou falhou. Volta para follow-up padrao (Gatilho 4).",
       "parameters": {
         "method": "PATCH",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalReference}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
