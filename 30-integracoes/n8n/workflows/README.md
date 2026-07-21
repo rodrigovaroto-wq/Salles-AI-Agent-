@@ -27,24 +27,62 @@ não colidir e posições deslocadas para não sobrepor no canvas).
 ## Como importar
 No n8n: `Workflows` → `Import from File` → selecione o `.json` (o completo, ou
 um dos 5 individuais). Chegam **inativos** (`active: false`) de propósito —
-ative só depois de configurar as env vars e revisar a lógica.
+ative só depois de configurar as credenciais (abaixo) e revisar a lógica.
 
-## Variáveis de ambiente necessárias
+## ⚠️ Mudança de arquitetura: o PikaPods não aceita env var customizada
 
-| Variável | De onde vem | Usada em |
+A versão anterior deste guia assumia variáveis de ambiente livres (`$env.X`)
+configuráveis no pod. **Isso não existe no PikaPods** — o painel só expõe uma
+lista fixa de configurações do próprio n8n (timezone, log level, tamanho de
+payload etc.), nenhuma delas serve para guardar segredo nosso. Além disso,
+`N8N_BLOCK_ENV_ACCESS_IN_NODE` vem `true` por padrão, bloqueando `$env` dentro
+de nodes mesmo que existisse a variável. Os workflows foram reescritos para
+não depender disso.
+
+### Segredos → Credenciais nativas do n8n
+
+Segredos de verdade (chaves de API) agora usam o sistema de **Credentials**
+do n8n (`Settings` → `Credentials` → `Add Credential`), criptografado pelo
+próprio `N8N_ENCRYPTION_KEY` do pod — não aparecem no JSON exportado.
+
+| Credencial a criar | Tipo | Nome exato (usado nos nodes) | Campos |
+|---|---|---|---|
+| Supabase | **Custom Auth** | `Supabase (apikey+auth)` | JSON: `{"header": {"apikey": "<service_role key>", "Authorization": "Bearer <service_role key>"}}` |
+| OpenAI | **Header Auth** | `OpenAI` | Name: `Authorization` · Value: `Bearer <sua OPENAI_API_KEY>` |
+| WhatsApp Cloud API | **Header Auth** | `WhatsApp Cloud API` | Name: `Authorization` · Value: `Bearer <token permanente>` |
+| BlackCat | **Header Auth** | `BlackCat` | Name: `Authorization` · Value: `Bearer <BLACKCAT_API_KEY>` |
+
+**O nome da credencial precisa bater exatamente** com a coluna acima — é por
+esse nome que cada node te pede pra selecionar a credencial certa depois do
+import (o `id` não viaja entre instâncias de n8n, isso é esperado; só o nome
+ajuda a achar a certa no dropdown).
+
+Depois de criar as 4 credenciais, abra cada node que usa HTTP Request neste
+workflow e confirme no campo **Authentication** se a credencial certa está
+selecionada (o import geralmente já reconhece pelo nome, mas vale conferir).
+
+### Config não-secreta → placeholders literais no texto
+
+Valores que não são segredo (URL do projeto, ID de telefone, nome de
+template) também não têm onde morar como env var no PikaPods. Por isso viram
+**placeholders visíveis** nos arquivos — não é sintaxe de expressão do n8n,
+então fica óbvio que precisa ser substituído por texto literal antes de
+ativar:
+
+| Placeholder | Onde conseguir | Usado em |
 |---|---|---|
-| `SUPABASE_URL` | `../../supabase/README.md` | todos |
-| `SUPABASE_SERVICE_KEY` | `../../supabase/README.md` | todos |
-| `OPENAI_API_KEY` | conta OpenAI | agente-vendas |
-| `WHATSAPP_TOKEN` | `../../whatsapp/README.md` (token permanente) | agente-vendas, pagamento-blackcat, followup-24h, fila-notificar |
-| `WHATSAPP_PHONE_NUMBER_ID` | `../../whatsapp/README.md` | idem |
-| `WHATSAPP_TEMPLATE_NAME` | nome do template aprovado pela Meta | followup-24h |
-| `BLACKCAT_API_KEY` | painel BlackCat | agente-vendas |
-| `N8N_BASE_URL` | URL pública do pod (ex. `https://SEUPOD.pikapods.com`) | agente-vendas (postbackUrl), fila-notificar (link de decisão) |
-| `RODRIGO_WA_NUMBER` | seu próprio número, para receber o digest | fila-notificar |
+| `<<SUPABASE_URL>>` | Project Settings → API → Project URL | todos os nodes que chamam Supabase |
+| `<<N8N_BASE_URL>>` | URL pública do seu pod (ex. `https://seupod.pikapods.com`) | `agente-vendas` (postbackUrl do BlackCat), `fila-notificar` (link de decisão) |
+| `<<WHATSAPP_PHONE_NUMBER_ID>>` | `../../whatsapp/README.md` — só existe depois da verificação Meta | `agente-vendas`, `pagamento-blackcat`, `followup-24h`, `fila-notificar` |
+| `<<WHATSAPP_TEMPLATE_NAME>>` | Nome do template aprovado pela Meta | `followup-24h` |
+| `<<RODRIGO_WA_NUMBER>>` | Seu número, para receber o digest do Hermes | `fila-notificar` |
 
-No PikaPods: `Pod` → `Environment` → adicionar cada uma. Reinicie o pod após
-adicionar.
+**Como substituir:** me passe o valor (os 2 primeiros já existem agora — URL
+do Supabase e URL do pod — os outros 3 dependem do WhatsApp/BlackCat, que
+estão pausados) e eu troco em todos os arquivos de uma vez com um script,
+mantendo a validação de integridade. Não é seguro colar a `service_role key`
+ou qualquer chave aqui — URLs e IDs de telefone não são segredo, isso pode
+vir no chat sem problema.
 
 ## Os 5 gatilhos (arquivos individuais == ramos do `workflow-completo.json`)
 
@@ -58,6 +96,15 @@ adicionar.
 
 ## O que ainda depende de confirmação (marcado `TODO` no código)
 
+- **Credencial "Supabase (apikey+auth)" (Custom Auth):** o tipo de credencial
+  e a existência do formato "múltiplos headers num JSON" foram confirmados
+  via documentação/comunidade oficial do n8n (Custom Auth é feito exatamente
+  para o caso apikey+Authorization do Supabase), mas **não testei contra uma
+  instância real**. Se o campo JSON não aceitar o formato
+  `{"header": {...}}` como descrito acima, abra a credencial no n8n e
+  confira o rótulo exato dos campos — o mecanismo (JSON com headers) é
+  documentado, só o nome interno da chave (`header` vs. `headers`) pode
+  variar por versão.
 - **`agente-vendas.json` → "Criar venda BlackCat" e "Enviar link WhatsApp":**
   confirmar na documentação oficial do BlackCat o header de autenticação
   exato (usei `Authorization: Bearer`) e o nome exato dos campos de retorno

@@ -45,18 +45,10 @@
       "notes": "Upsert evita branch IF de 'lead existe?': Prefer=resolution=merge-duplicates atualiza se ja existir.",
       "parameters": {
         "method": "POST",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?on_conflict=lead_id",
+        "url": "=<<SUPABASE_URL>>/rest/v1/leads?on_conflict=lead_id",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            },
             {
               "name": "Prefer",
               "value": "resolution=merge-duplicates,return=representation"
@@ -70,7 +62,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, nome: $node[\"Extrair mensagem e origem\"].json.nome, origem_canal: $node[\"Extrair mensagem e origem\"].json.origem === 'lp' ? 'meta_ads' : 'tiktok_ads', ultima_interacao: new Date().toISOString(), status: 'ativo' } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -84,21 +84,16 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/conversas?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}&order=ocorrido_em.desc&limit=10",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            }
-          ]
-        },
-        "options": {}
+        "url": "=<<SUPABASE_URL>>/rest/v1/conversas?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}&order=ocorrido_em.desc&limit=10",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -113,21 +108,16 @@
       "notes": "chave=objetivo e chave=compliance devem ter sido inseridas em prompt_ativo a partir de 00-nucleo/objetivo.md e compliance-e-etica.md.",
       "parameters": {
         "method": "GET",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/prompt_ativo?chave=in.(objetivo,compliance)&ativo=eq.true",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            }
-          ]
-        },
-        "options": {}
+        "url": "=<<SUPABASE_URL>>/rest/v1/prompt_ativo?chave=in.(objetivo,compliance)&ativo=eq.true",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -142,21 +132,16 @@
       "notes": "Catalogo real (ver ../../catalogo-produtos.md). Fonte de verdade em runtime -- nunca hardcode preco no codigo do workflow.",
       "parameters": {
         "method": "GET",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/produtos?ativo=eq.true&order=ordem.asc",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            }
-          ]
-        },
-        "options": {}
+        "url": "=<<SUPABASE_URL>>/rest/v1/produtos?ativo=eq.true&order=ordem.asc",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -219,10 +204,6 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.OPENAI_API_KEY}}"
-            },
-            {
               "name": "Content-Type",
               "value": "application/json"
             }
@@ -231,7 +212,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ $json }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "OpenAI"
+        }
       }
     },
     {
@@ -258,14 +247,10 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
+        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.WHATSAPP_TOKEN}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -275,7 +260,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"Extrair mensagem e origem\"].json.wa_id, type: 'text', text: { body: $json.resposta } } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Cloud API"
+        }
       }
     },
     {
@@ -289,18 +282,10 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/conversas",
+        "url": "=<<SUPABASE_URL>>/rest/v1/conversas",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -314,7 +299,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, mensagem_agente: $node[\"Extrair resposta e intent\"].json.resposta, mensagem_lead: $node[\"Extrair mensagem e origem\"].json.texto_recebido, produtos_aceitos: $node[\"Extrair resposta e intent\"].json.produtos_aceitos || [] } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -378,10 +371,6 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.BLACKCAT_API_KEY}}"
-            },
-            {
               "name": "Content-Type",
               "value": "application/json"
             }
@@ -389,8 +378,16 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { items: $json.items, externalRef: $node[\"Extrair mensagem e origem\"].json.wa_id, postbackUrl: $env.N8N_BASE_URL + '/webhook/blackcat', metadata: { origem: $node[\"Extrair mensagem e origem\"].json.origem } } }}",
-        "options": {}
+        "jsonBody": "={{ { items: $json.items, externalRef: $node[\"Extrair mensagem e origem\"].json.wa_id, postbackUrl: '<<N8N_BASE_URL>>' + '/webhook/blackcat', metadata: { origem: $node[\"Extrair mensagem e origem\"].json.origem } } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "BlackCat"
+        }
       }
     },
     {
@@ -405,18 +402,10 @@
       "notes": "Fecha o loop de auditoria do desconto: grava desconto_aplicado_pct e link_blackcat_id no evento inserido em 'Gravar evento conversa' (exige Prefer:return=representation la para termos o evento_id). TODO: confirmar o nome exato do campo de id/link no retorno do create-sale do BlackCat -- usei 'id'/'paymentUrl' como suposicao razoavel, nao 100% confirmado na doc.",
       "parameters": {
         "method": "PATCH",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/conversas?evento_id=eq.{{$node[\"Gravar evento conversa\"].json[0].evento_id}}",
+        "url": "=<<SUPABASE_URL>>/rest/v1/conversas?evento_id=eq.{{$node[\"Gravar evento conversa\"].json[0].evento_id}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -426,7 +415,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { desconto_aplicado_pct: $node[\"Montar items do carrinho\"].json.descontoPct, link_blackcat_id: $json.id || null } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -441,14 +438,10 @@
       "notes": "TODO: mesma ressalva do node 'Criar venda BlackCat' -- confirmar o campo exato de retorno (usei 'paymentUrl') na doc oficial do BlackCat antes de producao.",
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
+        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.WHATSAPP_TOKEN}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -458,7 +451,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"Extrair mensagem e origem\"].json.wa_id, type: 'text', text: { body: 'Aqui esta o seu link: ' + $node[\"Criar venda BlackCat\"].json.paymentUrl } } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Cloud API"
+        }
       }
     },
     {
@@ -514,18 +515,10 @@
       ],
       "parameters": {
         "method": "PATCH",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}",
+        "url": "=<<SUPABASE_URL>>/rest/v1/leads?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -535,7 +528,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { arquetipo: $node[\"Extrair resposta e intent\"].json.arquetipo } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -678,18 +679,10 @@
       "notes": "transaction.paid: marca status=cliente e grava o(s) produto(s) comprados.",
       "parameters": {
         "method": "PATCH",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
+        "url": "=<<SUPABASE_URL>>/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -699,7 +692,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { status: 'cliente', etapa_funil: 'comprou_principal', produtos_comprados: $json.body.items } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -713,14 +714,10 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
+        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.WHATSAPP_TOKEN}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -730,7 +727,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"BlackCat IN\"].json.body.externalRef, type: 'text', text: { body: 'Pagamento confirmado! Em instantes voce recebe os detalhes de acesso. 🙏' } } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Cloud API"
+        }
       }
     },
     {
@@ -744,18 +749,10 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/conversas",
+        "url": "=<<SUPABASE_URL>>/rest/v1/conversas",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -765,7 +762,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { lead_id: $node[\"BlackCat IN\"].json.body.externalRef, etapa_processo: 'fechamento', desfecho: 'venda', link_blackcat_id: $node[\"BlackCat IN\"].json.body.id || null } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -780,18 +785,10 @@
       "notes": "transaction.created sem paid ainda: arma o estado para o timer de recuperacao de 2h.",
       "parameters": {
         "method": "PATCH",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
+        "url": "=<<SUPABASE_URL>>/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -801,7 +798,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { status: 'abandonou' } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -830,21 +835,16 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?lead_id=eq.{{$node[\"BlackCat IN\"].json.body.externalRef}}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            }
-          ]
-        },
-        "options": {}
+        "url": "=<<SUPABASE_URL>>/rest/v1/leads?lead_id=eq.{{$node[\"BlackCat IN\"].json.body.externalRef}}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -890,14 +890,10 @@
       "notes": "Dentro da janela de 24h (o lead iniciou a conversa) -> texto livre, sem template.",
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
+        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.WHATSAPP_TOKEN}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -907,7 +903,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"BlackCat IN\"].json.body.externalRef, type: 'text', text: { body: 'Vi que voce nao concluiu ainda. Ficou alguma duvida que eu possa te ajudar a resolver?' } } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Cloud API"
+        }
       }
     },
     {
@@ -933,18 +937,10 @@
       "notes": "transaction.failed: expirou ou falhou. Volta para follow-up padrao (Gatilho 4).",
       "parameters": {
         "method": "PATCH",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
+        "url": "=<<SUPABASE_URL>>/rest/v1/leads?lead_id=eq.{{$json.body.externalRef}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -954,7 +950,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { status: 'ativo' } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -989,21 +993,16 @@
       "notes": "HTTP Request mantem o array inteiro como 1 item por padrao (nao explode sozinho) -- por isso o node seguinte separa explicitamente.",
       "parameters": {
         "method": "GET",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/leads?status=in.(ativo,abandonou)&ultima_interacao=lt.{{new Date(Date.now()-24*60*60*1000).toISOString()}}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            }
-          ]
-        },
-        "options": {}
+        "url": "=<<SUPABASE_URL>>/rest/v1/leads?status=in.(ativo,abandonou)&ultima_interacao=lt.{{new Date(Date.now()-24*60*60*1000).toISOString()}}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -1032,14 +1031,10 @@
       "notes": "WHATSAPP_TEMPLATE_NAME = nome do template aprovado pela Meta (ver ../../whatsapp/README.md secao 9). Fora da janela 24h so template serve.",
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
+        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.WHATSAPP_TOKEN}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -1048,8 +1043,16 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $json.lead_id, type: 'template', template: { name: $env.WHATSAPP_TEMPLATE_NAME, language: { code: 'pt_BR' }, components: [{ type: 'body', parameters: [{ type: 'text', text: $json.nome || '' }] }] } } }}",
-        "options": {}
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $json.lead_id, type: 'template', template: { name: '<<WHATSAPP_TEMPLATE_NAME>>', language: { code: 'pt_BR' }, components: [{ type: 'body', parameters: [{ type: 'text', text: $json.nome || '' }] }] } } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Cloud API"
+        }
       }
     },
     {
@@ -1063,18 +1066,10 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/conversas",
+        "url": "=<<SUPABASE_URL>>/rest/v1/conversas",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -1084,7 +1079,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { lead_id: $json.lead_id, etapa_processo: 'recuperacao', desfecho: 'follow_up_agendado' } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -1119,21 +1122,16 @@
       "notes": "order alfabetico de risco_conformidade coloca 'alto' antes de 'baixo' e 'medio' naturalmente (a < b < m).",
       "parameters": {
         "method": "GET",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/fila_sugestoes?status=eq.pendente&order=risco_conformidade.asc,criado_em.desc",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            }
-          ]
-        },
-        "options": {}
+        "url": "=<<SUPABASE_URL>>/rest/v1/fila_sugestoes?status=eq.pendente&order=risco_conformidade.asc,criado_em.desc",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -1177,7 +1175,7 @@
       ],
       "notes": "Link de decisao aponta para o workflow fila-decidir.json. N8N_BASE_URL = URL publica do pod PikaPods.",
       "parameters": {
-        "jsCode": "const itens = $input.first().json;\nconst base = $env.N8N_BASE_URL + '/webhook/fila-decidir';\nlet texto = 'Sugestoes do Hermes pendentes (' + itens.length + '):\\n\\n';\nfor (const s of itens) {\n  texto += '[' + s.risco_conformidade.toUpperCase() + '] ' + s.area + '\\n';\n  texto += s.problema_observado + '\\n';\n  texto += 'Aprovar: ' + base + '?id=' + s.sugestao_id + '&decisao=aprovada\\n';\n  texto += 'Rejeitar: ' + base + '?id=' + s.sugestao_id + '&decisao=rejeitada\\n\\n';\n}\nreturn [{ json: { texto } }];"
+        "jsCode": "const itens = $input.first().json;\nconst base = '<<N8N_BASE_URL>>' + '/webhook/fila-decidir';\nlet texto = 'Sugestoes do Hermes pendentes (' + itens.length + '):\\n\\n';\nfor (const s of itens) {\n  texto += '[' + s.risco_conformidade.toUpperCase() + '] ' + s.area + '\\n';\n  texto += s.problema_observado + '\\n';\n  texto += 'Aprovar: ' + base + '?id=' + s.sugestao_id + '&decisao=aprovada\\n';\n  texto += 'Rejeitar: ' + base + '?id=' + s.sugestao_id + '&decisao=rejeitada\\n\\n';\n}\nreturn [{ json: { texto } }];"
       }
     },
     {
@@ -1191,14 +1189,10 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
+        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.WHATSAPP_TOKEN}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -1207,8 +1201,16 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $env.RODRIGO_WA_NUMBER, type: 'text', text: { body: $json.texto } } }}",
-        "options": {}
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: '<<RODRIGO_WA_NUMBER>>', type: 'text', text: { body: $json.texto } } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Cloud API"
+        }
       }
     },
     {
@@ -1263,18 +1265,10 @@
       ],
       "parameters": {
         "method": "PATCH",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/fila_sugestoes?sugestao_id=eq.{{$json.sugestao_id}}",
+        "url": "=<<SUPABASE_URL>>/rest/v1/fila_sugestoes?sugestao_id=eq.{{$json.sugestao_id}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -1284,7 +1278,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { status: $json.decisao, decidido_por: 'rodrigo', decidido_em: new Date().toISOString() } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -1328,21 +1330,16 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/fila_sugestoes?sugestao_id=eq.{{$node[\"Extrair id e decisao\"].json.sugestao_id}}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            }
-          ]
-        },
-        "options": {}
+        "url": "=<<SUPABASE_URL>>/rest/v1/fila_sugestoes?sugestao_id=eq.{{$node[\"Extrair id e decisao\"].json.sugestao_id}}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -1370,21 +1367,16 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/prompt_ativo?chave=eq.{{$node[\"Derivar chave do prompt\"].json.chave}}&ativo=eq.true",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            }
-          ]
-        },
-        "options": {}
+        "url": "=<<SUPABASE_URL>>/rest/v1/prompt_ativo?chave=eq.{{$node[\"Derivar chave do prompt\"].json.chave}}&ativo=eq.true",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -1399,18 +1391,10 @@
       "notes": "Nao apaga: so marca ativo=false. E o que permite reverter com 1 toque (reativar a linha antiga manualmente se preciso).",
       "parameters": {
         "method": "PATCH",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/prompt_ativo?chave=eq.{{$node[\"Derivar chave do prompt\"].json.chave}}&ativo=eq.true",
+        "url": "=<<SUPABASE_URL>>/rest/v1/prompt_ativo?chave=eq.{{$node[\"Derivar chave do prompt\"].json.chave}}&ativo=eq.true",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -1420,7 +1404,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { ativo: false } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -1434,18 +1426,10 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/prompt_ativo",
+        "url": "=<<SUPABASE_URL>>/rest/v1/prompt_ativo",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -1455,7 +1439,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { chave: $node[\"Derivar chave do prompt\"].json.chave, versao: (($node[\"Buscar versao atual\"].json[0]?.versao) || 0) + 1, conteudo: $node[\"Derivar chave do prompt\"].json.conteudo, ativo: true, origem_sugestao_id: $node[\"Derivar chave do prompt\"].json.sugestao_id } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
@@ -1469,18 +1461,10 @@
       ],
       "parameters": {
         "method": "PATCH",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/fila_sugestoes?sugestao_id=eq.{{$node[\"Extrair id e decisao\"].json.sugestao_id}}",
+        "url": "=<<SUPABASE_URL>>/rest/v1/fila_sugestoes?sugestao_id=eq.{{$node[\"Extrair id e decisao\"].json.sugestao_id}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -1490,7 +1474,15 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { aplicado_em: new Date().toISOString() } }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
       }
     },
     {
