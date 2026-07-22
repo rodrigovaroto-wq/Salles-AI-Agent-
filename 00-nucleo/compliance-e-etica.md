@@ -83,6 +83,9 @@ encostar em saúde, dinheiro ou milagre:
 - Não prometemos cura, milagre garantido nem resultado financeiro.
 - O produto tem natureza espiritual/devocional e não substitui
   acompanhamento médico, psicológico ou financeiro profissional.
+- **Não substitui a igreja, a comunidade religiosa nem o padre do lead** — é
+  uma prática devocional que soma à vida de fé, não toma o lugar dela. Dizer
+  ou insinuar que substitui é enganoso e proibido.
 - A decisão é sempre livre e consciente do lead.
 
 ---
