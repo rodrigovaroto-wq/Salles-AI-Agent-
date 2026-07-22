@@ -1,109 +1,134 @@
-# Handoff — 2026-07-21
+# Handoff — 2026-07-22
 
-Nota de transição de sessão (contexto ficou muito longo). Objetivo: a próxima
-sessão retomar sem precisar reconstruir o histórico.
+Nota de transição de sessão. Objetivo: a próxima sessão retomar sem
+reconstruir o histórico.
 
 ## Estado atual
 
-- **`main`** está atualizado até o PR #14 (merge `1c63865`) — catálogo real,
-  correção de desconto, migração `$env` → Credentials nativas, URLs
-  preenchidas, e a correção completa da integração BlackCat (endpoint,
-  autenticação, nomes de campo).
-- Nesta sessão, coleta de **email + CPF** foi implementada em cima disso
-  (ainda não commitada — ver "Arquivos tocados"). Resolve o TODO bloqueante
-  que ficara pendente: a API do BlackCat exige `customer{name,email,phone,
-  document{number,type}}` completo no próprio `create-sale` (não dá pra
-  completar depois na página de checkout hospedada — o link só é gerado se
-  o `customer` já vier completo). Confirmado via docs.blackcatoficial.com
-  nesta sessão: `document.type` é `cpf`|`cnpj` em minúsculo, `phone` e
-  `document.number` são digits-only.
-- O ciclo de aprendizado do Hermes (filtro de conformidade) já está migrado
-  para "classifica risco e encaminha tudo pra fila humana" — mergeado desde
-  o PR #2. Não há trabalho pendente nessa frente.
+- Branch de trabalho: **`claude/handoff-continuation-7gb0cr`** → **PR #16**
+  (aberto, ainda não mergeado). `main` está no PR #14 (`1c63865`).
+- Todo o código desta sessão já está **commitado e no PR #16**. Working tree
+  limpo. Últimos commits relevantes:
+  - `31f2865` — playbook de objeções no prompt ao vivo.
+  - `dedc8db` — coleta de email/CPF para o create-sale do BlackCat.
 
-## Decisão tomada nesta sessão (substitui a decisão 3 do handoff anterior)
+## O que foi feito nesta sessão (em ordem)
 
-A decisão anterior (email/CPF só no checkout hospedado) foi **revertida**
-porque contradizia a doc oficial do BlackCat. Fluxo atual:
+### 1. Coleta de email/CPF na conversa (BlackCat) — commit `dedc8db`
+A API do BlackCat exige `customer{name,email,phone,document{number,type}}`
+completo no `create-sale`; o link só é gerado com isso preenchido (não dá pra
+completar depois no checkout). Reverteu a decisão antiga (email/CPF só no
+checkout). Agora:
+- O agente pede email + CPF na conversa quando o lead aceita o stack, antes de
+  gerar o link. Só retorna `intent=gerar_link` com os dois presentes.
+- `Criar venda BlackCat` monta o `customer` (`document.type='cpf'`,
+  digits-only).
+- Novo node **"Salvar dados de pagamento do lead"** grava email/cpf em `leads`.
+- `schema.sql`: colunas `leads.email` / `leads.cpf` (alter table idempotente).
 
-- O agente continua coletando só nome + telefone (wa_id) no início da
-  conversa, como sempre.
-- Assim que o lead aceita o stack (`intent=aceitou_stack`), antes de gerar o
-  link, o agente pede e-mail e CPF numa única mensagem objetiva.
-- O modelo só retorna `intent=gerar_link` quando já tiver os dois (na
-  mensagem atual ou em qualquer ponto anterior do histórico) — instrução
-  em "Montar mensagens OpenAI" (`agente-vendas.json` / `workflow-completo.json`).
-- Email e CPF (digits-only) são gravados em `leads.email`/`leads.cpf`
-  (novo node **"Salvar dados de pagamento do lead"**, PATCH ao Supabase,
-  disparado em paralelo a "Montar items do carrinho" a partir do IF
-  `Intent = gerar_link?`).
-- `Criar venda BlackCat` agora monta o objeto `customer` completo
-  (`name` do WhatsApp, `email`/`cpf` extraídos pelo modelo, `phone` = wa_id,
-  `document.type = 'cpf'`).
-- Schema do Supabase (`30-integracoes/supabase/schema.sql`) ganhou colunas
-  `leads.email` / `leads.cpf`, com `alter table ... add column if not
-  exists` pra rodar em cima do banco que o Rodrigo já tem.
+### 2. Playbook de objeções no prompt ao vivo — commit `31f2865`
+Diagnóstico de 27 objeções reais mostrou que o agente improvisava em ~20
+delas: o prompt ao vivo só carregava `objetivo` + `compliance`, sem guia de
+objeções. Maior alavanca honesta de conversão/ticket, e reduz risco de
+compliance.
+- `00-nucleo/objecoes.md`: playbook (27 objeções em clusters), todo dentro do
+  compliance. Onde falta fato operacional real (formato do contato com o
+  padre, atividade da comunidade, identidade da operação) instrui **descoberta
+  honesta**, não afirmação inventada.
+- Wired: nova chave `objecoes` em `prompt_ativo`, carregada junto de
+  objetivo/compliance (nodes "Buscar prompt ativo" + "Montar mensagens
+  OpenAI", nos dois JSONs git).
+- `compliance-e-etica.md` seção 4: novo disclaimer "não substitui a
+  igreja/comunidade/padre".
+- `30-integracoes/supabase/seed-prompt-objecoes.sql`: upsert versionado de
+  `compliance` + `objecoes` em `prompt_ativo`.
 
-## Próximos passos (ordem sugerida)
+### 3. Correção de bug no workflow ao vivo (via n8n MCP)
+Os nodes **"Merge contexto"** e **"Merge contexto 2"** estavam com o parâmetro
+antigo `combinationMode`; a versão do Merge do pod (3.2) usa `combineBy`. Sem
+isso o node travava com "You need to define at least one pair of fields in
+Fields to Match" — **quebraria o fluxo inteiro em produção**. Corrigido ao
+vivo para `combineBy: combineByPosition`. Os JSONs git já estão nesse formato
+correto. **Cuidado:** reimportar um JSON antigo por cima traz o bug de volta.
 
-1. **Commitar e dar push** das mudanças desta sessão (ver "Arquivos
-   tocados" — ainda não commitadas no momento em que este handoff foi
-   escrito) e abrir PR.
-2. **Rodar o `alter table` do schema.sql** no Supabase do Rodrigo (banco já
-   existente, só precisa das 2 colunas novas).
-3. **Criar a credencial `BlackCat`** no n8n: Header Auth, Name `X-API-Key`,
-   Value = chave real (sem prefixo `Bearer`).
-4. **Reimportar os 6 workflows atualizados** no n8n (PikaPods) e criar as
-   credenciais nativas (nomes exatos na tabela do
-   `30-integracoes/n8n/workflows/README.md`).
-5. **Testar os nodes Supabase isoladamente** antes do fluxo completo: Pin
-   Data no trigger + "Test step" node a node (evita disparar OpenAI/WhatsApp/
-   BlackCat sem querer).
-6. **Testar o fluxo de coleta de email/CPF de ponta a ponta** com uma venda
-   de teste real no BlackCat (confirma que o `customer` no formato certo é
-   de fato aceito e o `invoiceUrl` volta certinho).
-7. **Confirmar o handshake do webhook BlackCat** (`/webhook/blackcat`) com
-   um evento de teste real (`transaction.created`/`paid`/`failed`).
-8. **Placeholders que ainda faltam** (dependem do WhatsApp/Meta, pausado):
+### 4. Testes rodados (via n8n MCP, com dados simulados)
+- Fluxo aceita-produto + email/CPF → gera link: passou (customer montado,
+  desconto certo, "Salvar dados" e "Criar venda" em paralelo).
+- Fluxo sem email/CPF → `intent=aceitou_stack`, NÃO gera link: confirmado
+  (foi pro branch "Fim (sem link ainda)", BlackCat não rodou).
+- Verificação local (Node.js) do node "Montar mensagens OpenAI": injeta
+  `objecoes` na ordem certa (compliance → objecoes → resto) e é
+  retrocompatível se a chave não existir.
+
+## O que o Rodrigo já fez do lado dele
+- **Rodou o `seed-prompt-objecoes.sql` no Supabase.** Logo: a chave `objecoes`
+  e a versão nova de `compliance` já existem em `prompt_ativo`.
+- Efeito imediato: o disclaimer "não substitui a igreja" **já está valendo ao
+  vivo** (o node já busca `compliance`). O playbook de objeções ainda **não**,
+  porque depende das 2 edições de node abaixo.
+
+## PENDENTE — 2 edições no n8n ao vivo (bloqueado: MCP do n8n instável)
+Durante a sessão o conector n8n (self-hosted, PikaPods) oscilou muito e no
+fim ficou indisponível para os dois lados. As 2 edições precisam ser
+aplicadas quando o n8n estiver acessível (via MCP na próxima sessão, ou manual
+no editor). Valores exatos:
+
+1. Node **"Buscar prompt ativo"** → campo URL:
+   `https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/prompt_ativo?chave=in.(objetivo,compliance,objecoes)&ativo=eq.true`
+   (única diferença: `(objetivo,compliance)` → `(objetivo,compliance,objecoes)`)
+2. Node **"Montar mensagens OpenAI"** → campo JavaScript: substituir pelo
+   jsCode atual do node em `30-integracoes/n8n/workflows/agente-vendas.json`
+   (mesmo conteúdo em `workflow-completo.json`).
+
+Sem essas 2 edições, o workflow ao vivo funciona normal, só não injeta o
+playbook de objeções (retrocompatível).
+
+## Passivo de compliance a resolver (NÃO implementado de propósito)
+Dois arquivos no repo contêm material que **viola o próprio
+`compliance-e-etica.md`** e a lei (CDC/Estatuto do Idoso), marcados "para uso
+nos workflows". NÃO foram wirados no prompt ao vivo e NÃO devem ser:
+- `10-skills/gatilhos/gatilhos-espirituais.md`: urgência falsa ("vagas fecham
+  hoje"), recado de Padre Pio/santo inventado.
+- `10-skills/provas/testemunhos.md`: prova social fabricada ("97 mil saíram
+  das dívidas em 24h", "o exame voltou limpo"), claims de cura/renda.
+Recomendação: remover ou marcar explicitamente como proibidos, para ninguém
+wirar por engano.
+
+## Próximos passos sugeridos
+1. Aplicar as 2 edições de node no n8n (acima) e rodar um teste confirmando
+   que o prompt montado inclui o playbook.
+2. Testar de verdade a autenticação real das credenciais (Supabase/BlackCat/
+   OpenAI) — o teste via MCP simula as respostas HTTP; só execução real
+   (webhook de teste ou workflow ativo) confirma auth.
+3. Testar o create-sale real do BlackCat ponta a ponta (customer completo →
+   invoiceUrl volta).
+4. Confirmar o webhook `/webhook/blackcat` com evento de teste real.
+5. WhatsApp (pausado, depende de acesso à conta Meta do sócio): passos 1–10
+   em `30-integracoes/whatsapp/README.md`. Placeholders a preencher:
    `<<WHATSAPP_PHONE_NUMBER_ID>>`, `<<WHATSAPP_TEMPLATE_NAME>>`,
    `<<RODRIGO_WA_NUMBER>>`.
+6. Fazer merge do PR #16 quando estiver satisfeito.
 
-## Padrões relevantes (para manter consistência)
+## Padrões relevantes (manter consistência)
+- **Camadas**: `00-nucleo/` (prompt sempre ativo) → `10-skills/` (sob demanda,
+  NÃO carregado no prompt ao vivo) → `20-memoria/` (schemas) →
+  `30-integracoes/` (n8n, Supabase, BlackCat, WhatsApp, Hermes).
+- **Prompt ao vivo carrega SÓ** as chaves `objetivo`, `compliance`, `objecoes`
+  de `prompt_ativo` (Supabase) — nada de `10-skills/` entra automaticamente.
+- **`compliance-e-etica.md` é autoridade máxima e fonte única** de conduta;
+  vence qualquer skill/sugestão. Persuasão honesta é permitida e desejada;
+  engano não.
+- **Dados de pagamento (email/CPF) coletados na conversa**, não no checkout
+  (exigência da API BlackCat).
+- **Segredos só como Credentials nativas do n8n** (PikaPods não tem `$env`).
+- **Desconto sempre aplicado de verdade no valor cobrado.**
+- **Sincronizar Supabase ao editar os .md-fonte**: os `.md` de
+  `objetivo/compliance/objecoes` são a fonte git; o que roda ao vivo é a cópia
+  em `prompt_ativo`. Editou o .md → regenere e rode o
+  `seed-prompt-objecoes.sql` (ou o INSERT versionado equivalente).
 
-- **Camadas do repo**: `00-nucleo/` (system prompt sempre ativo) →
-  `10-skills/` (consultado sob demanda) → `20-memoria/` (schemas de
-  dado) → `30-integracoes/` (ferramentas reais — n8n, Supabase, BlackCat,
-  WhatsApp, Hermes).
-- **`compliance-e-etica.md` é fonte única** de regras de conduta — precisa
-  estar carregado no system prompt de cada conversa (Gatilho 1, node
-  "Montar mensagens OpenAI"); nunca duplicar essas regras em outro arquivo,
-  só referenciar.
-- **Nada no Hermes vira comportamento ativo sem aprovação humana explícita**
-  (`decidido_por`) — inclusive sugestões de risco alto, que também vão pra
-  fila em vez de serem descartadas.
-- **Desconto sempre aplicado de verdade no valor cobrado**, nunca só
-  narrado na conversa (ver `Montar items do carrinho` em
-  `agente-vendas.json`).
-- **Segredos (chaves de API) vivem só como Credentials nativas do n8n** —
-  nunca em env var (PikaPods não suporta `$env` customizado) nem em texto
-  no JSON exportado. Config não-secreta (URLs, IDs) pode ser texto literal.
-- **Convenção de layout dos nodes n8n**: ver
-  `30-integracoes/n8n/workflows/README.md`, seção "Convenção de layout".
-- **Dados de pagamento (email/CPF) são coletados na conversa, não no
-  checkout**: decisão revertida nesta sessão porque a API do BlackCat exige
-  `customer` completo já no `create-sale`. Não reabrir essa discussão sem
-  reconfirmar a doc oficial.
-- **Sobre branches**: sempre `git fetch origin main` + checar se a branch de
-  trabalho já foi mergeada antes de continuar commitando nela — se foi,
-  restartar a branch a partir de `origin/main`.
-
-## Arquivos tocados nesta sessão
-
-- `HANDOFF.md` (este arquivo)
-- `30-integracoes/n8n/workflows/agente-vendas.json` (prompt do agente +
-  node `Criar venda BlackCat` + novo node `Salvar dados de pagamento do
-  lead`)
-- `30-integracoes/n8n/workflows/workflow-completo.json` (idem)
-- `30-integracoes/n8n/workflows/README.md` (pendência do `customer`
-  marcada como resolvida)
-- `30-integracoes/supabase/schema.sql` (colunas `leads.email`/`leads.cpf`)
+## Ferramentas desta sessão
+- **n8n MCP** (conector self-hosted): workflow ao vivo é
+  `id=JggVoiBXncdkTfQz` ("salles-ai-agent — operacao completa"). Credenciais
+  já criadas: `SUPABASE`, `Open IA API`, `BlackCat API`. Instável na sessão —
+  se cair, desconectar/reconectar no claude.ai força novo handshake.
