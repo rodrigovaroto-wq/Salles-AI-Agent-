@@ -134,18 +134,36 @@ específica do dia, não repete as regras:
 docker exec -it hermes-agent-hermes-1 hermes cron create "0 8 * * *" \
 "Rode o ciclo diario de analise descrito no AGENTS.md deste diretorio.
 
-1. Consulte via HTTP GET (headers apikey e Authorization Bearer com o valor da env SUPABASE_SERVICE_KEY):
-   {SUPABASE_URL}/rest/v1/conversas?ocorrido_em=gte.<24h atras em ISO>
-   Se o total de linhas retornadas for menor que 25, PARE aqui e nao faca mais nada.
+1. Descubra desde quando analisar (NAO uma janela fixa de 24h -- desde o ultimo ciclo que realmente rodou, para nao perder dias em que o cron nao disparou):
+   a. GET (headers apikey e Authorization Bearer com o valor da env SUPABASE_SERVICE_KEY):
+      {SUPABASE_URL}/rest/v1/fila_sugestoes?select=criado_em&order=criado_em.desc&limit=1
+   b. Se essa consulta retornar 1 linha, use o valor de criado_em dela como <desde>.
+      Se retornar vazio (primeira vez que este ciclo roda), use <desde> = 30 dias atras em ISO.
 
-2. Se houver 25 ou mais, analise os dados: quais gatilhos mais converteram, quais objecoes mais aparecem, onde o funil perde mais gente, mensagens-pivo. Gere de 1 a 5 hipoteses de melhoria, cada uma no formato: area, arquivo_alvo, problema_observado, hipotese_impacto, mudanca_proposta (texto literal), teste_sugerido, confianca (alta/media/baixa).
+2. Consulte (mesmos headers do passo 1):
+   {SUPABASE_URL}/rest/v1/conversas?ocorrido_em=gte.<desde>
+   Se o total de linhas retornadas for menor que 25, PARE aqui e nao faca mais nada -- nao escreva em fila_sugestoes. Como o cursor do passo 1 so avanca quando este ciclo efetivamente grava uma sugestao, nenhuma conversa fica de fora: no proximo dia a mesma janela <desde> e reconsultada, agora com mais conversas acumuladas.
 
-3. Para CADA hipotese, classifique risco_conformidade e padrao_disparado seguindo exatamente o procedimento da secao 'Classificacao de risco' do AGENTS.md.
+3. Se houver 25 ou mais, analise os dados: quais gatilhos mais converteram, quais objecoes mais aparecem, onde o funil perde mais gente, mensagens-pivo. Gere de 1 a 5 hipoteses de melhoria, cada uma no formato: area, arquivo_alvo, problema_observado, hipotese_impacto, mudanca_proposta (texto literal), teste_sugerido, confianca (alta/media/baixa).
 
-4. Envie CADA hipotese via HTTP POST para {SUPABASE_URL}/rest/v1/fila_sugestoes (mesmos headers do passo 1, mais Content-Type: application/json), com status=pendente." \
+4. Para CADA hipotese, classifique risco_conformidade e padrao_disparado seguindo exatamente o procedimento da secao 'Classificacao de risco' do AGENTS.md.
+
+5. Envie CADA hipotese via HTTP POST para {SUPABASE_URL}/rest/v1/fila_sugestoes (mesmos headers do passo 1, mais Content-Type: application/json), com status=pendente. E esse POST (nao um registro separado) que avanca o cursor do passo 1 para o proximo ciclo." \
 --workdir /data/salles-ai-agent \
 --deliver local --name hermes-diario
 ```
+
+**Por que não é mais uma janela fixa de 24h:** a versão anterior deste comando
+usava `ocorrido_em=gte.<24h atras>` — se o cron não disparasse num dia (app
+fechado, VPS fora do ar, etc.), as conversas daquele dia saíam da janela na
+execução seguinte e **nunca eram analisadas** (o dado continuava intacto em
+`conversas`, só não entrava na análise do Hermes). Usar o `criado_em` mais
+recente de `fila_sugestoes` como cursor resolve isso: o cursor só avança
+quando o ciclo **de fato escreve** uma sugestão, então dias pulados (por
+volume insuficiente ou por não ter rodado) simplesmente se acumulam na
+janela seguinte, sem perder nada. Isso não fere a fronteira "Hermes só
+escreve em `fila_sugestoes`" (ver `AGENTS.md`) — a leitura de
+`fila_sugestoes` no passo 1a é só consulta.
 
 Note que a entrega (`--deliver local`) é só um registro local da execução — a
 notificação para você já é feita pelo `fila-notificar.json` no n8n, lendo a

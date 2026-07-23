@@ -10,7 +10,7 @@ analista assíncrono). Complementa `ciclo-aprendizado.md` (o fluxo) e
 |---|---|---|
 | 1 | **Onde roda** | VPS barata com Docker (Hetzner CX22 / Hostinger KVM — **não** PikaPods, que só roda apps do catálogo dele). Como a análise é diária em lote, o processo **não precisa ficar ligado 24/7** — é disparado 1x/dia, roda e encerra. |
 | 2 | **Cadência** | Diária. |
-| 3 | **Volume mínimo** | Só analisa se houver **≥ 25 conversas novas** com desfecho registrado desde o último ciclo. Abaixo disso, pula o dia (evita otimizar em cima de ruído). |
+| 3 | **Volume mínimo** | Só analisa se houver **≥ 25 conversas novas** com desfecho registrado desde o último ciclo **que efetivamente escreveu sugestões** (cursor = `criado_em` mais recente em `fila_sugestoes`, não uma janela fixa de 24h — dias em que o cron não roda não perdem dado, ver seção "Como o dia do Hermes funciona"). Abaixo do mínimo, pula o dia sem avançar o cursor (evita otimizar em cima de ruído, sem perder as conversas). |
 | 4 | **LLM (cérebro da análise)** | **OpenAI direto** (mesma conta do agente de vendas), via provedor `custom` do Hermes (`OPENAI_BASE_URL=https://api.openai.com/v1` + `OPENAI_API_KEY`, confirmado no código-fonte — o Hermes não tem um provedor nomeado "openai" para o modelo principal). **Modelo decidido: `gpt-4.1`** — mesmo modelo do agente de vendas (consistência) e custo irrelevante por rodar só 1x/dia. Detalhes em [`deploy-vps.md`](deploy-vps.md). |
 | 5 | **Acesso aos dados** | Leitura no Supabase (`../../20-memoria/`). O Hermes **só lê** os dados de conversa/aprendizado — não escreve neles. |
 | 6 | **Entrega da fila** | Via n8n — a fila de sugestões (`fila-aprovacao.md`) é apresentada e decidida dentro do n8n. |
@@ -26,16 +26,24 @@ e aplicar o que for aprovado (ver `../n8n/workflows/`).
 ## Como o dia do Hermes funciona (passo a passo)
 
 1. **Cron nativo do Hermes** (interno, na VPS) dispara a análise 1x/dia.
-2. Hermes verifica: houve **≥ 25 conversas novas** desde o último ciclo?
-   - Não → encerra, tenta de novo no dia seguinte.
+2. Hermes calcula "desde quando" analisar a partir do `criado_em` mais
+   recente já gravado em `fila_sugestoes` (não uma janela fixa de 24h) —
+   assim, se um dia o cron não rodar (app fechado, VPS fora do ar), as
+   conversas daquele dia não somem: elas se acumulam e entram no próximo
+   ciclo que efetivamente rodar. Ver `deploy-vps.md`, seção 8.
+3. Verifica: houve **≥ 25 conversas novas** desde esse cursor?
+   - Não → encerra sem escrever nada (o cursor não avança) — tenta de novo
+     no dia seguinte, com a janela maior.
    - Sim → segue.
-3. Hermes lê (somente leitura) `schema-conversa.md` e `schema-aprendizado.md`
+4. Hermes lê (somente leitura) `schema-conversa.md` e `schema-aprendizado.md`
    no Supabase.
-4. Chama a **OpenAI** para analisar padrões e gerar hipóteses `[SUGESTÃO N]`.
-5. Cada sugestão passa pelo **classificador de conformidade**
+5. Chama a **OpenAI** para analisar padrões e gerar hipóteses `[SUGESTÃO N]`.
+6. Cada sugestão passa pelo **classificador de conformidade**
    (`filtro-conformidade.md`) → recebe rótulo de risco, nada é descartado.
-6. Todas as sugestões são gravadas na **fila** (tabela no Supabase).
-7. Hermes encerra. O processo na VPS pode desligar até o próximo dia.
+7. Todas as sugestões são gravadas na **fila** (tabela no Supabase) — é essa
+   gravação que avança o cursor do passo 2 para o próximo ciclo.
+8. Hermes encerra. O processo na VPS (ou o app desktop) pode fechar até o
+   próximo dia.
 
 ## Aplicação automática pós-aprovação (item 7)
 
