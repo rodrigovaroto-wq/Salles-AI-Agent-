@@ -11,7 +11,7 @@ analista assíncrono). Complementa `ciclo-aprendizado.md` (o fluxo) e
 | 1 | **Onde roda** | VPS barata com Docker (Hetzner CX22 / Hostinger KVM — **não** PikaPods, que só roda apps do catálogo dele). Como a análise é diária em lote, o processo **não precisa ficar ligado 24/7** — é disparado 1x/dia, roda e encerra. |
 | 2 | **Cadência** | Diária. |
 | 3 | **Volume mínimo** | Só analisa se houver **≥ 25 conversas novas** com desfecho registrado desde o último ciclo. Abaixo disso, pula o dia (evita otimizar em cima de ruído). |
-| 4 | **LLM (cérebro da análise)** | **OpenAI direto** (mesma conta do agente de vendas), via provedor `custom` do Hermes (`OPENAI_BASE_URL=https://api.openai.com/v1` + `OPENAI_API_KEY`, confirmado no código-fonte — o Hermes não tem um provedor nomeado "openai" para o modelo principal). Custo irrelevante por ser 1x/dia; ganha em simplicidade, mesma conta/cobrança e sem markup de intermediário. Detalhes em [`deploy-vps.md`](deploy-vps.md). |
+| 4 | **LLM (cérebro da análise)** | **OpenAI direto** (mesma conta do agente de vendas), via provedor `custom` do Hermes (`OPENAI_BASE_URL=https://api.openai.com/v1` + `OPENAI_API_KEY`, confirmado no código-fonte — o Hermes não tem um provedor nomeado "openai" para o modelo principal). **Modelo decidido: `gpt-4.1`** — mesmo modelo do agente de vendas (consistência) e custo irrelevante por rodar só 1x/dia. Detalhes em [`deploy-vps.md`](deploy-vps.md). |
 | 5 | **Acesso aos dados** | Leitura no Supabase (`../../20-memoria/`). O Hermes **só lê** os dados de conversa/aprendizado — não escreve neles. |
 | 6 | **Entrega da fila** | Via n8n — a fila de sugestões (`fila-aprovacao.md`) é apresentada e decidida dentro do n8n. |
 | 7 | **Aplicação** | Após a aprovação humana, a mudança é aplicada **pelo sistema** (n8n), sem edição manual. Ver seção "Aplicação automática pós-aprovação". |
@@ -55,11 +55,23 @@ Para o item 7 funcionar sem git no meio do caminho em produção, o
 prompt/skills que o agente lê em tempo real ficam numa tabela versionada no
 **Supabase** (ex.: `prompt_ativo`, com `versao`, `conteudo`, `aplicado_em`).
 O repositório git continua sendo a **fonte de design e o backup versionado
-legível** — as mudanças aprovadas podem ser espelhadas para cá para histórico,
-mas o que o agente consome em tempo real é a tabela.
+legível** — o que o agente consome em tempo real é sempre a tabela.
 
-Decisão pendente: confirmar se você quer o espelhamento automático para o git
-(rastreabilidade total) ou só o versionamento no Supabase (mais simples).
+**Decidido: espelhamento automático para o git, sim.** Depois de aplicar em
+`prompt_ativo`, o `fila-decidir.json` também comita a mesma `mudanca_proposta`
+no arquivo `.md` correspondente (`sugestao.arquivo_alvo`) do repositório —
+nodes "Buscar SHA do arquivo no GitHub" + "Commitar mudanca no GitHub", via
+API REST do GitHub (`PUT /repos/.../contents/{path}`). Dá rastreabilidade
+total (histórico legível fora do banco, e sessões futuras do Claude Code veem
+a mudança real sem precisar consultar o Supabase). O Supabase continua sendo
+a única fonte que o agente lê em tempo real — o commit é só espelhamento,
+nunca bloqueia a aplicação se falhar (roda depois de `prompt_ativo` já ter a
+versão nova ativa).
+
+**Credencial necessária no n8n:** `GitHub API` (Header Auth, header
+`Authorization`, valor `Bearer <personal access token>`, escopo `repo` —
+Fine-grained PAT limitado a este repositório, permissão **Contents:
+Read and write**). Ver `../n8n/workflows/README.md`.
 
 ## O que continua travado (não muda)
 
@@ -75,9 +87,13 @@ Decisão pendente: confirmar se você quer o espelhamento automático para o git
 - [x] Guia de deploy na VPS (Docker, `.env`, volume de leitura, tarefa diária)
       escrito — ver [`deploy-vps.md`](deploy-vps.md). Falta executar na VPS
       real.
-- [ ] Definir o modelo OpenAI exato para a análise.
+- [x] Modelo OpenAI definido: `gpt-4.1`.
 - [x] Tabela `prompt_ativo` (versionada) criada no Supabase — ver
       `../supabase/schema.sql`.
 - [x] Esqueleto do fluxo de aprovação no n8n montado — ver
-      `../n8n/workflows/fila-notificar.json` e `fila-decidir.json`.
-- [ ] Decidir sobre o espelhamento automático para o git.
+      `../n8n/workflows/fila-notificar.json` e `fila-decidir.json`, agora com
+      espelhamento automático para o git (nodes "Buscar SHA do arquivo no
+      GitHub" + "Commitar mudanca no GitHub").
+- [x] Espelhamento automático para o git: decidido que sim, implementado.
+- [ ] Criar a credencial `GitHub API` no n8n (Fine-grained PAT, Contents:
+      Read and write, só neste repositório) — ver `deploy-vps.md`.

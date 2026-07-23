@@ -67,7 +67,7 @@ E em `~/.hermes/config.yaml` (dentro do container, criado no passo 7):
 
 ```yaml
 model:
-  default: "gpt-4.1"   # ou o modelo que preferir
+  default: "gpt-4.1"   # decidido (configuracao.md, item 4) -- mesmo modelo do agente de vendas
   provider: "custom"
   base_url: "https://api.openai.com/v1"
 ```

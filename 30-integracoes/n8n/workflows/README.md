@@ -51,13 +51,14 @@ próprio `N8N_ENCRYPTION_KEY` do pod — não aparecem no JSON exportado.
 | OpenAI | **Header Auth** | `OpenAI` | Name: `Authorization` · Value: `Bearer <sua OPENAI_API_KEY>` |
 | WhatsApp Cloud API | **Header Auth** | `WhatsApp Cloud API` | Name: `Authorization` · Value: `Bearer <token permanente>` |
 | BlackCat | **Header Auth** | `BlackCat` | Name: `X-API-Key` · Value: `<BLACKCAT_API_KEY>` (sem `Bearer`, confirmado na doc oficial) |
+| GitHub API | **Header Auth** | `GitHub API` | Name: `Authorization` · Value: `Bearer <PAT>` — Fine-grained Personal Access Token limitado a este repositório (`rodrigovaroto-wq/Salles-AI-Agent-`), permissão **Contents: Read and write**. Usado só em `fila-decidir.json` (nodes "Buscar SHA do arquivo no GitHub" / "Commitar mudanca no GitHub"), para espelhar sugestões aprovadas do Hermes de volta pro git (ver `../../hermes/configuracao.md`). |
 
 **O nome da credencial precisa bater exatamente** com a coluna acima — é por
 esse nome que cada node te pede pra selecionar a credencial certa depois do
 import (o `id` não viaja entre instâncias de n8n, isso é esperado; só o nome
 ajuda a achar a certa no dropdown).
 
-Depois de criar as 4 credenciais, abra cada node que usa HTTP Request neste
+Depois de criar as 5 credenciais, abra cada node que usa HTTP Request neste
 workflow e confirme no campo **Authentication** se a credencial certa está
 selecionada (o import geralmente já reconhece pelo nome, mas vale conferir).
 
@@ -92,7 +93,7 @@ validação de integridade.
 | `pagamento-blackcat.json` | 2 e 3 | Recebe webhook do BlackCat → roteia por `event` (cadeia de IFs) → `paid`: marca cliente e confirma → `created`: marca abandonado, **espera 2h** (node `Wait`, sobrevive a reinício do pod) e reabre se ainda abandonado → `failed`: libera para follow-up |
 | `followup-24h.json` | 4 | A cada hora, busca leads sem compra há >24h, separa em itens e envia o template aprovado |
 | `fila-notificar.json` | ciclo Hermes | Todo dia às 8h, busca sugestões pendentes (risco alto primeiro) e manda um resumo com links de aprovar/rejeitar para você no WhatsApp |
-| `fila-decidir.json` | ciclo Hermes | Recebe o clique do link → registra a decisão → se aprovada, **aplica sozinho**: desativa a versão antiga em `prompt_ativo` e insere a nova (rollback fica preservado, nada é apagado) |
+| `fila-decidir.json` | ciclo Hermes | Recebe o clique do link → registra a decisão → se aprovada, **aplica sozinho**: desativa a versão antiga em `prompt_ativo`, insere a nova (rollback fica preservado, nada é apagado) e **espelha a mudança no git** (commit direto no arquivo `.md` correspondente via API do GitHub) |
 
 ## O que ainda depende de confirmação (marcado `TODO` no código)
 
