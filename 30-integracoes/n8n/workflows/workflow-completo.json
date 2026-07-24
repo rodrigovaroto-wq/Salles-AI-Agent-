@@ -1531,6 +1531,79 @@
           "name": "Supabase (apikey+auth)"
         }
       }
+    },
+    {
+      "id": "n12",
+      "name": "Buscar SHA do arquivo no GitHub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        -220
+      ],
+      "notes": "Le o blob SHA atual do arquivo em main -- a API do GitHub exige o SHA da versao que esta sobrescrevendo para aceitar o PUT (evita sobrescrever mudanca concorrente sem querer).",
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.github.com/repos/rodrigovaroto-wq/Salles-AI-Agent-/contents/{{$node[\"Buscar sugestao\"].json[0].arquivo_alvo}}?ref=main",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GitHub API"
+        }
+      }
+    },
+    {
+      "id": "n13",
+      "name": "Commitar mudanca no GitHub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        -220
+      ],
+      "notes": "Espelha a versao aprovada (ja aplicada em prompt_ativo) para o arquivo .md correspondente no repo, para historico legivel fora do banco. O Supabase (prompt_ativo) continua sendo a fonte que o agente le em tempo real -- este commit e so rastreabilidade, nao afeta o runtime.",
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.github.com/repos/rodrigovaroto-wq/Salles-AI-Agent-/contents/{{$node[\"Buscar sugestao\"].json[0].arquivo_alvo}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { message: 'Hermes: aplica sugestao ' + $node[\"Buscar sugestao\"].json[0].sugestao_id + ' (' + $node[\"Buscar sugestao\"].json[0].area + ', aprovada por rodrigo)', content: Buffer.from($node[\"Buscar sugestao\"].json[0].mudanca_proposta, 'utf-8').toString('base64'), sha: $node[\"Buscar SHA do arquivo no GitHub\"].json.sha, branch: 'main' } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GitHub API"
+        }
+      }
     }
   ],
   "connections": {
@@ -2099,6 +2172,22 @@
         [
           {
             "node": "Marcar aplicado_em",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Buscar SHA do arquivo no GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar SHA do arquivo no GitHub": {
+      "main": [
+        [
+          {
+            "node": "Commitar mudanca no GitHub",
             "type": "main",
             "index": 0
           }
