@@ -31,7 +31,7 @@ create table if not exists conversas (
   evento_id            uuid primary key default gen_random_uuid(),
   lead_id              text not null references leads(lead_id) on delete cascade,
   ocorrido_em          timestamptz not null default now(),
-  etapa_processo       text check (etapa_processo in ('conexao','descoberta','apresentacao','objecao','fechamento','recuperacao','upsell')),
+  etapa_processo       text check (etapa_processo in ('conexao','descoberta','apresentacao','objecao','fechamento','recuperacao','upsell','entrega')),
   mensagem_agente      text,
   mensagem_lead        text,
   objecao_detectada    text,
@@ -95,6 +95,7 @@ create table if not exists produtos (
   nome            text not null,
   tipo            text not null check (tipo in ('principal','order_bump','alternativo')),
   preco_centavos  integer not null,
+  entrega_texto   text,               -- mensagem de acesso enviada no WhatsApp apos o pagamento
   ordem           integer not null default 0,   -- ordem de apresentacao no stack
   resolve_objecao text[] not null default '{}', -- pivo: objecoes que este produto ajuda a resolver
   arquetipos      text[] not null default '{}', -- perfis para os quais este produto e destaque

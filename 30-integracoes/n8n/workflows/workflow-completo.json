@@ -1230,175 +1230,6 @@
       }
     },
     {
-      "id": "pb-n13",
-      "name": "Esperar 10min (upsell)",
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [
-        1320,
-        940
-      ],
-      "notes": "Janela de upsell pos-compra (jornada-do-lead.md, Fase 3: 'recuperacao-upsell', delay 10 minutos). Da tempo do cliente respirar antes de ver a proxima oferta.",
-      "parameters": {
-        "unit": "minutes",
-        "amount": 10
-      }
-    },
-    {
-      "id": "pb-n14",
-      "name": "Buscar produtos (upsell)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1540,
-        880
-      ],
-      "notes": "Catalogo real, mesma fonte de verdade usada em agente-vendas.json -- nunca hardcode produto/preco aqui.",
-      "parameters": {
-        "method": "GET",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/produtos?ativo=eq.true&order=ordem.asc",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpCustomAuth"
-      },
-      "credentials": {
-        "httpCustomAuth": {
-          "id": "9XxwNt8U6u5tce4w",
-          "name": "SUPABASE"
-        }
-      }
-    },
-    {
-      "id": "pb-n15",
-      "name": "Buscar lead atualizado",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1540,
-        1000
-      ],
-      "notes": "Le produtos_comprados ja gravado em 'Marcar cliente', para saber o que oferecer a mais sem repetir o que a pessoa ja tem.",
-      "parameters": {
-        "method": "GET",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"BlackCat IN\"].json.body.externalReference}}",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpCustomAuth"
-      },
-      "credentials": {
-        "httpCustomAuth": {
-          "id": "9XxwNt8U6u5tce4w",
-          "name": "SUPABASE"
-        }
-      }
-    },
-    {
-      "id": "pb-n16",
-      "name": "Merge upsell",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 3,
-      "position": [
-        1760,
-        940
-      ],
-      "notes": "Barreira de sincronizacao: espera catalogo e lead atualizado antes de decidir o proximo produto.",
-      "parameters": {
-        "mode": "combine",
-        "combinationMode": "mergeByPosition"
-      }
-    },
-    {
-      "id": "pb-n17",
-      "name": "Selecionar proximo produto",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1980,
-        940
-      ],
-      "notes": "Oferece o order_bump de maior prioridade (ordem.asc) que o lead ainda nao comprou. Bloqueia totalmente a oferta se o lead estiver em opt_out (LGPD) ou aguardando_humano (escalado por sofrimento real) -- nesses casos vender seria violacao de compliance, nao perda de receita.",
-      "parameters": {
-        "jsCode": "const catalogo = ($node[\"Buscar produtos (upsell)\"].json || []);\nconst lead = ($node[\"Buscar lead atualizado\"].json || [])[0] || {};\n\n// Nunca oferecer nada a quem pediu para parar (LGPD/compliance secao 5) nem a quem\n// foi escalado por sofrimento real -- vender nesse momento seria exatamente o que\n// objecoes.md secao P proibe.\nconst bloqueado = lead.status === \"opt_out\" || lead.status === \"aguardando_humano\";\nif (bloqueado) return [{ json: { tem_upsell: false, produto: null, motivo: lead.status } }];\n\nconst comprados = lead.produtos_comprados || [];\n// O item gravado vem do BlackCat, que carrega \"title\" (o nome), nao produto_id --\n// por isso a comparacao aceita as duas formas.\nconst idsComprados = new Set(comprados.map(i => i.produto_id || i.title));\n\nconst candidatos = catalogo\n  .filter(p => p.tipo !== \"principal\")\n  .filter(p => !idsComprados.has(p.produto_id) && !idsComprados.has(p.nome))\n  .sort((a, b) => a.ordem - b.ordem);\n\nconst proximo = candidatos[0] || null;\nif (!proximo) return [{ json: { tem_upsell: false, produto: null, mensagem: null, motivo: \"ja_tem_tudo\" } }];\n\n// Preco formatado a partir do catalogo, nunca hardcoded.\nconst preco = (proximo.preco_centavos / 100).toFixed(2).replace(\".\", \",\");\nconst mensagem = \"Aproveitando que voce ja garantiu a sua protecao: quer completar com *\"\n  + proximo.nome + \"* por apenas R$ \" + preco\n  + \"? Se quiser, me diz \\\"sim\\\" que eu ja te mando o link.\";\n\nreturn [{ json: { tem_upsell: true, produto: proximo, mensagem, motivo: null } }];"
-      }
-    },
-    {
-      "id": "pb-n18",
-      "name": "Tem produto para oferecer?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        2200,
-        940
-      ],
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "loose"
-          },
-          "conditions": [
-            {
-              "leftValue": "={{$json.tem_upsell}}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        }
-      }
-    },
-    {
-      "id": "pb-n20",
-      "name": "Sem upsell disponivel",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [
-        2420,
-        1000
-      ],
-      "parameters": {}
-    },
-    {
-      "id": "pb-n21",
-      "name": "Gravar oferta de upsell",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        2860,
-        880
-      ],
-      "notes": "Sem isto o agente nao sabe que ofereceu nada: a lead responde 'sim' e o historico em `conversas` nao tem a oferta, entao o modelo responde no vazio. Grava a mesma frase enviada, como mensagem_agente.",
-      "parameters": {
-        "method": "POST",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/conversas",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ { lead_id: $node[\"BlackCat IN\"].json.body.externalReference, etapa_processo: 'upsell', mensagem_agente: $node[\"Selecionar proximo produto\"].json.mensagem, produtos_aceitos: [] } }}",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpCustomAuth"
-      },
-      "credentials": {
-        "httpCustomAuth": {
-          "id": "9XxwNt8U6u5tce4w",
-          "name": "SUPABASE"
-        }
-      }
-    },
-    {
       "id": "pb-n4p",
       "name": "Preparar confirmacao de pagamento",
       "type": "n8n-nodes-base.code",
@@ -1467,29 +1298,66 @@
       }
     },
     {
-      "id": "pb-n19p",
-      "name": "Preparar oferta de upsell",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "id": "pb-e1",
+      "name": "Buscar conteudo de entrega",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
-        2420,
-        880
+        1320,
+        940
       ],
-      "notes": "Texto livre dentro da janela de 24h (a lead iniciou a conversa). A frase e montada em 'Selecionar proximo produto' -- fonte unica, para envio e registro nunca divergirem.",
+      "notes": "Le entrega_texto do catalogo. O conteudo mora no banco e nao no workflow: quando o padre trocar um audio ou o link do grupo mudar, e um UPDATE, sem republicar workflow.",
       "parameters": {
-        "jsCode": "return [{ json: { to: $node[\"BlackCat IN\"].json.body.externalReference, tipo: 'text', texto: $node[\"Selecionar proximo produto\"].json.mensagem } }];"
+        "method": "GET",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/produtos?select=produto_id,nome,entrega_texto",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
       }
     },
     {
-      "id": "pb-n19x",
-      "name": "Enviar oferta de upsell",
+      "id": "pb-e2",
+      "name": "Montar entrega",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        940
+      ],
+      "notes": "Casa o que foi comprado (items do BlackCat, que trazem 'title') com o catalogo. Produto sem entrega_texto NAO vira silencio: a cliente recebe aviso de que o acesso chega em seguida e o Rodrigo e alertado para entregar na mao.",
+      "parameters": {
+        "jsCode": "const comprados = $node[\"BlackCat IN\"].json.body.items || [];\nconst catalogo = $node[\"Buscar conteudo de entrega\"].json || [];\n\nconst partes = [];\nconst faltando = [];\n\nfor (const item of comprados) {\n  const p = catalogo.find(c => c.produto_id === item.produto_id || c.nome === item.title);\n  const nome = (p && p.nome) || item.title || 'seu item';\n  if (p && p.entrega_texto) {\n    partes.push(p.entrega_texto);\n  } else {\n    faltando.push(nome);\n    partes.push('Sobre *' + nome + '*: seu acesso chega em seguida, aqui mesmo por este WhatsApp.');\n  }\n}\n\n// Nunca deixar a cliente sem mensagem alguma depois de pagar.\nconst texto = partes.length\n  ? partes.join('\\n\\n')\n  : 'Seu acesso chega em seguida, aqui mesmo por este WhatsApp.';\n\nreturn [{ json: { texto, faltando, tem_falta: faltando.length > 0 } }];"
+      }
+    },
+    {
+      "id": "pb-e3",
+      "name": "Preparar entrega",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        940
+      ],
+      "parameters": {
+        "jsCode": "return [{ json: { to: $node[\"BlackCat IN\"].json.body.externalReference, tipo: 'text', texto: $node[\"Montar entrega\"].json.texto } }];"
+      }
+    },
+    {
+      "id": "pb-e4",
+      "name": "Enviar entrega",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        2640,
-        880
+        1980,
+        940
       ],
-      "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
+      "notes": "Chama sub-enviar-whatsapp. Dentro da janela de 24h -- a lead iniciou a conversa comprando.",
       "parameters": {
         "workflowId": {
           "__rl": true,
@@ -1499,6 +1367,116 @@
         },
         "options": {}
       }
+    },
+    {
+      "id": "pb-e5",
+      "name": "Gravar entrega",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        940
+      ],
+      "notes": "Rastro de que a entrega saiu, e o que foi enviado. Sem isso, 'nao recebi' vira palavra contra palavra.",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/conversas",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { lead_id: $node[\"BlackCat IN\"].json.body.externalReference, etapa_processo: 'entrega', mensagem_agente: $node[\"Montar entrega\"].json.texto } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "pb-e6",
+      "name": "Falta conteudo de entrega?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        940
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$node[\"Montar entrega\"].json.tem_falta}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "pb-e7",
+      "name": "Preparar alerta de entrega",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        880
+      ],
+      "notes": "A cliente pagou por algo que o sistema nao sabe entregar. Precisa de acao humana AGORA, nao de um relatorio no fim do dia.",
+      "parameters": {
+        "jsCode": "const m = $node[\"Montar entrega\"].json;\nconst wa = $node[\"BlackCat IN\"].json.body.externalReference;\nreturn [{ json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: '\\u26a0\\ufe0f Entrega pendente.\\nCliente: ' + wa + '\\nSem conteudo cadastrado para: ' + m.faltando.join(', ') + '\\nEla ja pagou e foi avisada de que o acesso chega em seguida. Entregue na mao e preencha entrega_texto em produtos.' } }];"
+      }
+    },
+    {
+      "id": "pb-e8",
+      "name": "Enviar alerta de entrega",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2860,
+        880
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G1sbNfyXXIwL3Cmh",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "pb-e9",
+      "name": "Entrega completa",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2640,
+        1000
+      ],
+      "parameters": {}
     },
     {
       "id": "f24-n1",
@@ -2654,85 +2632,7 @@
       "main": [
         [
           {
-            "node": "Esperar 10min (upsell)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Esperar 10min (upsell)": {
-      "main": [
-        [
-          {
-            "node": "Buscar produtos (upsell)",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Buscar lead atualizado",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Buscar produtos (upsell)": {
-      "main": [
-        [
-          {
-            "node": "Merge upsell",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Buscar lead atualizado": {
-      "main": [
-        [
-          {
-            "node": "Merge upsell",
-            "type": "main",
-            "index": 1
-          }
-        ]
-      ]
-    },
-    "Merge upsell": {
-      "main": [
-        [
-          {
-            "node": "Selecionar proximo produto",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Selecionar proximo produto": {
-      "main": [
-        [
-          {
-            "node": "Tem produto para oferecer?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Tem produto para oferecer?": {
-      "main": [
-        [
-          {
-            "node": "Preparar oferta de upsell",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Sem upsell disponivel",
+            "node": "Buscar conteudo de entrega",
             "type": "main",
             "index": 0
           }
@@ -2772,22 +2672,84 @@
         ]
       ]
     },
-    "Preparar oferta de upsell": {
+    "Buscar conteudo de entrega": {
       "main": [
         [
           {
-            "node": "Enviar oferta de upsell",
+            "node": "Montar entrega",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Enviar oferta de upsell": {
+    "Montar entrega": {
       "main": [
         [
           {
-            "node": "Gravar oferta de upsell",
+            "node": "Preparar entrega",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar entrega": {
+      "main": [
+        [
+          {
+            "node": "Enviar entrega",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar entrega": {
+      "main": [
+        [
+          {
+            "node": "Gravar entrega",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gravar entrega": {
+      "main": [
+        [
+          {
+            "node": "Falta conteudo de entrega?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Falta conteudo de entrega?": {
+      "main": [
+        [
+          {
+            "node": "Preparar alerta de entrega",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Entrega completa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar alerta de entrega": {
+      "main": [
+        [
+          {
+            "node": "Enviar alerta de entrega",
             "type": "main",
             "index": 0
           }

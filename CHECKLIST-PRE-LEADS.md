@@ -39,33 +39,28 @@ ao vivo — mas está no repositório, marcado como material a usar. Basta algu�
 > Eu posso fazer isso agora — não depende de nada externo. Você pediu para
 > pular o Grupo D antes; enquanto não for feito, é o maior risco aberto.
 
-### 1.2 A entrega não existe no sistema 🔴
+### 1.2 Preencher o conteúdo de entrega 🔴
 
-A operação informou que **"o cliente recebe automaticamente as instruções de
-acesso pelo e-mail e/ou WhatsApp"**. O agente agora promete isso à lead.
+A entrega pelo WhatsApp **já está construída** e o upsell de 10 minutos foi
+removido. O que falta é o conteúdo: os links e instruções reais de acesso.
 
-**Mas nenhum workflow entrega nada.** Depois de `transaction.paid`, a sequência
-real é:
+O texto de cada produto mora em `produtos.entrega_texto` — no banco, não no
+workflow, para o Padre Frei poder trocar um áudio ou o link do grupo sem
+republicar nada.
 
+- [ ] Rodar [`supabase/migracao-entrega.sql`](30-integracoes/supabase/migracao-entrega.sql)
+- [ ] Preencher `entrega_texto` dos **4** produtos (bloco comentado no fim do arquivo)
+
+```sql
+select produto_id, nome,
+       case when entrega_texto is null then '❌ FALTA' else '✅ ok' end as entrega
+from produtos where ativo order by ordem;
 ```
-Marcar cliente → "Pagamento confirmado! Em instantes você recebe
-                  os detalhes de acesso." → esperar 10 min → OFERTA DE UPSELL
-```
 
-A cliente paga, ouve "em instantes você recebe", e dez minutos depois recebe
-**uma nova oferta de venda em vez do produto**. Para um público cujo maior
-medo é "paguei e não recebi", isso é gerador de chargeback — e agora o agente
-está prometendo a entrega explicitamente, o que agrava.
-
-- [ ] **Definir quem entrega:** o BlackCat dispara e-mail de entrega
-      automaticamente, ou isso precisa ser construído no n8n?
-- [ ] Se for o BlackCat: confirmar que está configurado e testar de verdade
-- [ ] Se não for: construir o passo de entrega **antes** do upsell
-- [ ] Rever a ordem — oferecer upsell antes de entregar o que foi comprado é
-      errado mesmo que a entrega funcione
-
-> Este é o item que eu resolveria primeiro depois do compliance. Não é
-> hipótese: está verificado no workflow.
+**Enquanto estiver vazio, a venda não quebra** — a cliente recebe "seu acesso
+chega em seguida por este WhatsApp" e você é alertado no seu número para
+entregar na mão. Mas isso é rede de segurança, não operação: com anúncio
+ligado, vira trabalho manual a cada venda.
 
 ### 1.3 Fatos operacionais — o que ainda falta (Grupo A)
 
@@ -74,38 +69,21 @@ entrega (automática, e-mail + WhatsApp), garantia (**7 dias**, CDC art. 49),
 formato da Comunidade, formato do Contato com o Padre (mensagens num canal,
 **não** é atendimento individual).
 
-Restam 7 pontos `[confirmar]`, agora de detalhe e não de essência:
+Restam 5 pontos `[confirmar]`, agora de detalhe e não de essência:
 
 - [ ] **Conteúdo de cada item** — quantas orações, quantos minutos de áudio,
       quantas páginas, em que plataforma se acessa
 - [ ] **Canal da Comunidade** — WhatsApp ou Telegram?
 - [ ] **Frequência** das mensagens do padre e dos conteúdos da comunidade
-- [ ] **Identidade pública** — ver 1.4 abaixo
 
-### 1.4 "Padre Frei" — pergunta em aberto 🔴
+### 1.4 Identidade ✅ resolvida
 
-A operação informou que *"a identidade pública apresentada no funil é a do
-Padre Frei"*, e que o Contato com o Padre são *"mensagens e orientações dentro
-do canal"*.
+O Padre Frei é sacerdote real: gravou as orações e os áudios, as mensagens do
+canal são dele e é ele quem conduz a comunidade. O agente já nomeia o padre
+como quem conduz o trabalho (seção J) — resposta forte num público com radar
+de golpe ligado.
 
-**Falta um fato:** existe um padre real por trás dessa identidade?
-
-- **Se sim** — nome e vínculo, e o agente pode citá-lo com naturalidade. A
-  seção J deixa de ser evasiva, o que ajuda muito num público com radar de
-  golpe ligado.
-- **Se não** — se "Padre Frei" é uma persona de marketing e as mensagens são
-  geradas pelo agente, então o produto **Contato Direto com o Padre**
-  (R$ 19,90) vende acesso a um sacerdote que não existe, para mulheres
-  religiosas em fragilidade. Isso não é escolha de posicionamento: é o produto
-  não corresponder ao que é vendido, com o agravante do público.
-
-- [ ] Confirmar se há sacerdote real
-- [ ] Se não houver: rever o produto antes de vendê-lo, não só o texto
-
-Enquanto isso não for respondido, a seção J segue `[confirmar]` e o agente
-**não** afirma quem conduz a operação.
-
-### 1.3 WhatsApp / Meta
+### 1.5 WhatsApp / Meta
 
 - [ ] Verificação da empresa aprovada ⏳ *(o único ponto onde o relógio corre por terceiro — comece já)*
 - [ ] App criado e vinculado à empresa
@@ -115,7 +93,7 @@ Enquanto isso não for respondido, a seção J segue `[confirmar]` e o agente
 - [ ] Webhook verificado com campo `messages` marcado
 - [ ] Template de follow-up aprovado — 1 variável, `pt_BR`, categoria Utilitário
 
-### 1.4 OpenAI com saldo
+### 1.6 OpenAI com saldo
 
 - [ ] Confirmar crédito na conta (`VALIDACAO.md`, teste 2.1)
 
@@ -152,7 +130,10 @@ Detalhe em [`30-integracoes/APLICAR-AO-VIVO.md`](30-integracoes/APLICAR-AO-VIVO.
 - [ ] Webhook do BlackCat marcando `status = cliente`
 - [ ] Mensagem de áudio → o agente responde ao **conteúdo**
 - [ ] Figurinha/imagem → pede texto, **não inventa** o que você disse
-- [ ] Upsell chega 10 min após a compra e aparece em `conversas`
+- [ ] **A entrega chega logo após o pagamento**, com o conteúdo real de cada
+      produto comprado, e fica registrada em `conversas`
+- [ ] Com `entrega_texto` vazio de propósito: a cliente recebe o aviso de
+      "acesso em seguida" **e** você recebe o alerta no seu número
 - [ ] **Teste do handoff** — o agente para de vender, acolhe, e grava
       `status = 'aguardando_humano'`
 

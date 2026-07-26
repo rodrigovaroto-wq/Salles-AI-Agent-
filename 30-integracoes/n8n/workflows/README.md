@@ -92,7 +92,7 @@ validação de integridade.
 | Arquivo | Gatilho | O que faz |
 |---|---|---|
 | `agente-vendas.json` | 1 | Recebe mensagem → **se for áudio, baixa e transcreve via Whisper antes de seguir** (ver nota abaixo) → busca lead/histórico/prompt ativo/**catálogo de produtos** (2 Merges) → chama OpenAI já informado dos produtos, preços e tags de **pivô por objeção/arquétipo** (saída em JSON estruturado: `resposta` + `intent` + `arquetipo`) → envia WhatsApp → grava evento → **detecta e grava o arquétipo do lead** (se houver sinal real) → se `intent=gerar_link`, monta carrinho com preço **real do Supabase** e desconto **efetivamente aplicado**, cria venda no BlackCat, e grava o desconto/link de volta no evento → **se `intent=sofrimento`, notifica o Rodrigo no WhatsApp e marca `status=aguardando_humano`** (handoff, ver nota abaixo) |
-| `pagamento-blackcat.json` | 2 e 3 | Recebe webhook do BlackCat → roteia por `event` (cadeia de IFs) → `paid`: marca cliente, confirma, **espera 10min e oferece o próximo produto do catálogo que o cliente ainda não comprou** (upsell pós-compra) → `created`: marca abandonado, **espera 2h** (node `Wait`, sobrevive a reinício do pod) e reabre se ainda abandonado → `failed`: libera para follow-up |
+| `pagamento-blackcat.json` | 2 e 3 | Recebe webhook do BlackCat → roteia por `event` (cadeia de IFs) → `paid`: marca cliente, confirma e **entrega o produto pelo WhatsApp** (lendo `produtos.entrega_texto`) → `created`: marca abandonado, **espera 2h** (node `Wait`, sobrevive a reinício do pod) e reabre se ainda abandonado → `failed`: libera para follow-up |
 | `followup-24h.json` | 4 | A cada hora, busca leads sem compra há >24h, separa em itens e envia o template aprovado |
 | `fila-notificar.json` | ciclo Hermes | Todo dia às 8h, busca sugestões pendentes (risco alto primeiro) e manda um resumo com links de aprovar/rejeitar para você no WhatsApp |
 | `fila-decidir.json` | ciclo Hermes | Recebe o clique do link → registra a decisão → se aprovada, **aplica sozinho**: desativa a versão antiga em `prompt_ativo`, insere a nova (rollback fica preservado, nada é apagado) e **espelha a mudança no git** (commit direto no arquivo `.md` correspondente via API do GitHub) |
@@ -222,26 +222,17 @@ usa `externalReference` (não `externalRef`) e `transactionId` (não `id`).
   `<<RODRIGO_WA_NUMBER>>`) e sempre grava `leads.status=aguardando_humano`,
   mesmo que a notificação falhe ou o número ainda não exista — preserva o
   sinal para conferência manual enquanto o WhatsApp está pausado.
-- **Upsell pós-compra (`pagamento-blackcat.json`):** depois de confirmar a
-  venda, o fluxo espera 10 minutos (mesma janela de `jornada-do-lead.md`,
-  Fase 3) e busca, no catálogo real, o produto de maior prioridade que o
-  cliente **ainda não comprou** (comparando com `leads.produtos_comprados`;
-  a comparação aceita `produto_id` **ou** `title`, porque o item gravado vem
-  do BlackCat, que carrega o nome). Se existir, oferece por texto livre; se
-  o cliente já tem tudo, não faz nada (`Sem upsell disponivel`).
-- **O upsell não é oferecido a qualquer um:** `Selecionar proximo produto`
-  bloqueia a oferta se o lead estiver em `opt_out` (pediu para parar de
-  receber mensagens — LGPD, compliance seção 5) ou `aguardando_humano`
-  (escalado por sofrimento real). Nesses dois casos, vender seria violação
-  de compliance, não receita perdida.
-- **A oferta de upsell é gravada em `conversas`:** sem isso, a lead responde
-  "sim" e o agente lê o histórico sem encontrar oferta nenhuma — respondendo
-  perdido. `Gravar oferta de upsell` registra a mesma frase enviada como
-  `mensagem_agente`, então a próxima mensagem cai no fluxo normal de venda
-  com contexto completo.
-- **A frase do upsell é montada num lugar só:** `Selecionar proximo produto`
-  devolve o campo `mensagem` pronto; envio e registro leem **o mesmo campo**.
-  Duplicar o texto nos dois nodes garantiria divergência na primeira edição.
+- **Entrega pelo WhatsApp (`pagamento-blackcat.json`):** confirmado o
+  pagamento, o fluxo lê `produtos.entrega_texto` do catálogo e manda o acesso
+  de cada item comprado. O conteúdo mora no banco, não no workflow — trocar um
+  áudio ou o link do grupo é um `UPDATE`, sem republicar nada.
+- **Produto sem conteúdo cadastrado não vira silêncio:** se faltar
+  `entrega_texto`, a cliente recebe "seu acesso chega em seguida por este
+  WhatsApp" e o Rodrigo é alertado no próprio número para entregar na mão. O
+  pior desfecho possível aqui é a pessoa pagar e não receber mensagem nenhuma.
+- **Não há oferta de upsell pós-compra.** Existiu uma (10 min após o
+  pagamento) e foi removida por decisão da operação: oferecer algo novo antes
+  de entregar o que já foi pago é o caminho curto para chargeback.
 
 ## `workflow-completo.json` é gerado, não editado à mão
 
