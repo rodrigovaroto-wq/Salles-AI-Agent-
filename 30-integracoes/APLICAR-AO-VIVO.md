@@ -161,6 +161,17 @@ do `.json` (o n8n reconstrói a partir de JSON colado) e `Save`. Se não existe,
 
 ## Passo 4 — Religar as referências
 
+> **Não espere o WhatsApp para fazer este passo.** Os 9 nós `Execute Workflow`
+> do 4a não dependem de credencial alguma, e 27 dos 30 pontos de credencial do
+> 4b usam Supabase/OpenAI/BlackCat/GitHub — só 3 nós precisam do WhatsApp.
+>
+> Para esses 3, crie a credencial `WhatsApp Cloud API` **agora**, com valor
+> provisório (`Bearer ainda-nao-tenho`). Isso **não gera retrabalho**: o nó
+> aponta para a credencial por ID, então quando o token real chegar você edita
+> o valor dentro dela e todos os nós seguem ligados. Adiar só atrasa a
+> descoberta de problemas — e com a credencial provisória você já consegue
+> rodar o funil inteiro (ver [`VALIDACAO.md`](VALIDACAO.md), seção 3.5).
+
 Duas coisas não viajam entre instâncias de n8n — **isso é esperado**, não é
 erro de import: o `id` das credenciais e o `id` dos sub-workflows.
 
