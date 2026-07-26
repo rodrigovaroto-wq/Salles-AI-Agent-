@@ -1,0 +1,121 @@
+{
+  "name": "sub-enviar-whatsapp (sub-workflow)",
+  "active": false,
+  "settings": {},
+  "nodes": [
+    {
+      "id": "s1",
+      "name": "Entrada",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "notes": "CONTRATO DE ENTRADA (um item por mensagem a enviar):\n  to             (obrigatorio) numero destino, formato 55DDDNUMERO\n  tipo           'text' (padrao) ou 'template'\n  texto          obrigatorio quando tipo='text'\n  template_nome  obrigatorio quando tipo='template'\n  template_params  array de strings (viram parametros do body, na ordem)\n  template_idioma  padrao 'pt_BR'\n\nSAIDA: { ok, id_mensagem, erro } -- nunca lanca excecao por falha de envio,\npara um envio que falha nao derrubar o fluxo de venda que o chamou.",
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "s2",
+      "name": "Montar corpo da mensagem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "notes": "Valida o contrato e monta o corpo da Graph API. Erro de contrato (faltou 'to', faltou 'texto') LANCA de proposito -- e bug de quem chamou, precisa aparecer alto, nao virar falha silenciosa.",
+      "parameters": {
+        "jsCode": "const e = $input.first().json;\n\nif (!e.to) {\n  throw new Error('sub-enviar-whatsapp: campo \"to\" e obrigatorio.');\n}\n\nlet corpo;\n\nif (e.tipo === 'template') {\n  if (!e.template_nome) {\n    throw new Error('sub-enviar-whatsapp: tipo=template exige \"template_nome\".');\n  }\n  const params = e.template_params || [];\n  corpo = {\n    messaging_product: 'whatsapp',\n    to: e.to,\n    type: 'template',\n    template: {\n      name: e.template_nome,\n      language: { code: e.template_idioma || 'pt_BR' },\n      components: params.length\n        ? [{ type: 'body', parameters: params.map(p => ({ type: 'text', text: String(p) })) }]\n        : []\n    }\n  };\n} else {\n  if (!e.texto) {\n    throw new Error('sub-enviar-whatsapp: tipo=text exige \"texto\".');\n  }\n  corpo = {\n    messaging_product: 'whatsapp',\n    to: e.to,\n    type: 'text',\n    text: { body: e.texto }\n  };\n}\n\nreturn [{ json: { corpo } }];"
+      }
+    },
+    {
+      "id": "s3",
+      "name": "Enviar (Graph API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "notes": "UNICO lugar do projeto com <<WHATSAPP_PHONE_NUMBER_ID>>. Antes eram 9 copias -- trocar o ID exigia acertar as 9 sem esquecer nenhuma. onError=continueRegularOutput para o erro chegar normalizado em 'Resultado do envio' em vez de estourar no fluxo chamador.",
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.corpo }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "id": "s4",
+      "name": "Resultado do envio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "notes": "Normaliza sucesso e falha no mesmo formato. Destaca o erro 131047 (fora da janela de 24h), que so se resolve com template aprovado -- e a causa mais comum de 'a mensagem simplesmente nao chegou'.",
+      "parameters": {
+        "jsCode": "const r = $input.first().json || {};\nconst ok = Array.isArray(r.messages) && r.messages.length > 0;\n\nif (ok) {\n  return [{ json: { ok: true, id_mensagem: r.messages[0].id, erro: null } }];\n}\n\nconst err = r.error || {};\nlet erro = err.message || 'falha desconhecida no envio';\n\n// 131047: a janela de 24h fechou. Texto livre nao passa mais; so template aprovado.\nif (err.code === 131047) {\n  erro = 'janela de 24h fechada (131047) -- so template aprovado reabre a conversa';\n}\n\nreturn [{ json: { ok: false, id_mensagem: null, erro, codigo: err.code || null } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Entrada": {
+      "main": [
+        [
+          {
+            "node": "Montar corpo da mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar corpo da mensagem": {
+      "main": [
+        [
+          {
+            "node": "Enviar (Graph API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar (Graph API)": {
+      "main": [
+        [
+          {
+            "node": "Resultado do envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

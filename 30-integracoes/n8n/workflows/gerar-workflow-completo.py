@@ -35,7 +35,12 @@ RAMOS = [
     ("followup-24h", "f24"),
     ("fila-notificar", "fn"),
     ("fila-decidir", "fd"),
+    ("00-meta-handshake", "hs"),
 ]
+
+# `sub-enviar-whatsapp` NAO entra aqui de proposito: sub-workflow precisa existir
+# como workflow proprio para os nos Execute Workflow o alcancarem. Fundi-lo no
+# consolidado quebraria as chamadas.
 
 ESPACO_ENTRE_RAMOS = 320  # px de folga vertical
 

@@ -99,70 +99,123 @@ para você ter histórico legível fora do banco.
 
 ---
 
-## Passo 3 — Atualizar os workflows no n8n
+## Passo 2.5 — Criar a função de contexto (Supabase)
 
-Os arquivos mudaram (transcrição de áudio, handoff por sofrimento, upsell
-pós-compra, espelhamento no GitHub). Precisam ser reimportados.
+O `agente-vendas` deixou de fazer três buscas separadas e passou a chamar uma
+função no banco. **Sem ela, o agente não responde nada** — a chamada retorna
+404 e o fluxo morre ali.
 
-**Importar cria um workflow novo — não sobrescreve o que já existe.** Para
-atualizar um workflow que já está lá, o caminho é substituir o conteúdo:
+Rode [`supabase/funcao-carregar-contexto.sql`](supabase/funcao-carregar-contexto.sql)
+no SQL Editor. Confira com:
 
-1. Abra o workflow no n8n.
-2. Clique no canvas e dê `Ctrl+A` (selecionar tudo) → `Delete`.
-3. Abra o `.json` correspondente no repo, copie **todo** o conteúdo.
-4. Volte ao canvas do n8n e dê `Ctrl+V` — o n8n reconhece JSON de workflow
-   colado e reconstrói os nós.
-5. `Save`.
+```sql
+select carregar_contexto('lead_inexistente');
+```
 
-Faça isso para:
-
-| Workflow | Arquivo | Por que mudou |
-|---|---|---|
-| `agente-vendas` | [`n8n/workflows/agente-vendas.json`](n8n/workflows/agente-vendas.json) | Transcrição de áudio, gate de mensagem ilegível, handoff por sofrimento, reuso de e-mail/CPF |
-| `pagamento-blackcat` | [`n8n/workflows/pagamento-blackcat.json`](n8n/workflows/pagamento-blackcat.json) | Upsell pós-compra (com guarda de opt-out) |
-| `fila-decidir` | [`n8n/workflows/fila-decidir.json`](n8n/workflows/fila-decidir.json) | Os 2 nós de espelhamento no GitHub |
-
-> Se você importou o `workflow-completo.json` em vez dos individuais, substitua
-> só ele — [`n8n/workflows/workflow-completo.json`](n8n/workflows/workflow-completo.json)
-> já contém as mesmas mudanças (é gerado a partir dos individuais).
+Tem que devolver as três chaves (`historico`, `prompts`, `produtos`).
+`historico` vazio é o esperado para um lead que não existe; **`prompts` ou
+`produtos` vazios** significam que o seed não rodou — o agente responderia sem
+playbook e sem catálogo.
 
 ---
 
-## Passo 4 — Reconectar as credenciais nos nós
+## Passo 3 — Recriar os workflows no n8n
 
-O `id` de credencial não viaja entre instâncias de n8n — **isso é esperado**.
-Depois de colar, os nós de HTTP Request podem aparecer sem credencial
-selecionada.
+A estrutura mudou: agora são **7 workflows** em vez de 5, com um sub-workflow
+compartilhado. O desenho e o porquê estão em
+[`n8n/ARQUITETURA.md`](n8n/ARQUITETURA.md).
 
-Abra cada nó que faz HTTP Request e confirme o campo **Credential for Header
-Auth / Custom Auth**. Os nós **novos**, que com certeza precisam de atenção:
+> **A ordem importa.** O `sub-enviar-whatsapp` precisa existir **antes** dos
+> demais, porque eles o referenciam por ID. Se você importar na ordem errada,
+> os nós `Execute Workflow` ficam apontando para o vazio.
 
-**Em `agente-vendas`:**
+### 3a. Primeiro o sub-workflow
 
-| Nó | Credencial |
+1. `Workflows` → `Import from File` → [`n8n/workflows/sub-enviar-whatsapp.json`](n8n/workflows/sub-enviar-whatsapp.json)
+2. Abra o nó `Enviar (Graph API)` e selecione a credencial `WhatsApp Cloud API`.
+3. Substitua `<<WHATSAPP_PHONE_NUMBER_ID>>` na URL desse nó.
+   **É o único lugar do projeto com esse valor** — antes eram nove.
+4. `Save`. **Não ative** — sub-workflow não se ativa; ele roda quando chamado.
+
+### 3b. Depois os 6 workflows de entrada
+
+Para cada um: se já existe no n8n, abra, `Ctrl+A` → `Delete`, cole o conteúdo
+do `.json` (o n8n reconstrói a partir de JSON colado) e `Save`. Se não existe,
+`Import from File`.
+
+| Workflow | Arquivo | O que mudou |
+|---|---|---|
+| `00-meta-handshake` | [`00-meta-handshake.json`](n8n/workflows/00-meta-handshake.json) | **novo** — saiu de dentro do agente-vendas |
+| `agente-vendas` | [`agente-vendas.json`](n8n/workflows/agente-vendas.json) | contexto numa chamada só; áudio; handoff; envios via sub-workflow |
+| `pagamento-blackcat` | [`pagamento-blackcat.json`](n8n/workflows/pagamento-blackcat.json) | upsell pós-compra; envios via sub-workflow |
+| `followup-24h` | [`followup-24h.json`](n8n/workflows/followup-24h.json) | template via sub-workflow |
+| `fila-notificar` | [`fila-notificar.json`](n8n/workflows/fila-notificar.json) | digest via sub-workflow |
+| `fila-decidir` | [`fila-decidir.json`](n8n/workflows/fila-decidir.json) | espelhamento no GitHub |
+
+> ⚠️ Se você tinha importado o `workflow-completo.json`, **apague ou desative
+> esse workflow agora**. Ele registra os mesmos paths de webhook
+> (`whatsapp-in`, `blackcat`) e vai disputar com os individuais — as mensagens
+> chegam num ou noutro, de forma imprevisível.
+
+---
+
+## Passo 4 — Religar as referências
+
+Duas coisas não viajam entre instâncias de n8n — **isso é esperado**, não é
+erro de import: o `id` das credenciais e o `id` dos sub-workflows.
+
+### 4a. Apontar os nós `Execute Workflow` para o sub-workflow
+
+Abra cada nó abaixo e, no campo **Workflow**, selecione
+`sub-enviar-whatsapp (sub-workflow)` no dropdown:
+
+| Workflow | Nós a religar |
 |---|---|
-| `Buscar URL do audio` | `WhatsApp Cloud API` |
-| `Baixar audio binario` | `WhatsApp Cloud API` |
-| `Transcrever audio (Whisper)` | `OpenAI` |
-| `Responder que nao consegui ler` | `WhatsApp Cloud API` |
-| `Notificar Rodrigo (sofrimento)` | `WhatsApp Cloud API` |
-| `Marcar sofrimento na conversa` | `Supabase (apikey+auth)` |
+| `agente-vendas` | `Enviar resposta ao lead`, `Enviar link de pagamento`, `Enviar alerta de sofrimento`, `Enviar pedido de texto` |
+| `pagamento-blackcat` | `Enviar confirmacao de pagamento`, `Enviar recuperacao de carrinho`, `Enviar oferta de upsell` |
+| `followup-24h` | `Enviar template de follow-up` |
+| `fila-notificar` | `Enviar digest da fila` |
 
-**Em `pagamento-blackcat`:**
+**Como saber que faltou algum:** um `Execute Workflow` sem destino falha na
+execução com "workflow não encontrado". Não falha ao salvar — só quando roda.
 
-| Nó | Credencial |
-|---|---|
-| `Buscar produtos (upsell)` | `Supabase (apikey+auth)` |
-| `Buscar lead atualizado` | `Supabase (apikey+auth)` |
-| `Enviar upsell WhatsApp` | `WhatsApp Cloud API` |
-| `Gravar oferta de upsell` | `Supabase (apikey+auth)` |
+### 4b. Conferir as credenciais dos nós HTTP
 
-**Em `fila-decidir`:**
+| Workflow | Nó | Credencial |
+|---|---|---|
+| `sub-enviar-whatsapp` | `Enviar (Graph API)` | `WhatsApp Cloud API` |
+| `agente-vendas` | `Carregar contexto` | `Supabase (apikey+auth)` |
+| `agente-vendas` | `Buscar URL do audio`, `Baixar audio binario` | `WhatsApp Cloud API` |
+| `agente-vendas` | `Transcrever audio (Whisper)` | `OpenAI` |
+| `agente-vendas` | `Marcar sofrimento na conversa` | `Supabase (apikey+auth)` |
+| `pagamento-blackcat` | `Buscar produtos (upsell)`, `Buscar lead atualizado`, `Gravar oferta de upsell` | `Supabase (apikey+auth)` |
+| `fila-decidir` | `Buscar SHA do arquivo no GitHub`, `Commitar mudanca no GitHub` | `GitHub API` |
 
-| Nó | Credencial |
-|---|---|
-| `Buscar SHA do arquivo no GitHub` | `GitHub API` |
-| `Commitar mudanca no GitHub` | `GitHub API` |
+Os demais nós de Supabase/OpenAI/BlackCat já existiam — vale passar o olho,
+mas o import costuma reconhecê-los pelo nome da credencial.
+
+### 4c. Substituir o verify token
+
+No `00-meta-handshake`, nó `Validar verify token`: troque
+`<<WHATSAPP_VERIFY_TOKEN>>` pela string que você vai cadastrar na Meta
+(ver [`whatsapp/README.md`](whatsapp/README.md), seção 6).
+
+---
+
+## Passo 4.5 — Ativar, na ordem certa
+
+1. **`00-meta-handshake`** primeiro — a Meta só aceita a inscrição do webhook
+   se ele já estiver respondendo.
+2. Depois os outros cinco.
+3. **Nunca** o `sub-enviar-whatsapp` nem o `workflow-completo`.
+
+Confira que o handshake responde antes de mexer no painel da Meta:
+
+```bash
+curl "https://salles-ai-agent.pikapod.net/webhook/whatsapp-in?hub.mode=subscribe&hub.verify_token=<SUA_STRING>&hub.challenge=12345"
+```
+
+Tem que responder exatamente `12345`, sem aspas.
 
 ---
 

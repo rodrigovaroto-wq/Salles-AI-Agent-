@@ -55,7 +55,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        220,
+        440,
         0
       ],
       "parameters": {
@@ -85,7 +85,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        220,
+        660,
         160
       ],
       "parameters": {
@@ -115,7 +115,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        440,
+        880,
         320
       ],
       "parameters": {}
@@ -157,47 +157,12 @@
       }
     },
     {
-      "id": "n4",
-      "name": "Confirmar no WhatsApp",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        660,
-        -160
-      ],
-      "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"BlackCat IN\"].json.body.externalReference, type: 'text', text: { body: 'Pagamento confirmado! Em instantes voce recebe os detalhes de acesso. 🙏' } } }}",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth"
-      },
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "",
-          "name": "WhatsApp Cloud API"
-        }
-      }
-    },
-    {
       "id": "n5",
       "name": "Gravar evento (venda)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        880,
+        1100,
         -160
       ],
       "parameters": {
@@ -232,7 +197,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        440,
+        660,
         0
       ],
       "notes": "transaction.created sem paid ainda: arma o estado para o timer de recuperacao de 2h.",
@@ -268,7 +233,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        660,
+        880,
         0
       ],
       "notes": "n8n persiste a execucao e retoma sozinho apos 2h, mesmo que o pod reinicie.",
@@ -283,7 +248,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        880,
+        1100,
         0
       ],
       "parameters": {
@@ -306,7 +271,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1100,
+        1320,
         0
       ],
       "notes": "So recupera se ainda nao pagou nesse meio-tempo (transaction.paid teria mudado o status para cliente).",
@@ -332,48 +297,12 @@
       }
     },
     {
-      "id": "n10",
-      "name": "Recuperacao texto livre",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1320,
-        -80
-      ],
-      "notes": "Dentro da janela de 24h (o lead iniciou a conversa) -> texto livre, sem template.",
-      "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"BlackCat IN\"].json.body.externalReference, type: 'text', text: { body: 'Vi que voce nao concluiu ainda. Ficou alguma duvida que eu possa te ajudar a resolver?' } } }}",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth"
-      },
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "",
-          "name": "WhatsApp Cloud API"
-        }
-      }
-    },
-    {
       "id": "n11",
       "name": "Sem acao (ja resolveu)",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1320,
+        1540,
         80
       ],
       "parameters": {}
@@ -384,7 +313,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        440,
+        880,
         160
       ],
       "notes": "transaction.failed: expirou ou falhou. Volta para follow-up padrao (Gatilho 4).",
@@ -420,7 +349,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        1100,
+        1320,
         -160
       ],
       "notes": "Janela de upsell pos-compra (jornada-do-lead.md, Fase 3: 'recuperacao-upsell', delay 10 minutos). Da tempo do cliente respirar antes de ver a proxima oferta.",
@@ -435,7 +364,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1320,
+        1540,
         -220
       ],
       "notes": "Catalogo real, mesma fonte de verdade usada em agente-vendas.json -- nunca hardcode produto/preco aqui.",
@@ -459,7 +388,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1320,
+        1540,
         -100
       ],
       "notes": "Le produtos_comprados ja gravado em 'Marcar cliente', para saber o que oferecer a mais sem repetir o que a pessoa ja tem.",
@@ -483,7 +412,7 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
       "position": [
-        1540,
+        1760,
         -160
       ],
       "notes": "Barreira de sincronizacao: espera catalogo e lead atualizado antes de decidir o proximo produto.",
@@ -498,7 +427,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1760,
+        1980,
         -160
       ],
       "notes": "Oferece o order_bump de maior prioridade (ordem.asc) que o lead ainda nao comprou. Bloqueia totalmente a oferta se o lead estiver em opt_out (LGPD) ou aguardando_humano (escalado por sofrimento real) -- nesses casos vender seria violacao de compliance, nao perda de receita.",
@@ -512,7 +441,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1980,
+        2200,
         -160
       ],
       "parameters": {
@@ -537,48 +466,12 @@
       }
     },
     {
-      "id": "n19",
-      "name": "Enviar upsell WhatsApp",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        2200,
-        -220
-      ],
-      "notes": "Texto livre dentro da janela de 24h (a lead iniciou a conversa). A frase e montada em 'Selecionar proximo produto' -- fonte unica, para envio e registro nunca divergirem.",
-      "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"BlackCat IN\"].json.body.externalReference, type: 'text', text: { body: $node[\"Selecionar proximo produto\"].json.mensagem } } }}",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth"
-      },
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "",
-          "name": "WhatsApp Cloud API"
-        }
-      }
-    },
-    {
       "id": "n20",
       "name": "Sem upsell disponivel",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        2200,
+        2420,
         -100
       ],
       "parameters": {}
@@ -589,7 +482,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2420,
+        2860,
         -220
       ],
       "notes": "Sem isto o agente nao sabe que ofereceu nada: a lead responde 'sim' e o historico em `conversas` nao tem a oferta, entao o modelo responde no vazio. Grava a mesma frase enviada, como mensagem_agente.",
@@ -617,6 +510,108 @@
           "id": "",
           "name": "Supabase (apikey+auth)"
         }
+      }
+    },
+    {
+      "id": "n4p",
+      "name": "Preparar confirmacao de pagamento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        -160
+      ],
+      "notes": "",
+      "parameters": {
+        "jsCode": "return [{ json: { to: $node[\"BlackCat IN\"].json.body.externalReference, tipo: 'text', texto: 'Pagamento confirmado! Em instantes voce recebe os detalhes de acesso. \\ud83d\\ude4f' } }];"
+      }
+    },
+    {
+      "id": "n4x",
+      "name": "Enviar confirmacao de pagamento",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        -160
+      ],
+      "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n10p",
+      "name": "Preparar recuperacao de carrinho",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        -80
+      ],
+      "notes": "Dentro da janela de 24h (o lead iniciou a conversa) -> texto livre, sem template.",
+      "parameters": {
+        "jsCode": "return [{ json: { to: $node[\"BlackCat IN\"].json.body.externalReference, tipo: 'text', texto: 'Vi que voce nao concluiu ainda. Ficou alguma duvida que eu possa te ajudar a resolver?' } }];"
+      }
+    },
+    {
+      "id": "n10x",
+      "name": "Enviar recuperacao de carrinho",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1760,
+        -80
+      ],
+      "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n19p",
+      "name": "Preparar oferta de upsell",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        -220
+      ],
+      "notes": "Texto livre dentro da janela de 24h (a lead iniciou a conversa). A frase e montada em 'Selecionar proximo produto' -- fonte unica, para envio e registro nunca divergirem.",
+      "parameters": {
+        "jsCode": "return [{ json: { to: $node[\"BlackCat IN\"].json.body.externalReference, tipo: 'text', texto: $node[\"Selecionar proximo produto\"].json.mensagem } }];"
+      }
+    },
+    {
+      "id": "n19x",
+      "name": "Enviar oferta de upsell",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2640,
+        -220
+      ],
+      "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
       }
     }
   ],
@@ -690,18 +685,7 @@
       "main": [
         [
           {
-            "node": "Confirmar no WhatsApp",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Confirmar no WhatsApp": {
-      "main": [
-        [
-          {
-            "node": "Gravar evento (venda)",
+            "node": "Preparar confirmacao de pagamento",
             "type": "main",
             "index": 0
           }
@@ -745,7 +729,7 @@
       "main": [
         [
           {
-            "node": "Recuperacao texto livre",
+            "node": "Preparar recuperacao de carrinho",
             "type": "main",
             "index": 0
           }
@@ -834,7 +818,7 @@
       "main": [
         [
           {
-            "node": "Enviar upsell WhatsApp",
+            "node": "Preparar oferta de upsell",
             "type": "main",
             "index": 0
           }
@@ -848,7 +832,51 @@
         ]
       ]
     },
-    "Enviar upsell WhatsApp": {
+    "Preparar confirmacao de pagamento": {
+      "main": [
+        [
+          {
+            "node": "Enviar confirmacao de pagamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar confirmacao de pagamento": {
+      "main": [
+        [
+          {
+            "node": "Gravar evento (venda)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar recuperacao de carrinho": {
+      "main": [
+        [
+          {
+            "node": "Enviar recuperacao de carrinho",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar oferta de upsell": {
+      "main": [
+        [
+          {
+            "node": "Enviar oferta de upsell",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar oferta de upsell": {
       "main": [
         [
           {

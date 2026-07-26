@@ -1,0 +1,78 @@
+{
+  "name": "00-meta-handshake (verificacao do webhook)",
+  "active": false,
+  "settings": {},
+  "nodes": [
+    {
+      "id": "n26",
+      "name": "Handshake Meta (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "notes": "Responde a verificacao do webhook da Meta. Mesmo path do 'WhatsApp IN', metodo GET -- so existe para o handshake; nenhuma mensagem de lead passa por aqui.",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "whatsapp-in",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "n27",
+      "name": "Validar verify token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "notes": "Recusa o handshake se o token nao bater, para um terceiro nao conseguir apontar o proprio app da Meta para este webhook. <<WHATSAPP_VERIFY_TOKEN>> e a string que voce inventa e cadastra dos dois lados.",
+      "parameters": {
+        "jsCode": "const q = $input.first().json.query || {};\nconst esperado = '<<WHATSAPP_VERIFY_TOKEN>>';\n\nif (q['hub.mode'] !== 'subscribe' || q['hub.verify_token'] !== esperado) {\n  throw new Error('Handshake recusado: hub.verify_token nao confere com o cadastrado.');\n}\n\n// A Meta exige o challenge devolvido cru, sem aspas nem JSON em volta.\nreturn [{ json: { challenge: q['hub.challenge'] } }];"
+      }
+    },
+    {
+      "id": "n28",
+      "name": "Devolver challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        0
+      ],
+      "notes": "Texto puro, status 200. Se vier embrulhado em JSON, a Meta recusa a inscricao.",
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.challenge }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Handshake Meta (GET)": {
+      "main": [
+        [
+          {
+            "node": "Validar verify token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar verify token": {
+      "main": [
+        [
+          {
+            "node": "Devolver challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
