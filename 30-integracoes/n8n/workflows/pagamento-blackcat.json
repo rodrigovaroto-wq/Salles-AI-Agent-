@@ -501,9 +501,9 @@
         1760,
         -160
       ],
-      "notes": "Oferece o order_bump de maior prioridade (ordem.asc) que o lead ainda nao comprou. Nunca reoferece algo ja pago -- confere pelo produto_id gravado em items no momento da compra (title usado como fallback se produto_id nao veio no item historico).",
+      "notes": "Oferece o order_bump de maior prioridade (ordem.asc) que o lead ainda nao comprou. Bloqueia totalmente a oferta se o lead estiver em opt_out (LGPD) ou aguardando_humano (escalado por sofrimento real) -- nesses casos vender seria violacao de compliance, nao perda de receita.",
       "parameters": {
-        "jsCode": "const catalogo = ($node[\"Buscar produtos (upsell)\"].json || []);\nconst lead = ($node[\"Buscar lead atualizado\"].json || [])[0] || {};\nconst comprados = lead.produtos_comprados || [];\nconst idsComprados = new Set(comprados.map(i => i.produto_id || i.title));\n\nconst candidatos = catalogo\n  .filter(p => p.tipo !== 'principal')\n  .filter(p => !idsComprados.has(p.produto_id) && !idsComprados.has(p.nome))\n  .sort((a, b) => a.ordem - b.ordem);\n\nconst proximo = candidatos[0] || null;\nreturn [{ json: { tem_upsell: !!proximo, produto: proximo } }];"
+        "jsCode": "const catalogo = ($node[\"Buscar produtos (upsell)\"].json || []);\nconst lead = ($node[\"Buscar lead atualizado\"].json || [])[0] || {};\n\n// Nunca oferecer nada a quem pediu para parar (LGPD/compliance secao 5) nem a quem\n// foi escalado por sofrimento real -- vender nesse momento seria exatamente o que\n// objecoes.md secao P proibe.\nconst bloqueado = lead.status === \"opt_out\" || lead.status === \"aguardando_humano\";\nif (bloqueado) return [{ json: { tem_upsell: false, produto: null, motivo: lead.status } }];\n\nconst comprados = lead.produtos_comprados || [];\n// O item gravado vem do BlackCat, que carrega \"title\" (o nome), nao produto_id --\n// por isso a comparacao aceita as duas formas.\nconst idsComprados = new Set(comprados.map(i => i.produto_id || i.title));\n\nconst candidatos = catalogo\n  .filter(p => p.tipo !== \"principal\")\n  .filter(p => !idsComprados.has(p.produto_id) && !idsComprados.has(p.nome))\n  .sort((a, b) => a.ordem - b.ordem);\n\nconst proximo = candidatos[0] || null;\nif (!proximo) return [{ json: { tem_upsell: false, produto: null, mensagem: null, motivo: \"ja_tem_tudo\" } }];\n\n// Preco formatado a partir do catalogo, nunca hardcoded.\nconst preco = (proximo.preco_centavos / 100).toFixed(2).replace(\".\", \",\");\nconst mensagem = \"Aproveitando que voce ja garantiu a sua protecao: quer completar com *\"\n  + proximo.nome + \"* por apenas R$ \" + preco\n  + \"? Se quiser, me diz \\\"sim\\\" que eu ja te mando o link.\";\n\nreturn [{ json: { tem_upsell: true, produto: proximo, mensagem, motivo: null } }];"
       }
     },
     {
@@ -545,7 +545,7 @@
         2200,
         -220
       ],
-      "notes": "Texto livre dentro da janela de 24h (o lead iniciou a conversa pagando). Preco vem do catalogo em runtime, nunca hardcoded.",
+      "notes": "Texto livre dentro da janela de 24h (a lead iniciou a conversa). A frase e montada em 'Selecionar proximo produto' -- fonte unica, para envio e registro nunca divergirem.",
       "parameters": {
         "method": "POST",
         "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
@@ -560,7 +560,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"BlackCat IN\"].json.body.externalReference, type: 'text', text: { body: 'Aproveitando que voce ja garantiu a sua proteção: quer completar com *' + $node[\"Selecionar proximo produto\"].json.produto.nome + '* por apenas R$ ' + ($node[\"Selecionar proximo produto\"].json.produto.preco_centavos/100).toFixed(2).replace('.', ',') + '? Se quiser, me diz \"sim\" que eu ja te mando o link.' } } }}",
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"BlackCat IN\"].json.body.externalReference, type: 'text', text: { body: $node[\"Selecionar proximo produto\"].json.mensagem } } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth"
@@ -582,6 +582,42 @@
         -100
       ],
       "parameters": {}
+    },
+    {
+      "id": "n21",
+      "name": "Gravar oferta de upsell",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        -220
+      ],
+      "notes": "Sem isto o agente nao sabe que ofereceu nada: a lead responde 'sim' e o historico em `conversas` nao tem a oferta, entao o modelo responde no vazio. Grava a mesma frase enviada, como mensagem_agente.",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/conversas",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { lead_id: $node[\"BlackCat IN\"].json.body.externalReference, etapa_processo: 'pos_venda', mensagem_agente: $node[\"Selecionar proximo produto\"].json.mensagem, produtos_aceitos: [] } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
+      }
     }
   ],
   "connections": {
@@ -806,6 +842,17 @@
         [
           {
             "node": "Sem upsell disponivel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar upsell WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Gravar oferta de upsell",
             "type": "main",
             "index": 0
           }

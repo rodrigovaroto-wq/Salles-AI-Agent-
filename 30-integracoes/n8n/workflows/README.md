@@ -190,6 +190,29 @@ usa `externalReference` (não `externalRef`) e `transactionId` (não `id`).
   precisa do texto da mensagem lê de `Merge apos audio/texto`, não mais de
   `Extrair mensagem e origem`** (que continua sendo a fonte de `wa_id`,
   `nome` e `origem`, que não mudam com a transcrição).
+- **`Nomear arquivo de audio` não é opcional:** a URL de mídia do Graph não
+  tem extensão no nome, e a API da OpenAI decide o formato **pelo nome do
+  arquivo** — sem esse node o upload é recusado por formato inválido. O
+  WhatsApp entrega voz em OGG/Opus, então o binário é nomeado `audio.ogg`.
+- **Falha de áudio degrada, não derruba:** os três nodes do ramo de áudio
+  usam `onError: continueRegularOutput`. Se o download ou a transcrição
+  falhar, o fluxo segue com texto vazio em vez de abortar a execução — e cai
+  no gate abaixo, que responde com honestidade.
+- **`Tem texto para responder?` fecha o buraco da resposta no vácuo:** um
+  único IF depois do upsert cobre **toda** mensagem sem texto legível —
+  áudio cuja transcrição falhou, imagem, figurinha, mensagem vazia. Em vez
+  de mandar um prompt vazio para a OpenAI (e o agente responder inventando o
+  que a pessoa disse — o que `objecoes.md` seção O proíbe), envia a resposta
+  honesta pedindo que reescreva em texto. De quebra, economiza a chamada de
+  IA. O lead **é registrado antes do gate**, então o contato nunca se perde.
+- **E-mail/CPF de quem já comprou não são pedidos de novo:** o `Upsert lead`
+  usa `return=representation` com `merge-duplicates`, então a linha que ele
+  devolve já traz `email`/`cpf` gravados numa conversa anterior — sem query
+  extra. Esses valores entram no system prompt ("DADOS JÁ CONHECIDOS") e
+  também servem de fallback em "Criar venda BlackCat" e "Salvar dados de
+  pagamento do lead" (que assim **nunca sobrescreve um dado bom com vazio**).
+  Isso remove uma fricção de recompra: o cliente recorrente vai direto ao
+  link.
 - **Handoff humano por sofrimento (`agente-vendas.json`):** o prompt agora
   instrui o modelo a retornar `intent="sofrimento"` quando detectar o sinal
   descrito em `../../../00-nucleo/objecoes.md` (seção P). O IF "Intent =
@@ -200,9 +223,23 @@ usa `externalReference` (não `externalRef`) e `transactionId` (não `id`).
 - **Upsell pós-compra (`pagamento-blackcat.json`):** depois de confirmar a
   venda, o fluxo espera 10 minutos (mesma janela de `jornada-do-lead.md`,
   Fase 3) e busca, no catálogo real, o produto de maior prioridade que o
-  cliente **ainda não comprou** (comparando com `leads.produtos_comprados`).
-  Se existir, oferece por texto livre; se o cliente já tem tudo, não faz
-  nada (`Sem upsell disponivel`).
+  cliente **ainda não comprou** (comparando com `leads.produtos_comprados`;
+  a comparação aceita `produto_id` **ou** `title`, porque o item gravado vem
+  do BlackCat, que carrega o nome). Se existir, oferece por texto livre; se
+  o cliente já tem tudo, não faz nada (`Sem upsell disponivel`).
+- **O upsell não é oferecido a qualquer um:** `Selecionar proximo produto`
+  bloqueia a oferta se o lead estiver em `opt_out` (pediu para parar de
+  receber mensagens — LGPD, compliance seção 5) ou `aguardando_humano`
+  (escalado por sofrimento real). Nesses dois casos, vender seria violação
+  de compliance, não receita perdida.
+- **A oferta de upsell é gravada em `conversas`:** sem isso, a lead responde
+  "sim" e o agente lê o histórico sem encontrar oferta nenhuma — respondendo
+  perdido. `Gravar oferta de upsell` registra a mesma frase enviada como
+  `mensagem_agente`, então a próxima mensagem cai no fluxo normal de venda
+  com contexto completo.
+- **A frase do upsell é montada num lugar só:** `Selecionar proximo produto`
+  devolve o campo `mensagem` pronto; envio e registro leem **o mesmo campo**.
+  Duplicar o texto nos dois nodes garantiria divergência na primeira edição.
 
 ## ⚠️ `workflow-completo.json` está desatualizado
 
