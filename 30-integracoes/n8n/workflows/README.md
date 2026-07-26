@@ -75,10 +75,12 @@ n8n, é o valor puro mesmo:
 | `https://salles-ai-agent.pikapod.net` (URL do pod n8n) | preenchido | `agente-vendas` (postbackUrl do BlackCat), `fila-notificar` (link de decisão) |
 | `<<WHATSAPP_PHONE_NUMBER_ID>>` | `../../whatsapp/README.md` — só existe depois da verificação Meta | `agente-vendas`, `pagamento-blackcat`, `followup-24h`, `fila-notificar` |
 | `<<WHATSAPP_TEMPLATE_NAME>>` | Nome do template aprovado pela Meta | `followup-24h` |
+| `<<WHATSAPP_VERIFY_TOKEN>>` | String que você inventa e cadastra dos dois lados | `agente-vendas` (nó `Validar verify token`) |
 | `<<RODRIGO_WA_NUMBER>>` | Seu número | `fila-notificar` (digest do Hermes), `agente-vendas` (alerta de handoff por sofrimento) |
 
-**Os 3 placeholders que restam** (`<<WHATSAPP_PHONE_NUMBER_ID>>`,
-`<<WHATSAPP_TEMPLATE_NAME>>`, `<<RODRIGO_WA_NUMBER>>`) dependem do
+**Os 4 placeholders que restam** (`<<WHATSAPP_PHONE_NUMBER_ID>>`,
+`<<WHATSAPP_TEMPLATE_NAME>>`, `<<RODRIGO_WA_NUMBER>>`,
+`<<WHATSAPP_VERIFY_TOKEN>>`) dependem do
 WhatsApp/BlackCat, que estão pausados. Quando tiver os valores, me passe
 aqui (não é segredo — URLs, IDs de telefone e nome de template podem vir no
 chat sem problema; o que **não** deve vir aqui é a `service_role key` ou

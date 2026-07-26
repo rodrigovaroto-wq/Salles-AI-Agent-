@@ -962,13 +962,60 @@
       }
     },
     {
+      "id": "av-n26",
+      "name": "Handshake Meta (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        720
+      ],
+      "notes": "Responde a verificacao do webhook da Meta. Mesmo path do 'WhatsApp IN', metodo GET -- so existe para o handshake; nenhuma mensagem de lead passa por aqui.",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "whatsapp-in",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "av-n27",
+      "name": "Validar verify token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        720
+      ],
+      "notes": "Recusa o handshake se o token nao bater, para um terceiro nao conseguir apontar o proprio app da Meta para este webhook. <<WHATSAPP_VERIFY_TOKEN>> e a string que voce inventa e cadastra dos dois lados.",
+      "parameters": {
+        "jsCode": "const q = $input.first().json.query || {};\nconst esperado = '<<WHATSAPP_VERIFY_TOKEN>>';\n\nif (q['hub.mode'] !== 'subscribe' || q['hub.verify_token'] !== esperado) {\n  throw new Error('Handshake recusado: hub.verify_token nao confere com o cadastrado.');\n}\n\n// A Meta exige o challenge devolvido cru, sem aspas nem JSON em volta.\nreturn [{ json: { challenge: q['hub.challenge'] } }];"
+      }
+    },
+    {
+      "id": "av-n28",
+      "name": "Devolver challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        720
+      ],
+      "notes": "Texto puro, status 200. Se vier embrulhado em JSON, a Meta recusa a inscricao.",
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.challenge }}",
+        "options": {}
+      }
+    },
+    {
       "id": "pb-n1",
       "name": "BlackCat IN",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
         0,
-        1100
+        1260
       ],
       "parameters": {
         "httpMethod": "POST",
@@ -984,7 +1031,7 @@
       "typeVersion": 2,
       "position": [
         220,
-        940
+        1100
       ],
       "parameters": {
         "conditions": {
@@ -1014,7 +1061,7 @@
       "typeVersion": 2,
       "position": [
         220,
-        1100
+        1260
       ],
       "parameters": {
         "conditions": {
@@ -1044,7 +1091,7 @@
       "typeVersion": 2,
       "position": [
         220,
-        1260
+        1420
       ],
       "parameters": {
         "conditions": {
@@ -1074,7 +1121,7 @@
       "typeVersion": 1,
       "position": [
         440,
-        1420
+        1580
       ],
       "parameters": {}
     },
@@ -1085,7 +1132,7 @@
       "typeVersion": 4.2,
       "position": [
         440,
-        940
+        1100
       ],
       "notes": "transaction.paid: marca status=cliente e grava o(s) produto(s) comprados.",
       "parameters": {
@@ -1121,7 +1168,7 @@
       "typeVersion": 4.2,
       "position": [
         660,
-        940
+        1100
       ],
       "parameters": {
         "method": "POST",
@@ -1156,7 +1203,7 @@
       "typeVersion": 4.2,
       "position": [
         880,
-        940
+        1100
       ],
       "parameters": {
         "method": "POST",
@@ -1191,7 +1238,7 @@
       "typeVersion": 4.2,
       "position": [
         440,
-        1100
+        1260
       ],
       "notes": "transaction.created sem paid ainda: arma o estado para o timer de recuperacao de 2h.",
       "parameters": {
@@ -1227,7 +1274,7 @@
       "typeVersion": 1.1,
       "position": [
         660,
-        1100
+        1260
       ],
       "notes": "n8n persiste a execucao e retoma sozinho apos 2h, mesmo que o pod reinicie.",
       "parameters": {
@@ -1242,7 +1289,7 @@
       "typeVersion": 4.2,
       "position": [
         880,
-        1100
+        1260
       ],
       "parameters": {
         "method": "GET",
@@ -1265,7 +1312,7 @@
       "typeVersion": 2,
       "position": [
         1100,
-        1100
+        1260
       ],
       "notes": "So recupera se ainda nao pagou nesse meio-tempo (transaction.paid teria mudado o status para cliente).",
       "parameters": {
@@ -1296,7 +1343,7 @@
       "typeVersion": 4.2,
       "position": [
         1320,
-        1020
+        1180
       ],
       "notes": "Dentro da janela de 24h (o lead iniciou a conversa) -> texto livre, sem template.",
       "parameters": {
@@ -1332,7 +1379,7 @@
       "typeVersion": 1,
       "position": [
         1320,
-        1180
+        1340
       ],
       "parameters": {}
     },
@@ -1343,7 +1390,7 @@
       "typeVersion": 4.2,
       "position": [
         440,
-        1260
+        1420
       ],
       "notes": "transaction.failed: expirou ou falhou. Volta para follow-up padrao (Gatilho 4).",
       "parameters": {
@@ -1379,7 +1426,7 @@
       "typeVersion": 1.1,
       "position": [
         1100,
-        940
+        1100
       ],
       "notes": "Janela de upsell pos-compra (jornada-do-lead.md, Fase 3: 'recuperacao-upsell', delay 10 minutos). Da tempo do cliente respirar antes de ver a proxima oferta.",
       "parameters": {
@@ -1394,7 +1441,7 @@
       "typeVersion": 4.2,
       "position": [
         1320,
-        880
+        1040
       ],
       "notes": "Catalogo real, mesma fonte de verdade usada em agente-vendas.json -- nunca hardcode produto/preco aqui.",
       "parameters": {
@@ -1418,7 +1465,7 @@
       "typeVersion": 4.2,
       "position": [
         1320,
-        1000
+        1160
       ],
       "notes": "Le produtos_comprados ja gravado em 'Marcar cliente', para saber o que oferecer a mais sem repetir o que a pessoa ja tem.",
       "parameters": {
@@ -1442,7 +1489,7 @@
       "typeVersion": 3,
       "position": [
         1540,
-        940
+        1100
       ],
       "notes": "Barreira de sincronizacao: espera catalogo e lead atualizado antes de decidir o proximo produto.",
       "parameters": {
@@ -1457,7 +1504,7 @@
       "typeVersion": 2,
       "position": [
         1760,
-        940
+        1100
       ],
       "notes": "Oferece o order_bump de maior prioridade (ordem.asc) que o lead ainda nao comprou. Bloqueia totalmente a oferta se o lead estiver em opt_out (LGPD) ou aguardando_humano (escalado por sofrimento real) -- nesses casos vender seria violacao de compliance, nao perda de receita.",
       "parameters": {
@@ -1471,7 +1518,7 @@
       "typeVersion": 2,
       "position": [
         1980,
-        940
+        1100
       ],
       "parameters": {
         "conditions": {
@@ -1501,7 +1548,7 @@
       "typeVersion": 4.2,
       "position": [
         2200,
-        880
+        1040
       ],
       "notes": "Texto livre dentro da janela de 24h (a lead iniciou a conversa). A frase e montada em 'Selecionar proximo produto' -- fonte unica, para envio e registro nunca divergirem.",
       "parameters": {
@@ -1537,7 +1584,7 @@
       "typeVersion": 1,
       "position": [
         2200,
-        1000
+        1160
       ],
       "parameters": {}
     },
@@ -1548,7 +1595,7 @@
       "typeVersion": 4.2,
       "position": [
         2420,
-        880
+        1040
       ],
       "notes": "Sem isto o agente nao sabe que ofereceu nada: a lead responde 'sim' e o historico em `conversas` nao tem a oferta, entao o modelo responde no vazio. Grava a mesma frase enviada, como mensagem_agente.",
       "parameters": {
@@ -1584,7 +1631,7 @@
       "typeVersion": 1.2,
       "position": [
         0,
-        1740
+        1900
       ],
       "parameters": {
         "rule": {
@@ -1604,7 +1651,7 @@
       "typeVersion": 4.2,
       "position": [
         220,
-        1740
+        1900
       ],
       "notes": "HTTP Request mantem o array inteiro como 1 item por padrao (nao explode sozinho) -- por isso o node seguinte separa explicitamente.",
       "parameters": {
@@ -1628,7 +1675,7 @@
       "typeVersion": 2,
       "position": [
         330,
-        1740
+        1900
       ],
       "notes": "Transforma o array unico em N itens n8n, um por lead, para os proximos nodes rodarem por item automaticamente.",
       "parameters": {
@@ -1642,7 +1689,7 @@
       "typeVersion": 4.2,
       "position": [
         440,
-        1740
+        1900
       ],
       "notes": "WHATSAPP_TEMPLATE_NAME = nome do template aprovado pela Meta (ver ../../whatsapp/README.md secao 9). Fora da janela 24h so template serve.",
       "parameters": {
@@ -1678,7 +1725,7 @@
       "typeVersion": 4.2,
       "position": [
         660,
-        1740
+        1900
       ],
       "parameters": {
         "method": "POST",
@@ -1713,7 +1760,7 @@
       "typeVersion": 1.2,
       "position": [
         0,
-        2140
+        2300
       ],
       "parameters": {
         "rule": {
@@ -1733,7 +1780,7 @@
       "typeVersion": 4.2,
       "position": [
         220,
-        2140
+        2300
       ],
       "notes": "order alfabetico de risco_conformidade coloca 'alto' antes de 'baixo' e 'medio' naturalmente (a < b < m).",
       "parameters": {
@@ -1757,7 +1804,7 @@
       "typeVersion": 2,
       "position": [
         440,
-        2140
+        2300
       ],
       "parameters": {
         "conditions": {
@@ -1787,7 +1834,7 @@
       "typeVersion": 2,
       "position": [
         660,
-        2060
+        2220
       ],
       "notes": "Link de decisao aponta para o workflow fila-decidir.json. N8N_BASE_URL = URL publica do pod PikaPods.",
       "parameters": {
@@ -1801,7 +1848,7 @@
       "typeVersion": 4.2,
       "position": [
         880,
-        2060
+        2220
       ],
       "parameters": {
         "method": "POST",
@@ -1836,7 +1883,7 @@
       "typeVersion": 1,
       "position": [
         660,
-        2220
+        2380
       ],
       "parameters": {}
     },
@@ -1847,7 +1894,7 @@
       "typeVersion": 2,
       "position": [
         0,
-        2760
+        2920
       ],
       "notes": "Recebe o clique nos links do digest (fila-notificar.json): ?id=<sugestao_id>&decisao=aprovada|rejeitada",
       "parameters": {
@@ -1864,7 +1911,7 @@
       "typeVersion": 2,
       "position": [
         220,
-        2760
+        2920
       ],
       "parameters": {
         "jsCode": "const q = $input.first().json.query;\nreturn [{ json: { sugestao_id: q.id, decisao: q.decisao } }];"
@@ -1877,7 +1924,7 @@
       "typeVersion": 4.2,
       "position": [
         440,
-        2760
+        2920
       ],
       "parameters": {
         "method": "PATCH",
@@ -1912,7 +1959,7 @@
       "typeVersion": 2,
       "position": [
         660,
-        2760
+        2920
       ],
       "parameters": {
         "conditions": {
@@ -1942,7 +1989,7 @@
       "typeVersion": 4.2,
       "position": [
         880,
-        2680
+        2840
       ],
       "parameters": {
         "method": "GET",
@@ -1965,7 +2012,7 @@
       "typeVersion": 2,
       "position": [
         1100,
-        2680
+        2840
       ],
       "notes": "TODO: heuristica simples por nome de arquivo. Ajustar se o mapeamento arquivo->chave crescer (ex.: por skill individual).",
       "parameters": {
@@ -1979,7 +2026,7 @@
       "typeVersion": 4.2,
       "position": [
         1320,
-        2680
+        2840
       ],
       "parameters": {
         "method": "GET",
@@ -2002,7 +2049,7 @@
       "typeVersion": 4.2,
       "position": [
         1540,
-        2680
+        2840
       ],
       "notes": "Nao apaga: so marca ativo=false. E o que permite reverter com 1 toque (reativar a linha antiga manualmente se preciso).",
       "parameters": {
@@ -2038,7 +2085,7 @@
       "typeVersion": 4.2,
       "position": [
         1760,
-        2680
+        2840
       ],
       "parameters": {
         "method": "POST",
@@ -2073,7 +2120,7 @@
       "typeVersion": 4.2,
       "position": [
         1980,
-        2680
+        2840
       ],
       "parameters": {
         "method": "PATCH",
@@ -2108,7 +2155,7 @@
       "typeVersion": 1,
       "position": [
         880,
-        2840
+        3000
       ],
       "parameters": {}
     },
@@ -2119,7 +2166,7 @@
       "typeVersion": 4.2,
       "position": [
         1980,
-        2540
+        2700
       ],
       "notes": "Le o blob SHA atual do arquivo em main -- a API do GitHub exige o SHA da versao que esta sobrescrevendo para aceitar o PUT (evita sobrescrever mudanca concorrente sem querer).",
       "parameters": {
@@ -2152,7 +2199,7 @@
       "typeVersion": 4.2,
       "position": [
         2200,
-        2540
+        2700
       ],
       "notes": "Espelha a versao aprovada (ja aplicada em prompt_ativo) para o arquivo .md correspondente no repo, para historico legivel fora do banco. O Supabase (prompt_ativo) continua sendo a fonte que o agente le em tempo real -- este commit e so rastreabilidade, nao afeta o runtime.",
       "parameters": {
@@ -2560,6 +2607,28 @@
         [
           {
             "node": "Responder que nao consegui ler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handshake Meta (GET)": {
+      "main": [
+        [
+          {
+            "node": "Validar verify token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar verify token": {
+      "main": [
+        [
+          {
+            "node": "Devolver challenge",
             "type": "main",
             "index": 0
           }

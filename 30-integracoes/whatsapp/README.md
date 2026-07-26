@@ -78,17 +78,37 @@ Esses dois + o token do passo 4 são o que o n8n usa para enviar mensagem
 
 Isto liga o WhatsApp ao node `/webhook/whatsapp-in` criado no n8n (`../n8n/README.md`).
 
-1. No app, `WhatsApp` → `Configuração` → `Webhook` → `Editar`.
-2. **Callback URL:** a URL pública do n8n, ex.
-   `https://SEUPOD.pikapods.com/webhook/whatsapp-in`
-3. **Verify Token:** invente uma string (ex. `salles-verify-2026`) e cadastre a
-   **mesma string** no node de webhook do n8n (ele precisa responder ao
-   *handshake* GET da Meta ecoando esse token).
-4. Clique `Verificar e salvar`. Se o n8n não responder corretamente ao
-   handshake, a Meta recusa — confira se o node do n8n já está publicado
-   (ativo), não só salvo em modo de teste.
-5. Em `Campos do Webhook`, marque **`messages`** (é o que traz as mensagens
+A Meta verifica o webhook com uma requisição **GET** contendo `hub.mode`,
+`hub.verify_token` e `hub.challenge`, e só aceita a inscrição se o servidor
+devolver **o `hub.challenge` cru** (texto puro, sem JSON em volta).
+
+Isso é atendido por três nós dedicados em `agente-vendas.json` —
+`Handshake Meta (GET)` → `Validar verify token` → `Devolver challenge`. Eles
+usam o **mesmo path** do `WhatsApp IN` (`whatsapp-in`) com método GET; o n8n
+registra webhooks por par (path, método), então os dois convivem. Nenhuma
+mensagem de lead passa por esse caminho — ele só existe para o handshake.
+
+1. Escolha a string do verify token (ex. `salles-verify-2026`) e substitua
+   `<<WHATSAPP_VERIFY_TOKEN>>` no nó `Validar verify token` pela string
+   escolhida. **Salve e ative o workflow** — webhook em modo de teste só
+   responde por alguns minutos, e a Meta recusa se não responder.
+2. No app, `WhatsApp` → `Configuração` → `Webhook` → `Editar`.
+3. **Callback URL:** `https://salles-ai-agent.pikapod.net/webhook/whatsapp-in`
+4. **Verify Token:** a mesma string do passo 1 — precisa bater exatamente, o
+   nó recusa o handshake se divergir (é o que impede um terceiro de apontar o
+   próprio app da Meta para o seu webhook).
+5. Clique `Verificar e salvar`.
+6. Em `Campos do Webhook`, marque **`messages`** (é o que traz as mensagens
    recebidas). Não precisa dos outros campos para este projeto.
+
+**Se a Meta recusar**, teste o handshake direto antes de mexer no painel dela:
+
+```bash
+curl "https://salles-ai-agent.pikapod.net/webhook/whatsapp-in?hub.mode=subscribe&hub.verify_token=<SUA_STRING>&hub.challenge=12345"
+```
+
+Tem que responder exatamente `12345`, sem aspas e sem chaves. Se vier vazio ou
+404, o workflow não está ativo. Se vier erro de token, a string não bate.
 
 ---
 
@@ -151,13 +171,31 @@ aprovado** pela Meta.
    rápida e é o que se aplica a "retomar uma conversa em andamento sobre uma
    compra"). Se a Meta reclassificar como Marketing, ok, mas comece testando
    Utilitário.
-3. Redija o texto seguindo `../../00-nucleo/compliance-e-etica.md` — sem
-   urgência falsa, sem promessa. Ex.:
+3. Idioma: **Português (BR)** — o workflow envia `language.code = pt_BR`, e a
+   Meta rejeita o envio se o template não existir nesse idioma exato.
+4. **Estrutura obrigatória: exatamente uma variável `{{1}}`, no corpo, que é o
+   nome do lead.** O `followup-24h.json` envia um único parâmetro de body
+   (`text: $json.nome`) — um template com zero ou duas variáveis faz o envio
+   falhar em runtime, mesmo aprovado.
+5. Texto sugerido (dentro de `../../00-nucleo/compliance-e-etica.md`: sem
+   urgência falsa, sem promessa, sem prova social):
+
    > Olá {{1}}, ainda está por aqui? Fico à disposição para tirar qualquer
-   > dúvida sobre a Oração de São Bento. 🙏
-4. Envie para aprovação. Prazo típico: minutos a ~1 dia útil.
-5. Uma vez aprovado, o n8n dispara esse template pelo endpoint de templates
-   (`type: template`) no Gatilho 4.
+   > dúvida sobre a Oração Sagrada. 🙏
+
+   Se preferir outro texto, mantenha as três propriedades: **uma** variável,
+   nenhum prazo/limite inventado, e nenhuma afirmação sobre o que o produto
+   faz. Um texto que promete resultado derruba a qualidade da conta (seção 10)
+   além de violar o compliance.
+6. Envie para aprovação. Prazo típico: minutos a ~1 dia útil.
+7. Aprovado, anote o **nome exato** do template — é ele que substitui
+   `<<WHATSAPP_TEMPLATE_NAME>>` no `followup-24h.json`.
+
+> ⚠️ O nome do produto no texto acima é **Oração Sagrada** (R$ 22,90), como no
+> `../catalogo-produtos.md`. Uma versão anterior deste guia trazia "Oração de
+> São Bento" no exemplo — produto que não existe no catálogo. Se você já
+> submeteu um template com esse nome, corrija antes de usar: o follow-up
+> mencionaria algo que a lead nunca comprou.
 
 ---
 
@@ -178,7 +216,25 @@ em produção, não só eticamente.
 - [ ] WABA de produção criada e número registrado (não ativo no WhatsApp comum)
 - [ ] Token permanente gerado via System User, com os 2 escopos corretos
 - [ ] Phone number ID e WABA ID anotados
+- [ ] `<<WHATSAPP_VERIFY_TOKEN>>` substituído no nó `Validar verify token` e o workflow **ativo**
+- [ ] Handshake respondendo o challenge cru (teste via `curl` da seção 6)
 - [ ] Webhook apontando para `/webhook/whatsapp-in` do n8n, verificado, campo `messages` marcado
 - [ ] Teste de envio via `curl` funcionando
 - [ ] Links `wa.me` com marcador `[ref:lp]` / `[ref:tiktok]` prontos para a LP e o criativo do TikTok
-- [ ] Template de follow-up pós-24h submetido para aprovação
+- [ ] Template de follow-up pós-24h submetido — 1 variável, pt_BR, categoria Utilitário
+
+## Os 4 valores que você me passa quando tiver
+
+Nenhum é segredo (pode vir no chat) — eu substituo em todos os arquivos de uma
+vez e revalido a integridade dos workflows:
+
+| Placeholder | Onde você acha |
+|---|---|
+| `<<WHATSAPP_PHONE_NUMBER_ID>>` | `WhatsApp` → `Configuração da API` (seção 5) |
+| `<<WHATSAPP_TEMPLATE_NAME>>` | Nome do template aprovado (seção 9) |
+| `<<RODRIGO_WA_NUMBER>>` | Seu número, formato `55DDDNUMERO` |
+| `<<WHATSAPP_VERIFY_TOKEN>>` | A string que você inventou (seção 6) |
+
+O que **não** deve vir no chat: o token permanente da Meta, a `service_role
+key` do Supabase, a chave da OpenAI ou do BlackCat, o PAT do GitHub. Esses vão
+direto para as Credentials do n8n.
