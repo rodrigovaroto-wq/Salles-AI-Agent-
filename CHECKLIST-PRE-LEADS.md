@@ -158,15 +158,17 @@ Nada aqui bloqueia o teste com lead real.
 ## Caminho crítico
 
 ```
-verificação Meta (dias, fora do seu controle)
-        └─> token + phone_number_id ─> placeholders ─> ativar ─> teste real
-fatos operacionais (Grupo A)  ─────────────────────────┘
-passivo de compliance (Grupo D) ───────────────────────┘
+verificação Meta (dias, fora do seu controle) ──> token + phone_number_id
+                                                        │
+conteúdo de entrega (você preenche) ────────────────────┼──> ativar ──> teste real
+                                                        │
+saldo na OpenAI ────────────────────────────────────────┘
 ```
 
-**Só o primeiro item não depende de você.** Dispare a verificação da empresa
-hoje; enquanto ela corre, o Grupo A e o Grupo D podem ser resolvidos e o
-ensaio do Bloco 3 pode ser rodado inteiro.
+**Só o primeiro depende de terceiro.** Dispare a verificação da empresa hoje;
+enquanto ela corre, preencha o `entrega_texto` dos 4 produtos, confirme o
+saldo da OpenAI e rode o ensaio do Bloco 3 inteiro — ele não precisa de
+WhatsApp nenhum.
 
-O erro caro seria a verificação sair, você ligar o anúncio, e descobrir aí que
-o agente não sabe dizer o que a pessoa recebe.
+Compliance e identidade estão resolvidos. O que sobrou de bloqueante é
+operacional, não de conteúdo.
