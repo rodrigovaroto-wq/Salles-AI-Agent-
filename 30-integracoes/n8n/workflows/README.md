@@ -241,14 +241,19 @@ usa `externalReference` (não `externalRef`) e `transactionId` (não `id`).
   devolve o campo `mensagem` pronto; envio e registro leem **o mesmo campo**.
   Duplicar o texto nos dois nodes garantiria divergência na primeira edição.
 
-## ⚠️ `workflow-completo.json` está desatualizado
+## `workflow-completo.json` é gerado, não editado à mão
 
-Os três mecanismos acima (transcrição de áudio, handoff por sofrimento,
-upsell pós-compra) foram adicionados aos arquivos individuais
-(`agente-vendas.json`, `pagamento-blackcat.json`) mas **ainda não foram
-replicados no `workflow-completo.json`**. Até a próxima atualização,
-importe os arquivos individuais em vez do consolidado, ou regenere o
-consolidado a partir deles antes de importar.
+```bash
+python3 30-integracoes/n8n/workflows/gerar-workflow-completo.py
+```
+
+**Rode isso sempre que editar um dos 5 arquivos individuais.** O consolidado
+precisa ser a soma exata deles; mantido à mão ele diverge — foi exatamente o
+que aconteceu antes (três nós ficaram sem prefixo de ramo e os mecanismos
+novos nunca chegaram nele). O gerador prefixa os `id` por ramo, desloca cada
+ramo verticalmente para não se sobreporem, e **falha** se dois ramos tiverem
+um nó com o mesmo nome (conexões e expressões `$node["..."]` referenciam por
+nome — nome duplicado geraria um consolidado silenciosamente quebrado).
 
 ## Convenção de layout (para novos workflows)
 
