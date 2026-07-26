@@ -1,78 +1,72 @@
-# Testemunhos e Prova Social - Oracao Sagrada de Sao Bento
+# Testemunhos — Política e Registro
 
-Arquivo de testemunhos e numeros para uso nos workflows do n8n + Claude.
-Atualizar sempre que chegar novo testemunho real ou numero atualizado.
+> **Esvaziado em 2026-07-26.** Este arquivo continha 6 estatísticas e 4
+> testemunhos fabricados, com a instrução de usá-los nas copies: números de
+> resultado financeiro ("97 mil pessoas saíram das dívidas em 24 horas"), de
+> cura ("o exame seguinte voltou limpo") e de milagre, mais fórmulas para
+> produzir novos — inclusive a nota "testemunhos devem ter nome, idade e
+> cidade **para parecer real**".
+>
+> O conteúdo foi removido, não arquivado. Mantê-lo por perto é manter o risco
+> de alguém — ou um Hermes futuro — voltar a usá-lo.
 
-## Numeros oficiais de prova social
+---
 
-Use exatamente esses numeros nas copies. Nao inventar outros.
+## A regra
 
-- 97 mil pessoas sairam das dividas em 24 horas
-- 64 mil brasileiros zeraram dividas em 48 horas
-- 69 mil pessoas sairam da pobreza em menos de 3 dias
-- 22 mil pessoas tiveram curas e restauracoes
-- 5 mil relatos de milagres em uma unica live
-- 4 mil pessoas tiveram vidas mudadas em menos de 24 horas
+**O agente só cita testemunho registrado na tabela abaixo.** Ela está vazia.
+Enquanto estiver, o agente **não menciona nenhum caso de outro cliente** — nem
+número, nem história, nem "muita gente tem sentido".
 
-## Modelos de testemunho para usar nas copies
+Não é excesso de zelo: é proibição absoluta do
+[`compliance-e-etica.md`](../../00-nucleo/compliance-e-etica.md) (seção 2,
+itens 1, 2, 3 e 5) e publicidade enganosa pelo CDC art. 37, com agravante do
+Estatuto do Idoso por mirar esse público.
 
-### Testemunho 1 - Financeiro rapido
-Maria, 43 anos, interior de MG.
-Estava com o nome sujo ha 4 anos. Tres boletos atrasados. Marido desempregado.
-Fez a Oracao de Sao Bento do jeito certo pela primeira vez numa sexta a noite.
-Na segunda de manha recebeu uma ligacao de uma oportunidade de trabalho que nao esperava.
-Em 30 dias zerou duas dividas.
+## O que um testemunho precisa ter para entrar aqui
 
-### Testemunho 2 - Familiar
-Dona Conceicao, 51 anos, Fortaleza.
-Filho envolvido com drogas ha 2 anos. Casamento destruido. Dividas acumulando.
-Aprendeu o metodo correto da oracao. Fez por 7 dias seguidos.
-O filho voltou pra casa no setimo dia. O marido pediu perdao na mesma semana.
+Os cinco, sem exceção:
 
-### Testemunho 3 - Saude e financas
-Ana Paula, 38 anos, interior de SP.
-Diagnostico medico preocupante. Sem dinheiro para o tratamento.
-Fez a oracao de Sao Bento do jeito certo por 3 dias.
-O exame seguinte voltou limpo. Uma heranca inesperada cobriu todas as contas.
+1. **Pessoa real e identificável** — nome, cidade, contato arquivado.
+2. **Consentimento por escrito** para uso comercial, guardado.
+3. **Relato nas palavras dela**, não reescrito para converter melhor.
+4. **Sem afirmação de cura, resultado financeiro ou milagre** — ainda que ela
+   tenha dito. Se a pessoa afirma que uma doença sarou, isso **não pode** ir
+   para anúncio (Anvisa, CDC), por mais sincero que seja o relato.
+5. **Data da coleta.**
 
-### Testemunho 4 - Emprego
-Rosangela, 47 anos, Recife.
-Desempregada ha 8 meses. Tres filhos. Aluguel atrasado.
-Aprendeu o metodo e fez a oracao na madrugada como ensinado.
-Em 48 horas recebeu duas propostas de emprego.
+## O que fica de fora mesmo sendo verdade
 
-## Formulas de testemunho que convertem
+- Resultado financeiro ("saiu das dívidas", "conseguiu emprego em 48h")
+- Resultado de saúde ("o exame voltou limpo", "a dor passou")
+- Prazo ("em 7 dias", "na mesma semana")
+- Número agregado sem fonte auditável ("69 mil famílias")
 
-Formula 1 - Antes e depois com prazo:
-Nome, idade, cidade. Estava em situacao de dor. Fez a oracao do jeito certo.
-Em prazo curto, resultado especifico aconteceu.
+## O que o agente usa enquanto não houver testemunho real
 
-Formula 2 - Detalhe emocional + virada:
-Ela fez acao emocional que o avatar faz. Ate que descobriu o metodo.
-Em prazo, vida mudou de forma especifica.
+Nesse público, vulnerabilidade honesta converte mais que promessa grande — e
+não carrega risco nenhum:
 
-Formula 3 - Numero + prazo + resultado:
-Numero de pessoas. Prazo. Resultado. O metodo e esse.
+- "Vou ser honesto com você: não prometo milagre. O que eu te ofereço é uma
+  oração de verdade e um caminho pra você não rezar sozinha."
+- "Quem conduz esse trabalho é o Padre Frei. As orações e os áudios foram
+  gravados por ele mesmo."
+- "Você tem 7 dias pra pedir o dinheiro de volta se não for o que esperava."
 
-## Frases de prova social para encaixar na copy
+A terceira é a alavanca mais forte disponível hoje: derruba o risco percebido
+sem afirmar nada sobre outra pessoa.
 
-- Isso ja mudou a vida de 69 mil familias brasileiras
-- Mais de 97 mil pessoas fizeram e nunca mais voltaram para o mesmo lugar
-- Em 48 horas a vida dela nao era mais a mesma
-- 5 mil relatos de milagre em uma unica live. Isso nao e coincidencia.
-- Quem fez do jeito certo viu resultado. Quem nao viu, estava fazendo errado.
+---
 
-## Notas de operacao
+## Testemunhos aprovados
 
-- Sempre usar numeros da lista oficial
-- Testemunhos devem ter nome, idade e cidade para parecer real
-- Prazo maximo nos testemunhos: 7 dias
-- Produto: Oracao Sagrada de Sao Bento
-- Ultima atualizacao: abril 2026
+| Nome | Cidade | Data | Consentimento | Relato |
+|---|---|---|---|---|
+| _(vazio)_ | | | | |
 
-## Relacionados
-- [[avatar]]
-- [[produtos]]
-- [[tom-de-voz]]
-- [[hooks]]
-- [[vsl-roteiro]]
+---
+
+## Relacionado
+- [`prova-social-avancada.md`](prova-social-avancada.md) — como coletar de verdade
+- [`../../00-nucleo/compliance-e-etica.md`](../../00-nucleo/compliance-e-etica.md) — a proibição em detalhe
+- [`../CONFORMIDADE.md`](../CONFORMIDADE.md) — mapa do que foi ajustado nas skills

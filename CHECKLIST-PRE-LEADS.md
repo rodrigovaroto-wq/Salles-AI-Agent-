@@ -11,33 +11,24 @@ que falta não é código — é informação de negócio e limpeza de passivo.
 
 ## 🔴 Bloco 1 — Bloqueia lead real
 
-### 1.1 Passivo de compliance (o mais urgente)
+### 1.1 Passivo de compliance ✅ resolvido
 
-`10-skills/provas/testemunhos.md` contém, textualmente, sob o título "Números
-oficiais de prova social" e a instrução "use exatamente esses números nas
-copies":
+Saneado em 2026-07-26. O que saiu:
 
-> - 97 mil pessoas saíram das dívidas em 24 horas
-> - 64 mil brasileiros zeraram dívidas em 48 horas
-> - 69 mil pessoas saíram da pobreza em menos de 3 dias
+| Arquivo | Removido |
+|---|---|
+| `provas/testemunhos.md` | 6 estatísticas e 4 testemunhos fabricados, e as fórmulas para produzir mais. Virou política de coleta + registro (vazio) |
+| `gatilhos/gatilhos-espirituais.md` | Revelação divina afirmada, recado atribuído ao Padre Pio, "as vagas fecham hoje", medo de "brecha espiritual" |
+| `gatilhos/gatilhos-idoso.md` | 5 frases: cura de origem espiritual, proteção garantida pela assinatura, urgência inexistente, número não verificado |
+| `provas/prova-social-avancada.md` | Exemplos inventados; coleta ganhou consentimento e pergunta que não induz |
 
-Isso viola **quatro** proibições absolutas do próprio `compliance-e-etica.md`
-(seção 2): prova social inventada, promessa de resultado financeiro,
-estatística sem fonte, e exploração de vulnerabilidade. Aplicado ao público
-declarado — mulheres 45–60+, muitas endividadas — soma CDC art. 37, agravante
-do Estatuto do Idoso, e banimento de conta na Meta/TikTok.
+Ficou o que era legítimo: versículos, orientação de linguagem, o framework de
+prova social. Confirmado que nenhum destes arquivos chega ao prompt ao vivo —
+o agente carrega apenas `objetivo`, `compliance` e `objecoes`.
 
-O arquivo diz "para uso nos workflows do n8n". Hoje ele **não** está no prompt
-ao vivo — mas está no repositório, marcado como material a usar. Basta alguém
-(ou um Hermes futuro) seguir a instrução.
-
-- [ ] Neutralizar `10-skills/provas/testemunhos.md`
-- [ ] Neutralizar `10-skills/gatilhos/gatilhos-espirituais.md`
-- [ ] Revisar `10-skills/gatilhos/gatilhos-idoso.md` e `provas/prova-social-avancada.md`
-- [ ] Confirmar que nenhum deles é carregado em `prompt_ativo`
-
-> Eu posso fazer isso agora — não depende de nada externo. Você pediu para
-> pular o Grupo D antes; enquanto não for feito, é o maior risco aberto.
+**Enquanto a tabela de testemunhos estiver vazia, o agente não cita nenhum
+caso de cliente.** A alavanca disponível no lugar é a garantia de 7 dias, que
+reduz risco percebido sem afirmar nada sobre terceiros.
 
 ### 1.2 Preencher o conteúdo de entrega 🔴
 
