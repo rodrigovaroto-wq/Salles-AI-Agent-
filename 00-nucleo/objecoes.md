@@ -282,11 +282,13 @@ para uma pessoa real (compliance seção 6 — escala para humano, não improvis
   risco à vida, orientar procurar ajuda imediata (ex.: CVV 188, no Brasil) e
   sinalizar para intervenção humana.
 
-> ⚠️ **Mecanismo pendente:** hoje não existe um handoff humano automático no
-> fluxo. Enquanto não houver, esta seção evita o dano (o agente para de
-> vender e acolhe), mas a operação precisa criar o caminho real de
-> encaminhamento (ex.: notificar o Rodrigo no WhatsApp quando esse gatilho
-> disparar). Registrado como próximo passo.
+> ✅ **Handoff automático implementado** em `agente-vendas.json`: quando o
+> modelo retorna `intent="sofrimento"`, o workflow notifica o Rodrigo no
+> WhatsApp (`<<RODRIGO_WA_NUMBER>>`) com o texto do lead e marca
+> `status=aguardando_humano` no lead, mesmo que a notificação falhe. O envio
+> real só funciona depois que `<<RODRIGO_WA_NUMBER>>` existir (pós-verificação
+> Meta, ver `../30-integracoes/whatsapp/README.md`); até lá, o registro em
+> `leads.status` já preserva o sinal para conferência manual.
 
 ## Q. Fora de escopo / agressivo / spam
 

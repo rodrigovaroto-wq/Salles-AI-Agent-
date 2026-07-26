@@ -75,7 +75,7 @@ n8n, é o valor puro mesmo:
 | `https://salles-ai-agent.pikapod.net` (URL do pod n8n) | preenchido | `agente-vendas` (postbackUrl do BlackCat), `fila-notificar` (link de decisão) |
 | `<<WHATSAPP_PHONE_NUMBER_ID>>` | `../../whatsapp/README.md` — só existe depois da verificação Meta | `agente-vendas`, `pagamento-blackcat`, `followup-24h`, `fila-notificar` |
 | `<<WHATSAPP_TEMPLATE_NAME>>` | Nome do template aprovado pela Meta | `followup-24h` |
-| `<<RODRIGO_WA_NUMBER>>` | Seu número, para receber o digest do Hermes | `fila-notificar` |
+| `<<RODRIGO_WA_NUMBER>>` | Seu número | `fila-notificar` (digest do Hermes), `agente-vendas` (alerta de handoff por sofrimento) |
 
 **Os 3 placeholders que restam** (`<<WHATSAPP_PHONE_NUMBER_ID>>`,
 `<<WHATSAPP_TEMPLATE_NAME>>`, `<<RODRIGO_WA_NUMBER>>`) dependem do
@@ -89,8 +89,8 @@ validação de integridade.
 
 | Arquivo | Gatilho | O que faz |
 |---|---|---|
-| `agente-vendas.json` | 1 | Recebe mensagem → busca lead/histórico/prompt ativo/**catálogo de produtos** (2 Merges) → chama OpenAI já informado dos produtos, preços e tags de **pivô por objeção/arquétipo** (saída em JSON estruturado: `resposta` + `intent` + `arquetipo`) → envia WhatsApp → grava evento → **detecta e grava o arquétipo do lead** (se houver sinal real) → se `intent=gerar_link`, monta carrinho com preço **real do Supabase** e desconto **efetivamente aplicado**, cria venda no BlackCat, e grava o desconto/link de volta no evento |
-| `pagamento-blackcat.json` | 2 e 3 | Recebe webhook do BlackCat → roteia por `event` (cadeia de IFs) → `paid`: marca cliente e confirma → `created`: marca abandonado, **espera 2h** (node `Wait`, sobrevive a reinício do pod) e reabre se ainda abandonado → `failed`: libera para follow-up |
+| `agente-vendas.json` | 1 | Recebe mensagem → **se for áudio, baixa e transcreve via Whisper antes de seguir** (ver nota abaixo) → busca lead/histórico/prompt ativo/**catálogo de produtos** (2 Merges) → chama OpenAI já informado dos produtos, preços e tags de **pivô por objeção/arquétipo** (saída em JSON estruturado: `resposta` + `intent` + `arquetipo`) → envia WhatsApp → grava evento → **detecta e grava o arquétipo do lead** (se houver sinal real) → se `intent=gerar_link`, monta carrinho com preço **real do Supabase** e desconto **efetivamente aplicado**, cria venda no BlackCat, e grava o desconto/link de volta no evento → **se `intent=sofrimento`, notifica o Rodrigo no WhatsApp e marca `status=aguardando_humano`** (handoff, ver nota abaixo) |
+| `pagamento-blackcat.json` | 2 e 3 | Recebe webhook do BlackCat → roteia por `event` (cadeia de IFs) → `paid`: marca cliente, confirma, **espera 10min e oferece o próximo produto do catálogo que o cliente ainda não comprou** (upsell pós-compra) → `created`: marca abandonado, **espera 2h** (node `Wait`, sobrevive a reinício do pod) e reabre se ainda abandonado → `failed`: libera para follow-up |
 | `followup-24h.json` | 4 | A cada hora, busca leads sem compra há >24h, separa em itens e envia o template aprovado |
 | `fila-notificar.json` | ciclo Hermes | Todo dia às 8h, busca sugestões pendentes (risco alto primeiro) e manda um resumo com links de aprovar/rejeitar para você no WhatsApp |
 | `fila-decidir.json` | ciclo Hermes | Recebe o clique do link → registra a decisão → se aprovada, **aplica sozinho**: desativa a versão antiga em `prompt_ativo`, insere a nova (rollback fica preservado, nada é apagado) e **espelha a mudança no git** (commit direto no arquivo `.md` correspondente via API do GitHub) |
@@ -180,6 +180,38 @@ usa `externalReference` (não `externalRef`) e `transactionId` (não `id`).
   modelo retorna um valor não vazio — evita apagar um arquétipo já
   identificado numa mensagem anterior só porque a mensagem atual não deu
   sinal novo.
+- **Transcrição de áudio (`agente-vendas.json`):** "Extrair mensagem e
+  origem" agora também captura `tipo_mensagem` e `audio_media_id`. O IF
+  "É áudio?" desvia para baixar o binário (`Buscar URL do audio` →
+  `Baixar audio binario`, ambos autenticados com a credencial do WhatsApp
+  Cloud API) e transcrever com Whisper (`Transcrever audio (Whisper)`,
+  reaproveita a credencial `OpenAI`). O node `Merge apos audio/texto`
+  (`mode: append`) reconverge os dois ramos — daí em diante, **todo node que
+  precisa do texto da mensagem lê de `Merge apos audio/texto`, não mais de
+  `Extrair mensagem e origem`** (que continua sendo a fonte de `wa_id`,
+  `nome` e `origem`, que não mudam com a transcrição).
+- **Handoff humano por sofrimento (`agente-vendas.json`):** o prompt agora
+  instrui o modelo a retornar `intent="sofrimento"` quando detectar o sinal
+  descrito em `../../../00-nucleo/objecoes.md` (seção P). O IF "Intent =
+  sofrimento?" dispara `Notificar Rodrigo (sofrimento)` (WhatsApp para
+  `<<RODRIGO_WA_NUMBER>>`) e sempre grava `leads.status=aguardando_humano`,
+  mesmo que a notificação falhe ou o número ainda não exista — preserva o
+  sinal para conferência manual enquanto o WhatsApp está pausado.
+- **Upsell pós-compra (`pagamento-blackcat.json`):** depois de confirmar a
+  venda, o fluxo espera 10 minutos (mesma janela de `jornada-do-lead.md`,
+  Fase 3) e busca, no catálogo real, o produto de maior prioridade que o
+  cliente **ainda não comprou** (comparando com `leads.produtos_comprados`).
+  Se existir, oferece por texto livre; se o cliente já tem tudo, não faz
+  nada (`Sem upsell disponivel`).
+
+## ⚠️ `workflow-completo.json` está desatualizado
+
+Os três mecanismos acima (transcrição de áudio, handoff por sofrimento,
+upsell pós-compra) foram adicionados aos arquivos individuais
+(`agente-vendas.json`, `pagamento-blackcat.json`) mas **ainda não foram
+replicados no `workflow-completo.json`**. Até a próxima atualização,
+importe os arquivos individuais em vez do consolidado, ou regenere o
+consolidado a partir deles antes de importar.
 
 ## Convenção de layout (para novos workflows)
 

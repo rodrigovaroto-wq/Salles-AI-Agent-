@@ -28,9 +28,9 @@
         220,
         0
       ],
-      "notes": "Fallback seguro: sem marcador [ref:lp]/[ref:tiktok] => trata como tiktok (nunca assume compra sem confirmar). Ver ../../whatsapp/README.md secao 8.",
+      "notes": "Fallback seguro: sem marcador [ref:lp]/[ref:tiktok] => trata como tiktok (nunca assume compra sem confirmar). Ver ../../whatsapp/README.md secao 8. Tipo 'audio' e roteado para transcricao via Whisper antes de seguir (ver 'E audio?' / 'Transcrever audio').",
       "parameters": {
-        "jsCode": "const body = $input.first().json.body;\nconst entry = body.entry?.[0]?.changes?.[0]?.value;\nconst msg = entry?.messages?.[0];\nconst contato = entry?.contacts?.[0];\n\nconst wa_id = msg?.from;\nconst nome = contato?.profile?.name || null;\nconst texto = msg?.text?.body || '';\n\nlet origem = 'tiktok';\nif (/\\[ref:lp\\]/i.test(texto)) origem = 'lp';\nelse if (/\\[ref:tiktok\\]/i.test(texto)) origem = 'tiktok';\n\nreturn [{ json: { wa_id, nome, texto_recebido: texto, origem } }];"
+        "jsCode": "const body = $input.first().json.body;\nconst entry = body.entry?.[0]?.changes?.[0]?.value;\nconst msg = entry?.messages?.[0];\nconst contato = entry?.contacts?.[0];\n\nconst wa_id = msg?.from;\nconst nome = contato?.profile?.name || null;\nconst tipo_mensagem = msg?.type || 'unknown';\nconst audio_media_id = msg?.audio?.id || null;\nconst texto = msg?.text?.body || '';\n\nlet origem = 'tiktok';\nif (/\\[ref:lp\\]/i.test(texto)) origem = 'lp';\nelse if (/\\[ref:tiktok\\]/i.test(texto)) origem = 'tiktok';\n\nreturn [{ json: { wa_id, nome, texto_recebido: texto, tipo_mensagem, audio_media_id, origem } }];"
       }
     },
     {
@@ -185,7 +185,7 @@
       ],
       "notes": "Pede saida em JSON estruturado (resposta + intent + arquetipo + pivo_downsell). Calcula a tabela de desconto real em codigo. Inclui as tags resolve_objecao/arquetipos para o pivo (secao 3) e destaque por perfil (secao 4) funcionarem em runtime. Instrui o modelo a oferecer o desconto de recuperacao (20%, aplicado de verdade em 'Montar items do carrinho') com moldura honesta -- nunca 'so hoje' ou datado.",
       "parameters": {
-        "jsCode": "const promptRows = $node[\"Buscar prompt ativo\"].json;\nconst objetivo = promptRows.find(r => r.chave === 'objetivo')?.conteudo || '';\nconst compliance = promptRows.find(r => r.chave === 'compliance')?.conteudo || '';\nconst objecoes = promptRows.find(r => r.chave === 'objecoes')?.conteudo || '';\nconst historico = ($node[\"Buscar historico\"].json || []).reverse();\nconst extra = $node[\"Extrair mensagem e origem\"].json;\nconst produtos = $node[\"Buscar produtos\"].json || [];\n\nconst catalogoTexto = produtos.map(p => {\n  let linha = '- ' + p.produto_id + ' (' + p.tipo + '): ' + p.nome + ' - R$ ' + (p.preco_centavos/100).toFixed(2);\n  if (p.resolve_objecao && p.resolve_objecao.length) linha += ' [resolve objecao: ' + p.resolve_objecao.join(', ') + ']';\n  if (p.arquetipos && p.arquetipos.length) linha += ' [arquetipo: ' + p.arquetipos.join(', ') + ']';\n  return linha;\n}).join('\\n');\n\n// Tabela de desconto REAL, calculada com a MESMA formula usada em \"Montar items do carrinho\".\n// O modelo nunca deve inventar ou recalcular estes numeros -- precisam bater exatamente\n// com o valor que sera de fato cobrado no BlackCat.\nfunction calcularTotal(itens) {\n  const fator = 1 - (Math.max(0, itens.length - 1) * 10) / 100;\n  return itens.reduce((soma, p) => soma + Math.round(p.preco_centavos * fator), 0);\n}\nfunction fmt(centavos) {\n  return (centavos / 100).toFixed(2).replace('.', ',');\n}\n\nconst principal = produtos.find(p => p.tipo === 'principal');\nconst bumps = produtos.filter(p => p.tipo === 'order_bump').sort((a, b) => a.ordem - b.ordem);\n\nlet tabelaDesconto = '';\nif (principal && bumps.length) {\n  let acumulado = [principal];\n  const linhas = [];\n  for (const bump of bumps) {\n    const semDesconto = acumulado.reduce((s, p) => s + p.preco_centavos, 0) + bump.preco_centavos;\n    acumulado = [...acumulado, bump];\n    const comDesconto = calcularTotal(acumulado);\n    const descontoPct = Math.max(0, acumulado.length - 1) * 10;\n    const economia = semDesconto - comDesconto;\n    linhas.push('*+ ' + bump.nome + '* (R$ ' + fmt(bump.preco_centavos) + ')\\n   Total: R$ ' + fmt(comDesconto) + ' - voce economiza *R$ ' + fmt(economia) + '* (' + descontoPct + '% OFF)');\n  }\n  tabelaDesconto = '*Sua ' + principal.nome + ' - R$ ' + fmt(principal.preco_centavos) + '*\\n\\nVeja como o valor final cai conforme voce completa sua protecao:\\n\\n' + linhas.join('\\n\\n') + '\\n\\nEscolha quantos quiser -- quanto mais completa, maior o desconto';\n}\n\nconst systemPrompt = objetivo + '\\n\\n' + compliance\n  + (objecoes ? '\\n\\nGUIA DE OBJECOES (referencia para responder recusas e duvidas, sempre dentro do compliance acima):\\n' + objecoes : '')\n  + '\\n\\nOrigem do lead nesta conversa: ' + extra.origem + '.'\n  + '\\n\\nCatalogo de produtos disponiveis (use exatamente estes produto_id em produtos_aceitos, nunca invente produto ou preco fora desta lista):\\n' + catalogoTexto\n  + '\\n\\nQuando o lead aceitar o produto principal, apresente TODOS os order_bump de uma vez (nao um a um). Use EXATAMENTE este texto para mostrar a economia (os numeros ja estao calculados e batem com o valor real cobrado -- nunca invente ou recalcule):\\n\\n' + tabelaDesconto\n  + '\\n\\nVoce pode ajustar saudacao/tom ao redor deste texto, mas NUNCA altere os valores em R$ ou os percentuais.'\n  + '\\n\\nPIVO POR OBJECAO: se o lead recusar o principal ou repetir uma objecao forte (ex: \"esta caro\", \"nao tenho interesse\", \"vou pensar\") DEPOIS de voce ja ter tentado tratar a objecao uma vez, ofereca o produto do catalogo cuja tag [resolve objecao] bate com o sinal. Nao insista mais de uma vez na mesma linha de recusa.'\n  + '\\n\\nARQUETIPO: identifique ao longo da conversa qual arquetipo da lead mais se encaixa (mae_protetora: fala de filhos/familia/protecao; guerreira_fe: fala de batalha/forca/nao desistir; devota_busca: fala de milagre/graca/resposta/sinal; mulher_pertence: fala de comunidade/nao estar sozinha). Quando apresentar o stack, priorize o produto cujo [arquetipo] bate com o perfil identificado. Se nao houver sinal claro ainda na conversa, retorne arquetipo como null -- nunca invente um arquetipo sem evidencia real.\\n\\nDESCONTO DE RECUPERACAO (pivo por objecao): quando oferecer o produto alternativo da secao de pivo (aquele cuja tag [resolve objecao] bate com o sinal do lead), voce pode mencionar que consegue liberar 20% de desconto para ela fechar agora, nesse momento da conversa. Diga algo como \"consigo liberar 20% pra voce fechar agora\" -- NUNCA diga que essa condicao e \"so hoje\", \"exclusiva desta semana\", \"ultima chance\" ou qualquer coisa datada/limitada no tempo. E uma concessao real e sempre disponivel para quem chega a esse ponto da conversa, nunca uma urgencia fabricada. Quando gerar o link de pagamento para esse cenario (produto alternativo com o desconto de recuperacao), defina pivo_downsell=true na resposta. Em qualquer outro caso de gerar_link, pivo_downsell=false.'\n  + '\\n\\nDADOS DE PAGAMENTO (email e CPF): a API do BlackCat exige e-mail e CPF do comprador no proprio pedido de criacao da venda -- o link so e gerado se os dois ja estiverem preenchidos, nao da pra completar depois na pagina de checkout. Por isso, assim que o lead aceitar o stack (intent=aceitou_stack) e antes de gerar o link, peca e-mail e CPF numa unica mensagem objetiva (ex.: \\\"Perfeito! Pra gerar seu link de pagamento, me confirma seu e-mail e CPF?\\\"). So retorne intent=\\\"gerar_link\\\" quando voce ja tiver tanto o e-mail quanto o CPF do lead em algum ponto da conversa (mensagem atual ou historico) -- enquanto faltar qualquer um dos dois, continue com intent=\\\"aceitou_stack\\\" pedindo soh o que falta, sem repetir produtos ja aceitos. Extraia e retorne SEMPRE os campos \\\"email\\\" e \\\"cpf\\\" com o valor mais recente que o lead informou na conversa (atual ou historico), ou null se ainda nao informado. Nunca invente ou deduza email/CPF -- so preencha se o lead escreveu explicitamente.\\n\\nResponda SEMPRE em JSON no formato: {\"resposta\": string, \"intent\": \"qualificando\"|\"objecao\"|\"aceitou_stack\"|\"gerar_link\"|\"recusou\", \"produtos_aceitos\": string[], \"arquetipo\": \"mae_protetora\"|\"guerreira_fe\"|\"devota_busca\"|\"mulher_pertence\"|null, \"pivo_downsell\": boolean, \"email\": string|null, \"cpf\": string|null}';\n\nconst messages = [{ role: 'system', content: systemPrompt }];\nfor (const h of historico) {\n  if (h.mensagem_lead) messages.push({ role: 'user', content: h.mensagem_lead });\n  if (h.mensagem_agente) messages.push({ role: 'assistant', content: h.mensagem_agente });\n}\nmessages.push({ role: 'user', content: extra.texto_recebido });\n\nreturn [{ json: { model: 'gpt-4.1', response_format: { type: 'json_object' }, messages } }];"
+        "jsCode": "const promptRows = $node[\"Buscar prompt ativo\"].json;\nconst objetivo = promptRows.find(r => r.chave === 'objetivo')?.conteudo || '';\nconst compliance = promptRows.find(r => r.chave === 'compliance')?.conteudo || '';\nconst objecoes = promptRows.find(r => r.chave === 'objecoes')?.conteudo || '';\nconst historico = ($node[\"Buscar historico\"].json || []).reverse();\nconst extra = $node[\"Extrair mensagem e origem\"].json;\nconst textoFinal = $node[\"Merge apos audio/texto\"].json.texto_recebido;\nconst produtos = $node[\"Buscar produtos\"].json || [];\n\nconst catalogoTexto = produtos.map(p => {\n  let linha = '- ' + p.produto_id + ' (' + p.tipo + '): ' + p.nome + ' - R$ ' + (p.preco_centavos/100).toFixed(2);\n  if (p.resolve_objecao && p.resolve_objecao.length) linha += ' [resolve objecao: ' + p.resolve_objecao.join(', ') + ']';\n  if (p.arquetipos && p.arquetipos.length) linha += ' [arquetipo: ' + p.arquetipos.join(', ') + ']';\n  return linha;\n}).join('\\n');\n\n// Tabela de desconto REAL, calculada com a MESMA formula usada em \"Montar items do carrinho\".\n// O modelo nunca deve inventar ou recalcular estes numeros -- precisam bater exatamente\n// com o valor que sera de fato cobrado no BlackCat.\nfunction calcularTotal(itens) {\n  const fator = 1 - (Math.max(0, itens.length - 1) * 10) / 100;\n  return itens.reduce((soma, p) => soma + Math.round(p.preco_centavos * fator), 0);\n}\nfunction fmt(centavos) {\n  return (centavos / 100).toFixed(2).replace('.', ',');\n}\n\nconst principal = produtos.find(p => p.tipo === 'principal');\nconst bumps = produtos.filter(p => p.tipo === 'order_bump').sort((a, b) => a.ordem - b.ordem);\n\nlet tabelaDesconto = '';\nif (principal && bumps.length) {\n  let acumulado = [principal];\n  const linhas = [];\n  for (const bump of bumps) {\n    const semDesconto = acumulado.reduce((s, p) => s + p.preco_centavos, 0) + bump.preco_centavos;\n    acumulado = [...acumulado, bump];\n    const comDesconto = calcularTotal(acumulado);\n    const descontoPct = Math.max(0, acumulado.length - 1) * 10;\n    const economia = semDesconto - comDesconto;\n    linhas.push('*+ ' + bump.nome + '* (R$ ' + fmt(bump.preco_centavos) + ')\\n   Total: R$ ' + fmt(comDesconto) + ' - voce economiza *R$ ' + fmt(economia) + '* (' + descontoPct + '% OFF)');\n  }\n  tabelaDesconto = '*Sua ' + principal.nome + ' - R$ ' + fmt(principal.preco_centavos) + '*\\n\\nVeja como o valor final cai conforme voce completa sua protecao:\\n\\n' + linhas.join('\\n\\n') + '\\n\\nEscolha quantos quiser -- quanto mais completa, maior o desconto';\n}\n\nconst systemPrompt = objetivo + '\\n\\n' + compliance\n  + (objecoes ? '\\n\\nGUIA DE OBJECOES (referencia para responder recusas e duvidas, sempre dentro do compliance acima):\\n' + objecoes : '')\n  + '\\n\\nOrigem do lead nesta conversa: ' + extra.origem + '.'\n  + '\\n\\nCatalogo de produtos disponiveis (use exatamente estes produto_id em produtos_aceitos, nunca invente produto ou preco fora desta lista):\\n' + catalogoTexto\n  + '\\n\\nQuando o lead aceitar o produto principal, apresente TODOS os order_bump de uma vez (nao um a um). Use EXATAMENTE este texto para mostrar a economia (os numeros ja estao calculados e batem com o valor real cobrado -- nunca invente ou recalcule):\\n\\n' + tabelaDesconto\n  + '\\n\\nVoce pode ajustar saudacao/tom ao redor deste texto, mas NUNCA altere os valores em R$ ou os percentuais.'\n  + '\\n\\nPIVO POR OBJECAO: se o lead recusar o principal ou repetir uma objecao forte (ex: \"esta caro\", \"nao tenho interesse\", \"vou pensar\") DEPOIS de voce ja ter tentado tratar a objecao uma vez, ofereca o produto do catalogo cuja tag [resolve objecao] bate com o sinal. Nao insista mais de uma vez na mesma linha de recusa.'\n  + '\\n\\nARQUETIPO: identifique ao longo da conversa qual arquetipo da lead mais se encaixa (mae_protetora: fala de filhos/familia/protecao; guerreira_fe: fala de batalha/forca/nao desistir; devota_busca: fala de milagre/graca/resposta/sinal; mulher_pertence: fala de comunidade/nao estar sozinha). Quando apresentar o stack, priorize o produto cujo [arquetipo] bate com o perfil identificado. Se nao houver sinal claro ainda na conversa, retorne arquetipo como null -- nunca invente um arquetipo sem evidencia real.\\n\\nDESCONTO DE RECUPERACAO (pivo por objecao): quando oferecer o produto alternativo da secao de pivo (aquele cuja tag [resolve objecao] bate com o sinal do lead), voce pode mencionar que consegue liberar 20% de desconto para ela fechar agora, nesse momento da conversa. Diga algo como \"consigo liberar 20% pra voce fechar agora\" -- NUNCA diga que essa condicao e \"so hoje\", \"exclusiva desta semana\", \"ultima chance\" ou qualquer coisa datada/limitada no tempo. E uma concessao real e sempre disponivel para quem chega a esse ponto da conversa, nunca uma urgencia fabricada. Quando gerar o link de pagamento para esse cenario (produto alternativo com o desconto de recuperacao), defina pivo_downsell=true na resposta. Em qualquer outro caso de gerar_link, pivo_downsell=false.'\n  + '\\n\\nDADOS DE PAGAMENTO (email e CPF): a API do BlackCat exige e-mail e CPF do comprador no proprio pedido de criacao da venda -- o link so e gerado se os dois ja estiverem preenchidos, nao da pra completar depois na pagina de checkout. Por isso, assim que o lead aceitar o stack (intent=aceitou_stack) e antes de gerar o link, peca e-mail e CPF numa unica mensagem objetiva (ex.: \\\"Perfeito! Pra gerar seu link de pagamento, me confirma seu e-mail e CPF?\\\"). So retorne intent=\\\"gerar_link\\\" quando voce ja tiver tanto o e-mail quanto o CPF do lead em algum ponto da conversa (mensagem atual ou historico) -- enquanto faltar qualquer um dos dois, continue com intent=\\\"aceitou_stack\\\" pedindo soh o que falta, sem repetir produtos ja aceitos. Extraia e retorne SEMPRE os campos \\\"email\\\" e \\\"cpf\\\" com o valor mais recente que o lead informou na conversa (atual ou historico), ou null se ainda nao informado. Nunca invente ou deduza email/CPF -- so preencha se o lead escreveu explicitamente.\\n\\nSINAL DE SOFRIMENTO REAL (objecoes.md, secao P): se a lead demonstrar angustia genuina -- perda, doenca grave, desesperanca, qualquer mencao a se ferir -- isso sobrepoe qualquer objetivo de venda. Pare de vender na hora, acolha com humanidade, nao ofereca produto algum nesta resposta, e retorne intent=\\\"sofrimento\\\". Se houver risco a vida, oriente procurar ajuda imediata (CVV 188) na propria resposta. Uma vez que intent=\\\"sofrimento\\\" for retornado, um humano sera notificado automaticamente -- voce nao precisa e nao deve tentar resolver isso sozinho nem retomar a venda nesta conversa ate que uma pessoa real intervenha.\\n\\nResponda SEMPRE em JSON no formato: {\"resposta\": string, \"intent\": \"qualificando\"|\"objecao\"|\"aceitou_stack\"|\"gerar_link\"|\"recusou\"|\"sofrimento\", \"produtos_aceitos\": string[], \"arquetipo\": \"mae_protetora\"|\"guerreira_fe\"|\"devota_busca\"|\"mulher_pertence\"|null, \"pivo_downsell\": boolean, \"email\": string|null, \"cpf\": string|null}';\n\nconst messages = [{ role: 'system', content: systemPrompt }];\nfor (const h of historico) {\n  if (h.mensagem_lead) messages.push({ role: 'user', content: h.mensagem_lead });\n  if (h.mensagem_agente) messages.push({ role: 'assistant', content: h.mensagem_agente });\n}\nmessages.push({ role: 'user', content: textoFinal });\n\nreturn [{ json: { model: 'gpt-4.1', response_format: { type: 'json_object' }, messages } }];"
       }
     },
     {
@@ -298,7 +298,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, mensagem_agente: $node[\"Extrair resposta e intent\"].json.resposta, mensagem_lead: $node[\"Extrair mensagem e origem\"].json.texto_recebido, produtos_aceitos: $node[\"Extrair resposta e intent\"].json.produtos_aceitos || [] } }}",
+        "jsonBody": "={{ { lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, mensagem_agente: $node[\"Extrair resposta e intent\"].json.resposta, mensagem_lead: $node[\"Merge apos audio/texto\"].json.texto_recebido, produtos_aceitos: $node[\"Extrair resposta e intent\"].json.produtos_aceitos || [] } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -585,6 +585,294 @@
           "name": "Supabase (apikey+auth)"
         }
       }
+    },
+    {
+      "id": "n20",
+      "name": "Intent = sofrimento?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        320
+      ],
+      "notes": "Handoff humano (objecoes.md, secao P). O agente ja parou de vender e acolheu na resposta em si (n6/n8); este ramo so cobre o encaminhamento para uma pessoa real.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$node[\"Extrair resposta e intent\"].json.intent}}",
+              "rightValue": "sofrimento",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "n21",
+      "name": "Notificar Rodrigo (sofrimento)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        320
+      ],
+      "notes": "Handoff automatico: avisa o humano imediatamente quando o gatilho de sofrimento real disparar. RODRIGO_WA_NUMBER so existe depois da verificacao Meta (ver ../../whatsapp/README.md); enquanto isso o node fica inativo/sem efeito real, mas o registro em conversas (n22) ja preserva o sinal.",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: '<<RODRIGO_WA_NUMBER>>', type: 'text', text: { body: '⚠️ Sinal de sofrimento real detectado.\\nLead: ' + ($node[\"Extrair mensagem e origem\"].json.nome || $node[\"Extrair mensagem e origem\"].json.wa_id) + ' (' + $node[\"Extrair mensagem e origem\"].json.wa_id + ')\\nMensagem: \"' + $node[\"Merge apos audio/texto\"].json.texto_recebido + '\"\\nO agente ja parou de vender e acolheu. Preciso que voce (ou alguem de confianca) assuma esta conversa agora.' } } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "id": "n22",
+      "name": "Marcar sofrimento na conversa",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        320
+      ],
+      "notes": "Registra o gatilho mesmo se a notificacao ao Rodrigo falhar ou o numero ainda nao existir -- garante rastreabilidade do handoff.",
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { status: 'aguardando_humano' } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
+      }
+    },
+    {
+      "id": "n23",
+      "name": "Sem sofrimento detectado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        400
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "n2a",
+      "name": "E audio?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        -160
+      ],
+      "notes": "Hoje o sistema so lia texto; audio de voz (muito comum nesse publico) chegava vazio pro agente (objecoes.md, secao O). Este ramo baixa e transcreve antes de seguir.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$node[\"Extrair mensagem e origem\"].json.tipo_mensagem}}",
+              "rightValue": "audio",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "n2b1",
+      "name": "Buscar URL do audio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        -240
+      ],
+      "notes": "Media id vem no payload do webhook; a URL de download real e obtida num segundo request (expira rapido, por isso nunca se cacheia).",
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v20.0/{{$node[\"Extrair mensagem e origem\"].json.audio_media_id}}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "id": "n2b2",
+      "name": "Baixar audio binario",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        -240
+      ],
+      "notes": "A URL exige o mesmo token do WhatsApp Cloud API para baixar o binario (nao e publica).",
+      "parameters": {
+        "method": "GET",
+        "url": "={{$json.url}}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "id": "n2b3",
+      "name": "Transcrever audio (Whisper)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        -240
+      ],
+      "notes": "OpenAI Whisper (whisper-1). Custo por minuto de audio -- volume esperado e baixo (mensagens de voz curtas), mas monitorar se subir muito.",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": []
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "parameterType": "formData",
+              "name": "model",
+              "value": "whisper-1"
+            },
+            {
+              "parameterType": "formData",
+              "name": "language",
+              "value": "pt"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "OpenAI"
+        }
+      }
+    },
+    {
+      "id": "n2b4",
+      "name": "Usar transcricao como texto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        -240
+      ],
+      "notes": "Substitui texto_recebido pela transcricao e mantem os demais campos do lead intactos, para o fluxo seguir igual ao caminho de texto normal.",
+      "parameters": {
+        "jsCode": "const base = $node[\"Extrair mensagem e origem\"].json;\nconst transcricao = $input.first().json.text || '';\nreturn [{ json: { ...base, texto_recebido: transcricao } }];"
+      }
+    },
+    {
+      "id": "n2c1",
+      "name": "Texto normal (sem audio)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        660,
+        -80
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "n2d1",
+      "name": "Merge apos audio/texto",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1540,
+        0
+      ],
+      "notes": "So um dos dois ramos produz item por execucao (IF so segue por um caminho); mode 'append' converge sem exigir que ambos disparem.",
+      "parameters": {
+        "mode": "append"
+      }
     }
   ],
   "connections": {
@@ -603,7 +891,7 @@
       "main": [
         [
           {
-            "node": "Upsert lead",
+            "node": "E audio?",
             "type": "main",
             "index": 0
           }
@@ -720,6 +1008,11 @@
             "node": "Arquetipo detectado?",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Intent = sofrimento?",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -814,6 +1107,119 @@
         [
           {
             "node": "Sem arquetipo novo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intent = sofrimento?": {
+      "main": [
+        [
+          {
+            "node": "Notificar Rodrigo (sofrimento)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sem sofrimento detectado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notificar Rodrigo (sofrimento)": {
+      "main": [
+        [
+          {
+            "node": "Marcar sofrimento na conversa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "E audio?": {
+      "main": [
+        [
+          {
+            "node": "Buscar URL do audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto normal (sem audio)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar URL do audio": {
+      "main": [
+        [
+          {
+            "node": "Baixar audio binario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baixar audio binario": {
+      "main": [
+        [
+          {
+            "node": "Transcrever audio (Whisper)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcrever audio (Whisper)": {
+      "main": [
+        [
+          {
+            "node": "Usar transcricao como texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Usar transcricao como texto": {
+      "main": [
+        [
+          {
+            "node": "Merge apos audio/texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto normal (sem audio)": {
+      "main": [
+        [
+          {
+            "node": "Merge apos audio/texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge apos audio/texto": {
+      "main": [
+        [
+          {
+            "node": "Upsert lead",
             "type": "main",
             "index": 0
           }

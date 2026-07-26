@@ -413,6 +413,175 @@
           "name": "Supabase (apikey+auth)"
         }
       }
+    },
+    {
+      "id": "n13",
+      "name": "Esperar 10min (upsell)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        -160
+      ],
+      "notes": "Janela de upsell pos-compra (jornada-do-lead.md, Fase 3: 'recuperacao-upsell', delay 10 minutos). Da tempo do cliente respirar antes de ver a proxima oferta.",
+      "parameters": {
+        "unit": "minutes",
+        "amount": 10
+      }
+    },
+    {
+      "id": "n14",
+      "name": "Buscar produtos (upsell)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        -220
+      ],
+      "notes": "Catalogo real, mesma fonte de verdade usada em agente-vendas.json -- nunca hardcode produto/preco aqui.",
+      "parameters": {
+        "method": "GET",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/produtos?ativo=eq.true&order=ordem.asc",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
+      }
+    },
+    {
+      "id": "n15",
+      "name": "Buscar lead atualizado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        -100
+      ],
+      "notes": "Le produtos_comprados ja gravado em 'Marcar cliente', para saber o que oferecer a mais sem repetir o que a pessoa ja tem.",
+      "parameters": {
+        "method": "GET",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"BlackCat IN\"].json.body.externalReference}}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Supabase (apikey+auth)"
+        }
+      }
+    },
+    {
+      "id": "n16",
+      "name": "Merge upsell",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1540,
+        -160
+      ],
+      "notes": "Barreira de sincronizacao: espera catalogo e lead atualizado antes de decidir o proximo produto.",
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition"
+      }
+    },
+    {
+      "id": "n17",
+      "name": "Selecionar proximo produto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        -160
+      ],
+      "notes": "Oferece o order_bump de maior prioridade (ordem.asc) que o lead ainda nao comprou. Nunca reoferece algo ja pago -- confere pelo produto_id gravado em items no momento da compra (title usado como fallback se produto_id nao veio no item historico).",
+      "parameters": {
+        "jsCode": "const catalogo = ($node[\"Buscar produtos (upsell)\"].json || []);\nconst lead = ($node[\"Buscar lead atualizado\"].json || [])[0] || {};\nconst comprados = lead.produtos_comprados || [];\nconst idsComprados = new Set(comprados.map(i => i.produto_id || i.title));\n\nconst candidatos = catalogo\n  .filter(p => p.tipo !== 'principal')\n  .filter(p => !idsComprados.has(p.produto_id) && !idsComprados.has(p.nome))\n  .sort((a, b) => a.ordem - b.ordem);\n\nconst proximo = candidatos[0] || null;\nreturn [{ json: { tem_upsell: !!proximo, produto: proximo } }];"
+      }
+    },
+    {
+      "id": "n18",
+      "name": "Tem produto para oferecer?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        -160
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.tem_upsell}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "n19",
+      "name": "Enviar upsell WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        -220
+      ],
+      "notes": "Texto livre dentro da janela de 24h (o lead iniciou a conversa pagando). Preco vem do catalogo em runtime, nunca hardcoded.",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"BlackCat IN\"].json.body.externalReference, type: 'text', text: { body: 'Aproveitando que voce ja garantiu a sua proteção: quer completar com *' + $node[\"Selecionar proximo produto\"].json.produto.nome + '* por apenas R$ ' + ($node[\"Selecionar proximo produto\"].json.produto.preco_centavos/100).toFixed(2).replace('.', ',') + '? Se quiser, me diz \"sim\" que eu ja te mando o link.' } } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "id": "n20",
+      "name": "Sem upsell disponivel",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2200,
+        -100
+      ],
+      "parameters": {}
     }
   ],
   "connections": {
@@ -548,6 +717,95 @@
         [
           {
             "node": "Sem acao (ja resolveu)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gravar evento (venda)": {
+      "main": [
+        [
+          {
+            "node": "Esperar 10min (upsell)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperar 10min (upsell)": {
+      "main": [
+        [
+          {
+            "node": "Buscar produtos (upsell)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Buscar lead atualizado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar produtos (upsell)": {
+      "main": [
+        [
+          {
+            "node": "Merge upsell",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar lead atualizado": {
+      "main": [
+        [
+          {
+            "node": "Merge upsell",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge upsell": {
+      "main": [
+        [
+          {
+            "node": "Selecionar proximo produto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Selecionar proximo produto": {
+      "main": [
+        [
+          {
+            "node": "Tem produto para oferecer?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem produto para oferecer?": {
+      "main": [
+        [
+          {
+            "node": "Enviar upsell WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sem upsell disponivel",
             "type": "main",
             "index": 0
           }
