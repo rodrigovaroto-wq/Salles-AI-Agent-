@@ -23,19 +23,19 @@ normas Anvisa sobre promessa de cura, políticas de Meta/TikTok que banem contas
 
 | Arquivo | Status | O que precisa mudar |
 |---|---|---|
-| `provas/testemunhos.md` | ✅ | **Saneado em 2026-07-26.** Os 6 números e 4 testemunhos fabricados foram removidos; o arquivo virou política de coleta + registro (hoje vazio). O agente não cita caso de cliente até haver depoimento real com consentimento arquivado. |
+| `provas/testemunhos.md` | 🔴 | Testemunhos inventados ("para parecer real"), curas de doenças graves e estatísticas fabricadas ("97 mil em 24h"). **Substituir por depoimentos reais, com consentimento, sem promessa de cura.** |
 | `aquisicao/vsl-roteiro.md` | 🔴 | Mensagem secreta fabricada do Papa Francisco, garantia inventada (Pix R$3.000), curas médicas, escassez falsa. **Reescrever com autoridade e oferta verdadeiras.** |
 | `aquisicao/criativos-ref.md` | 🔴 | Estatísticas fabricadas e promessas de resultado financeiro/cura. **Trocar por benefícios reais e verificáveis.** |
-| `gatilhos/gatilhos-espirituais.md` | ✅ | **Saneado em 2026-07-26.** Versículos mantidos (reais e verificáveis); removida a seção que afirmava revelação divina, atribuía recado ao Padre Pio, fabricava urgência e criava medo espiritual para vender. |
+| `gatilhos/gatilhos-espirituais.md` | 🟡 | "As vagas fecham hoje" e recados inventados de santos = urgência/autoridade falsa. **Só usar escassez real.** |
 | `ofertas/upsell-recovery.md` | 🟡 | "Recado do Padre Pio", "vagas limitadas" sem lastro. **Manter o tom, remover a fabricação.** |
 | `ofertas/angulos-upsell.md` | 🟡 | Ângulos "cura e milagre" e "preço vai subir": só usar se verdadeiros. |
 | `ofertas/angulos-avancados-2.md` | 🟡 | Alguns ângulos usam medo espiritual pesado; calibrar para não coagir. |
 | `copy/copy-persuasao-avancada.md` | 🟡 | Técnicas boas; os exemplos de objeção com escassez falsa precisam de lastro real. |
 | `copy/linguagem-inconsciente.md` | 🟢 | Técnicas de linguagem legítimas. |
 | `copy/neurociencia-da-fe.md` | 🟢 | Enquadramento conceitual; não afirmar como fato científico ao lead. |
-| `gatilhos/gatilhos-idoso.md` | ✅ | **Revisado em 2026-07-26.** Orientação de linguagem e formato mantida; removidas 5 frases (cura por origem espiritual, proteção garantida pela assinatura, urgência inexistente, número não verificado). |
+| `gatilhos/gatilhos-idoso.md` | 🟡 | Comunicação adaptada ao público é OK; não explorar vulnerabilidade com medo. |
 | `gatilhos/sonhos-do-avatar.md` | 🟢 | Mapa de desejos legítimo. |
-| `provas/prova-social-avancada.md` | ✅ | **Revisado em 2026-07-26.** Framework mantido; exemplos fabricados removidos e a coleta ganhou consentimento explícito e pergunta que não induz a resposta. |
+| `provas/prova-social-avancada.md` | 🟡 | Estrutura de prova é boa; exige que os depoimentos sejam **reais**. |
 | `provas/narrativa-heroica.md` | 🟢 | Estrutura narrativa legítima. |
 | `aquisicao/psicologia-das-cores.md` | 🟢 | Design/cores, sem problema. |
 | `sequencias/sequencia-emocional.md` | 🟡 | Sequência boa; depende de escassez/provas reais nas etapas. |

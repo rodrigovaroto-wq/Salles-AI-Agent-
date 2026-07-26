@@ -11,24 +11,33 @@ que falta não é código — é informação de negócio e limpeza de passivo.
 
 ## 🔴 Bloco 1 — Bloqueia lead real
 
-### 1.1 Passivo de compliance ✅ resolvido
+### 1.1 Passivo de compliance (o mais urgente)
 
-Saneado em 2026-07-26. O que saiu:
+`10-skills/provas/testemunhos.md` contém, textualmente, sob o título "Números
+oficiais de prova social" e a instrução "use exatamente esses números nas
+copies":
 
-| Arquivo | Removido |
-|---|---|
-| `provas/testemunhos.md` | 6 estatísticas e 4 testemunhos fabricados, e as fórmulas para produzir mais. Virou política de coleta + registro (vazio) |
-| `gatilhos/gatilhos-espirituais.md` | Revelação divina afirmada, recado atribuído ao Padre Pio, "as vagas fecham hoje", medo de "brecha espiritual" |
-| `gatilhos/gatilhos-idoso.md` | 5 frases: cura de origem espiritual, proteção garantida pela assinatura, urgência inexistente, número não verificado |
-| `provas/prova-social-avancada.md` | Exemplos inventados; coleta ganhou consentimento e pergunta que não induz |
+> - 97 mil pessoas saíram das dívidas em 24 horas
+> - 64 mil brasileiros zeraram dívidas em 48 horas
+> - 69 mil pessoas saíram da pobreza em menos de 3 dias
 
-Ficou o que era legítimo: versículos, orientação de linguagem, o framework de
-prova social. Confirmado que nenhum destes arquivos chega ao prompt ao vivo —
-o agente carrega apenas `objetivo`, `compliance` e `objecoes`.
+Isso viola **quatro** proibições absolutas do próprio `compliance-e-etica.md`
+(seção 2): prova social inventada, promessa de resultado financeiro,
+estatística sem fonte, e exploração de vulnerabilidade. Aplicado ao público
+declarado — mulheres 45–60+, muitas endividadas — soma CDC art. 37, agravante
+do Estatuto do Idoso, e banimento de conta na Meta/TikTok.
 
-**Enquanto a tabela de testemunhos estiver vazia, o agente não cita nenhum
-caso de cliente.** A alavanca disponível no lugar é a garantia de 7 dias, que
-reduz risco percebido sem afirmar nada sobre terceiros.
+O arquivo diz "para uso nos workflows do n8n". Hoje ele **não** está no prompt
+ao vivo — mas está no repositório, marcado como material a usar. Basta alguém
+(ou um Hermes futuro) seguir a instrução.
+
+- [ ] Neutralizar `10-skills/provas/testemunhos.md`
+- [ ] Neutralizar `10-skills/gatilhos/gatilhos-espirituais.md`
+- [ ] Revisar `10-skills/gatilhos/gatilhos-idoso.md` e `provas/prova-social-avancada.md`
+- [ ] Confirmar que nenhum deles é carregado em `prompt_ativo`
+
+> Eu posso fazer isso agora — não depende de nada externo. Você pediu para
+> pular o Grupo D antes; enquanto não for feito, é o maior risco aberto.
 
 ### 1.2 Preencher o conteúdo de entrega 🔴
 
@@ -158,17 +167,15 @@ Nada aqui bloqueia o teste com lead real.
 ## Caminho crítico
 
 ```
-verificação Meta (dias, fora do seu controle) ──> token + phone_number_id
-                                                        │
-conteúdo de entrega (você preenche) ────────────────────┼──> ativar ──> teste real
-                                                        │
-saldo na OpenAI ────────────────────────────────────────┘
+verificação Meta (dias, fora do seu controle)
+        └─> token + phone_number_id ─> placeholders ─> ativar ─> teste real
+fatos operacionais (Grupo A)  ─────────────────────────┘
+passivo de compliance (Grupo D) ───────────────────────┘
 ```
 
-**Só o primeiro depende de terceiro.** Dispare a verificação da empresa hoje;
-enquanto ela corre, preencha o `entrega_texto` dos 4 produtos, confirme o
-saldo da OpenAI e rode o ensaio do Bloco 3 inteiro — ele não precisa de
-WhatsApp nenhum.
+**Só o primeiro item não depende de você.** Dispare a verificação da empresa
+hoje; enquanto ela corre, o Grupo A e o Grupo D podem ser resolvidos e o
+ensaio do Bloco 3 pode ser rodado inteiro.
 
-Compliance e identidade estão resolvidos. O que sobrou de bloqueante é
-operacional, não de conteúdo.
+O erro caro seria a verificação sair, você ligar o anúncio, e descobrir aí que
+o agente não sabe dizer o que a pessoa recebe.

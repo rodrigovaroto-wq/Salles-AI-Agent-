@@ -3,15 +3,6 @@
 ## Contexto
 [[avatar]] — [[dores-psicologicas]] — [[angulos-upsell]] — [[tom-de-voz]]
 
-> **Revisado em 2026-07-26.** A maior parte deste arquivo é orientação
-> legítima de linguagem e formato, e ficou. Saíram 5 frases que afirmavam cura,
-> prometiam proteção garantida, criavam urgência inexistente ou citavam número
-> não verificado — cada remoção está marcada onde estava.
->
-> Vale notar que o próprio arquivo já listava "promessas impossíveis" entre as
-> coisas que **afastam** este público. As frases removidas contradiziam essa
-> orientação.
-
 ---
 
 ## LINGUAGEM QUE RESSOA
@@ -39,32 +30,22 @@
 
 ### Tempo
 "A gente não tem tempo a perder, minha filha."
-
-> Removido: _"cada dia sem proteção completa é um dia de brecha aberta"_ e
-> _"São Bento está chamando agora"_ — criavam medo e urgência que não existem
-> para empurrar a compra.
+"Cada dia que passa sem proteção completa é um dia de brecha aberta."
+"Você já esperou tempo demais. São Bento está chamando agora."
 
 ### Família
 "Seus filhos podem não estar orando. Mas você pode orar por eles."
 "A mãe que ora é o escudo da família inteira."
-
-> Removido: _"enquanto você estiver na comunidade, sua família está coberta"_
-> — promete proteção como resultado garantido de uma assinatura paga.
+"Enquanto você estiver na comunidade, sua família está coberta."
 
 ### Saúde
 "Sua saúde espiritual é tão importante quanto a física."
-
-> Removido: _"muitas doenças têm raiz espiritual. A comunidade ora pela cura
-> completa"_ — afirmação sobre doença e cura. Proibida pelo compliance
-> (seção 2, item 2) e pelas normas da Anvisa; é também o tipo de frase que
-> pode levar alguém a adiar tratamento médico.
+"Muitas doenças têm raiz espiritual. A comunidade ora pela cura completa."
 
 ### Solidão
 "Você não precisa mais carregar isso sozinha."
+"Tem cem mulheres como você orando juntas todo dia."
 "Na comunidade, ninguém ora sozinha."
-
-> Removido: _"tem cem mulheres como você orando juntas todo dia"_ — número
-> não verificado. Volte a usar quando houver o dado real.
 
 ---
 
