@@ -208,6 +208,113 @@ falha — mas dá para ver a execução no histórico do n8n e conferir se
 
 ---
 
+## 3.5 Ensaio geral sem WhatsApp
+
+**Este é o teste mais valioso enquanto a Meta não libera.** O `agente-vendas`
+é disparado por um webhook HTTP comum — dá para chamá-lo direto com o mesmo
+formato de payload que a Meta manda. Tudo roda de verdade: upsert do lead,
+carregamento de contexto, OpenAI, decisão de intent, gravação em `conversas`.
+**Só o envio final falha** — e falha de forma controlada, porque o
+`sub-enviar-whatsapp` devolve `{ok:false, erro}` em vez de derrubar o fluxo.
+
+### Preparação: uma credencial WhatsApp de mentira
+
+Crie uma credencial **Header Auth** chamada `WhatsApp Cloud API` com
+`Name: Authorization` e `Value: Bearer ainda-nao-tenho`. Sem nenhuma
+credencial o nó falha na configuração; com uma inválida ele chega a chamar a
+Graph API e recebe um erro HTTP — que é o caminho que o `onError` trata. É a
+diferença entre "não deu pra testar" e "testei tudo menos a última linha".
+
+Substitua depois pela real. **Não ative o `followup-24h`** durante o ensaio.
+
+### O disparo
+
+```bash
+curl -s -X POST "$N8N_URL/webhook/whatsapp-in" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "entry": [{ "changes": [{ "value": {
+      "contacts": [{ "profile": { "name": "Maria Teste" }, "wa_id": "5511988887777" }],
+      "messages": [{ "from": "5511988887777", "type": "text",
+                     "text": { "body": "vi o anuncio e quero saber mais [ref:lp]" } }]
+    }}]}]
+  }'
+```
+
+### O que conferir, na ordem
+
+**1. No histórico de execuções do n8n** (`Executions` → a mais recente): abra
+e percorra os nós. O que precisa ter acontecido:
+
+| Nó | Sinal de que está certo |
+|---|---|
+| `Extrair mensagem e origem` | `origem: "lp"` (leu o marcador `[ref:lp]`) |
+| `Tem texto para responder?` | seguiu pelo ramo **true** |
+| `Carregar contexto` | devolveu `prompts` com 3 itens e `produtos` com 4 |
+| `Montar mensagens OpenAI` | o `system` contém a tabela de desconto com valores em R$ |
+| `Extrair resposta e intent` | JSON válido, com `resposta` e `intent` |
+| `Enviar resposta ao lead` | `ok: false` — **esperado**, é o WhatsApp faltando |
+| `Gravar evento conversa` | rodou **mesmo com o envio falhando** |
+
+Esse último é o ponto: o fluxo não pode parar porque o WhatsApp não saiu.
+
+**2. No banco** — o lead e a conversa existem:
+
+```sql
+select lead_id, nome, origem_canal, status from leads
+where lead_id = '5511988887777';
+
+select ocorrido_em, mensagem_lead, left(mensagem_agente, 120) as resposta
+from conversas where lead_id = '5511988887777'
+order by ocorrido_em desc;
+```
+
+`mensagem_agente` é **a resposta que a lead teria recebido**. Leia com
+atenção: é o produto do prompt inteiro (objetivo + compliance + objeções +
+catálogo) rodando de verdade. Se estiver ruim, é agora que se descobre — sem
+gastar lead real.
+
+### Continue a conversa
+
+Repita o `curl` mudando só o texto, para atravessar o funil:
+
+| Mande | Espere |
+|---|---|
+| `quanto custa?` | preço da Oração Sagrada, R$ 22,90 — nunca outro número |
+| `quero sim` | os **3** order bumps de uma vez, com a tabela de economia |
+| `vou levar tudo` | pedido de e-mail e CPF **numa mensagem só** |
+| `maria@teste.com, 111.444.777-35` | `intent=gerar_link` → link real do BlackCat |
+| `esta caro demais` (em outro lead) | pivô para a Oração em Áudio com 20% |
+
+O CPF acima é um número válido pelo dígito verificador e não pertence a
+ninguém — serve para o BlackCat aceitar sem usar dado real de terceiro.
+
+> ⚠️ Ao chegar em `gerar_link`, uma cobrança **real** é criada no BlackCat.
+> Confira o valor no `invoiceUrl` e não pague — ou pague e estorne.
+
+### Teste do handoff (o mais importante)
+
+Use um `wa_id` diferente e mande algo que sinalize sofrimento real. Confira:
+
+1. `intent = "sofrimento"` no nó `Extrair resposta e intent`.
+2. A resposta **não menciona produto nem preço**.
+3. `status = 'aguardando_humano'`:
+
+```sql
+select lead_id, status from leads where status = 'aguardando_humano';
+```
+
+Se o agente oferecer qualquer produto nessa conversa, **pare** — é o guardrail
+principal falhando, não um detalhe de conversão.
+
+### Limpar depois
+
+```sql
+delete from leads where lead_id in ('5511988887777');  -- conversas caem junto (on delete cascade)
+```
+
+---
+
 ## 4. WhatsApp
 
 Tudo aqui depende da verificação da Meta. Os testes estão em
