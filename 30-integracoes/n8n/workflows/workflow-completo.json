@@ -68,8 +68,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -117,8 +117,8 @@
       },
       "credentials": {
         "httpHeaderAuth": {
-          "id": "",
-          "name": "OpenAI"
+          "id": "LVlwWDwzHmIujoAI",
+          "name": "Open IA API"
         }
       }
     },
@@ -169,8 +169,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -249,8 +249,8 @@
       },
       "credentials": {
         "httpHeaderAuth": {
-          "id": "",
-          "name": "BlackCat"
+          "id": "coOc51uEorNtsZmG",
+          "name": "BlackCat API"
         }
       }
     },
@@ -285,8 +285,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -362,8 +362,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -409,8 +409,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -476,8 +476,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -624,8 +624,8 @@
       },
       "credentials": {
         "httpHeaderAuth": {
-          "id": "",
-          "name": "OpenAI"
+          "id": "LVlwWDwzHmIujoAI",
+          "name": "Open IA API"
         }
       },
       "onError": "continueRegularOutput"
@@ -748,8 +748,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -780,7 +780,7 @@
       "parameters": {
         "workflowId": {
           "__rl": true,
-          "value": "",
+          "value": "G1sbNfyXXIwL3Cmh",
           "mode": "list",
           "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
         },
@@ -814,7 +814,7 @@
       "parameters": {
         "workflowId": {
           "__rl": true,
-          "value": "",
+          "value": "G1sbNfyXXIwL3Cmh",
           "mode": "list",
           "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
         },
@@ -848,7 +848,7 @@
       "parameters": {
         "workflowId": {
           "__rl": true,
-          "value": "",
+          "value": "G1sbNfyXXIwL3Cmh",
           "mode": "list",
           "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
         },
@@ -882,7 +882,7 @@
       "parameters": {
         "workflowId": {
           "__rl": true,
-          "value": "",
+          "value": "G1sbNfyXXIwL3Cmh",
           "mode": "list",
           "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
         },
@@ -1037,8 +1037,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1072,8 +1072,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1108,8 +1108,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1146,8 +1146,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1224,8 +1224,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1263,8 +1263,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1287,8 +1287,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1393,8 +1393,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1425,7 +1425,7 @@
       "parameters": {
         "workflowId": {
           "__rl": true,
-          "value": "",
+          "value": "G1sbNfyXXIwL3Cmh",
           "mode": "list",
           "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
         },
@@ -1459,7 +1459,7 @@
       "parameters": {
         "workflowId": {
           "__rl": true,
-          "value": "",
+          "value": "G1sbNfyXXIwL3Cmh",
           "mode": "list",
           "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
         },
@@ -1493,7 +1493,7 @@
       "parameters": {
         "workflowId": {
           "__rl": true,
-          "value": "",
+          "value": "G1sbNfyXXIwL3Cmh",
           "mode": "list",
           "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
         },
@@ -1539,8 +1539,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1588,8 +1588,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1620,7 +1620,7 @@
       "parameters": {
         "workflowId": {
           "__rl": true,
-          "value": "",
+          "value": "G1sbNfyXXIwL3Cmh",
           "mode": "list",
           "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
         },
@@ -1666,8 +1666,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1753,7 +1753,7 @@
       "parameters": {
         "workflowId": {
           "__rl": true,
-          "value": "",
+          "value": "G1sbNfyXXIwL3Cmh",
           "mode": "list",
           "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
         },
@@ -1820,8 +1820,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1873,8 +1873,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1910,8 +1910,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1946,8 +1946,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1981,8 +1981,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -2016,8 +2016,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -2060,7 +2060,7 @@
       },
       "credentials": {
         "httpHeaderAuth": {
-          "id": "",
+          "id": "C6veV11Q2srDmrtL",
           "name": "GitHub API"
         }
       }
@@ -2100,7 +2100,7 @@
       },
       "credentials": {
         "httpHeaderAuth": {
-          "id": "",
+          "id": "C6veV11Q2srDmrtL",
           "name": "GitHub API"
         }
       }
