@@ -20,7 +20,7 @@ create table if not exists leads (
   objecoes              text[] default '{}',
   produtos_comprados    jsonb  default '[]',
   consentimento_contato boolean not null default false,   -- opt-in (LGPD / janela 24h)
-  status                text not null default 'ativo' check (status in ('ativo','abandonou','cliente','opt_out')),
+  status                text not null default 'ativo' check (status in ('ativo','abandonou','cliente','opt_out','aguardando_humano')),
   ultima_interacao      timestamptz
 );
 create index if not exists idx_leads_status on leads(status);

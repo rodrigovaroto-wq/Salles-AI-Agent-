@@ -1612,7 +1612,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { lead_id: $node[\"BlackCat IN\"].json.body.externalReference, etapa_processo: 'pos_venda', mensagem_agente: $node[\"Selecionar proximo produto\"].json.mensagem, produtos_aceitos: [] } }}",
+        "jsonBody": "={{ { lead_id: $node[\"BlackCat IN\"].json.body.externalReference, etapa_processo: 'upsell', mensagem_agente: $node[\"Selecionar proximo produto\"].json.mensagem, produtos_aceitos: [] } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"

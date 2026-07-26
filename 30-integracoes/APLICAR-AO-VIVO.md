@@ -12,6 +12,29 @@ Tempo estimado: ~20 minutos.
 
 ---
 
+## Passo 0 — Migração obrigatória do schema (Supabase)
+
+**Faça isto antes de ativar o workflow novo.** O handoff por sofrimento grava
+`status = 'aguardando_humano'` na tabela `leads`, mas o `CHECK` original só
+aceitava `('ativo','abandonou','cliente','opt_out')` — o Postgres rejeitaria a
+gravação, e o mecanismo de segurança falharia **exatamente na situação em que
+ele existe para agir**.
+
+1. No [SQL Editor](https://supabase.com/dashboard/project/rmvmqmcfcjmcjtonewgi/sql/new),
+   cole e rode [`supabase/migracao-aguardando-humano.sql`](supabase/migracao-aguardando-humano.sql).
+
+**Como conferir:**
+
+```sql
+select pg_get_constraintdef(oid)
+from pg_constraint
+where conname = 'leads_status_check';
+```
+
+Precisa listar os **cinco** valores, incluindo `aguardando_humano`.
+
+---
+
 ## Passo 1 — Atualizar o prompt em runtime (Supabase)
 
 O agente não lê os arquivos `.md` do repositório em tempo real: ele lê a
