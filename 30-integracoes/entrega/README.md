@@ -54,7 +54,7 @@ Regras que valem para todos:
 | Arquivo | Estado |
 |---|---|
 | `oracao-sagrada-de-sao-bento.pdf` | ✅ no repo (4 páginas, 8,4 MB) |
-| `audios-conversao/` | ✅ **15 áudios** — cadastrados em `migracao-audios-conversao.sql` |
+| `audios-conversao/` | ✅ **15 áudios** em `.ogg`/opus, normalizados e cadastrados no SQL |
 | `audios-produto/` | ⏳ vazio — aguardando os áudios que são o produto |
 
 ### Os 15 áudios de conversão
@@ -79,19 +79,44 @@ Mapeados por momento do funil, na ordem em que tendem a aparecer:
 | 06 | `como_pagar_pix` | não sabe pagar por Pix |
 | 03 | `pos_pagamento` | junto da entrega |
 
-### ⚠️ Formato — vale converter
+### Formato — já convertidos ✅
 
-Os arquivos vieram em **`.mp3`**. A Cloud API aceita (`audio/mpeg`), mas chega
-como **arquivo anexado**, com ícone de documento. Em `.ogg/opus` chega como
-**mensagem de voz**, com a forma de onda e o play — que é o que soa como o
-padre falando, e não como um anexo de propaganda. Nesse público a diferença é
-grande.
+Os originais vieram em `.mp3` (4,7 MB no total). Foram convertidos para
+**`.ogg`/opus**, que é o formato nativo do WhatsApp: chega como **mensagem de
+voz**, com forma de onda e botão de play, em vez de arquivo anexado com ícone
+de documento. Neste público a diferença entre "o padre me mandou um áudio" e
+"um anexo de propaganda" é grande.
+
+O que foi aplicado:
+
+| Ajuste | Valor | Por quê |
+|---|---|---|
+| Codec | libopus, 32 kbps VBR | nativo do WhatsApp; voz limpa nesse bitrate |
+| Perfil | `-application voip` | otimiza o encoder para fala, não para música |
+| Canais / taxa | mono, 48 kHz | opus trabalha internamente a 48 kHz |
+| Loudness | `loudnorm I=-16 TP=-1.5` | os originais estavam a −25 dB médios, com 7–8 dB de folga |
+| Metadados | removidos | corta peso inútil |
+
+A normalização é a parte que mais importa na prática: rendeu **+8 dB** e deixou
+os 15 no mesmo nível. Áudio baixo, num celular no viva-voz, numa cozinha com
+barulho, simplesmente não é ouvido — e o público é 45–60+.
+
+Resultado: **4,7 MB → 1,2 MB** (−77%), sem perda de duração.
+
+Os `.mp3` originais foram removidos da árvore para não haver ambiguidade sobre
+qual subir. Continuam no histórico do git:
 
 ```bash
-for f in audios-conversao/*.mp3; do
-  ffmpeg -i "$f" -c:a libopus -b:a 32k "${f%.mp3}.ogg"
+git show 50132c6:30-integracoes/entrega/audios-conversao/audio-01-saudacao.mp3 > original.mp3
+```
+
+Para reconverter (o ffmpeg deste ambiente veio do pacote `imageio-ffmpeg`):
+
+```bash
+for f in *.mp3; do
+  ffmpeg -y -i "$f" -af "loudnorm=I=-16:TP=-1.5:LRA=11" \
+    -c:a libopus -b:a 32k -vbr on -application voip \
+    -ac 1 -ar 48000 -map_metadata -1 "${f%.mp3}.ogg"
 done
 ```
 
-Se converter, atualize as URLs em `migracao-audios-conversao.sql` de `.mp3`
-para `.ogg`. Não tenho ffmpeg neste ambiente, então não converti.
