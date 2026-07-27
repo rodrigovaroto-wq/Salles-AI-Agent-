@@ -42,8 +42,18 @@ tabela `prompt_ativo` no Supabase. Editar o `.md` **não muda o comportamento
 ao vivo** até este passo rodar.
 
 1. Abra o [SQL Editor do Supabase](https://supabase.com/dashboard/project/rmvmqmcfcjmcjtonewgi/sql/new).
-2. Copie **todo** o conteúdo de [`supabase/seed-prompt-objecoes.sql`](supabase/seed-prompt-objecoes.sql) e cole no editor.
+2. Copie **todo** o conteúdo de [`supabase/seed-prompt.sql`](supabase/seed-prompt.sql) e cole no editor.
 3. `Run`.
+
+> O `seed-prompt.sql` é **gerado**, não editado à mão. Se você mudou algum
+> `.md` de `00-nucleo/`, rode antes:
+> ```bash
+> python3 30-integracoes/supabase/gerar-seed-prompt.py
+> ```
+> Ele cobre as **três** chaves que o agente carrega (`objetivo`, `compliance`,
+> `objecoes`). O antigo `seed-prompt-objecoes.sql` cobria só duas e foi
+> removido — se você tiver uma cópia velha por aí, não rode: ela reverteria o
+> prompt para a versão anterior.
 
 **Como conferir que pegou:**
 
@@ -54,9 +64,9 @@ where ativo
 order by chave;
 ```
 
-Você deve ver `compliance` e `objecoes` com `ativo = true` e a `versao` **um
-número maior** que antes. Nada é apagado — as versões anteriores continuam na
-tabela com `ativo = false`, então dá pra reverter reativando a linha antiga.
+Você deve ver as **três** chaves com `ativo = true` e a `versao` **um número
+maior** que antes. Nada é apagado — as versões anteriores continuam na tabela
+com `ativo = false`, então dá pra reverter reativando a linha antiga.
 
 > Rodar de novo é seguro: cria mais uma versão de ambas as chaves, mesmo que
 > só uma tenha mudado. O único efeito colateral é um número de versão a mais.
