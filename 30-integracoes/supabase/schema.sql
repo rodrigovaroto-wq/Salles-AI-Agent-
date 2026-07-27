@@ -114,6 +114,10 @@ create table if not exists produtos (
 -- idempotente para reruns num banco onde a tabela ja existe sem essas colunas
 alter table produtos add column if not exists resolve_objecao text[] not null default '{}';
 alter table produtos add column if not exists arquetipos      text[] not null default '{}';
+-- prazo real da oferta: lastro para o gatilho de escassez.
+-- NULL = sem prazo cadastrado => o agente nao fala em vagas/fechamento (ver
+-- 10-skills/gatilhos/gatilhos-espirituais.md, secao Escassez).
+alter table produtos add column if not exists oferta_encerra_em timestamptz;
 alter table leads    add column if not exists email text;
 alter table leads    add column if not exists cpf   text;
 
