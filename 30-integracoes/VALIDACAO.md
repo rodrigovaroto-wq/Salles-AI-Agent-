@@ -229,17 +229,32 @@ Substitua depois pela real. **Não ative o `followup-24h`** durante o ensaio.
 
 ### O disparo
 
+> ⚠️ **Cada mensagem precisa de um `id` único.** O fluxo agora descarta webhook
+> repetido (a Meta reenvia quando não recebe 200 a tempo), e a chave de dedup é
+> esse `id`. Repetir o mesmo faz a mensagem ser ignorada — de propósito. O
+> `$(date +%s)` abaixo resolve isso sozinho.
+
 ```bash
-curl -s -X POST "$N8N_URL/webhook/whatsapp-in" \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "entry": [{ "changes": [{ "value": {
-      "contacts": [{ "profile": { "name": "Maria Teste" }, "wa_id": "5511988887777" }],
-      "messages": [{ "from": "5511988887777", "type": "text",
-                     "text": { "body": "vi o anuncio e quero saber mais [ref:lp]" } }]
-    }}]}]
-  }'
+enviar() {
+  curl -s -X POST "$N8N_URL/webhook/whatsapp-in" \
+    -H 'Content-Type: application/json' \
+    -d "{
+      \"entry\": [{ \"changes\": [{ \"value\": {
+        \"contacts\": [{ \"profile\": { \"name\": \"Maria Teste\" }, \"wa_id\": \"${2:-5511988887777}\" }],
+        \"messages\": [{ \"id\": \"teste_$(date +%s%N)\", \"from\": \"${2:-5511988887777}\",
+                       \"type\": \"text\", \"text\": { \"body\": \"$1\" } }]
+      }}]}]
+    }"
+}
+
+enviar "vi o anuncio e quero saber mais [ref:lp]"
 ```
+
+> ⏱️ **A resposta demora ~8 segundos.** Não é lentidão: é o *debounce*. Quem
+> escreve em três pedaços ("oi" / "vi o anúncio" / "quanto custa?") recebia
+> três respostas cegas entre si; agora a execução espera a rajada terminar e
+> responde uma vez, considerando tudo. As execuções superadas encerram em
+> `Superada por mensagem nova` — ver isso no histórico é o esperado, não erro.
 
 ### O que conferir, na ordem
 
@@ -248,11 +263,14 @@ e percorra os nós. O que precisa ter acontecido:
 
 | Nó | Sinal de que está certo |
 |---|---|
+| `Marcar evento processado` | devolveu 1 linha (mensagem inédita) |
 | `Extrair mensagem e origem` | `origem: "lp"` (leu o marcador `[ref:lp]`) |
-| `Tem texto para responder?` | seguiu pelo ramo **true** |
-| `Carregar contexto` | devolveu `prompts` com 3 itens e `produtos` com 4 |
-| `Montar mensagens OpenAI` | o `system` contém a tabela de desconto com valores em R$ |
-| `Extrair resposta e intent` | JSON válido, com `resposta` e `intent` |
+| `Registrar lead` | devolveu o lead **sem sobrescrever** status |
+| `Lead pediu para parar?` | seguiu pelo ramo **false** |
+| `Consumir buffer` | devolveu o texto (não `null`) |
+| `Carregar contexto` | `prompts` com 3, `produtos` com 4, e o objeto `lead` |
+| `Montar mensagens OpenAI` | o `system` traz a tabela de desconto em R$ |
+| `Extrair resposta e intent` | `mensagens` é um **array** de 1 a 3 textos curtos |
 | `Enviar resposta ao lead` | `ok: false` — **esperado**, é o WhatsApp faltando |
 | `Gravar evento conversa` | rodou **mesmo com o envio falhando** |
 
@@ -311,6 +329,7 @@ principal falhando, não um detalhe de conversão.
 
 ```sql
 delete from leads where lead_id in ('5511988887777');  -- conversas caem junto (on delete cascade)
+delete from eventos_processados where chave like 'wa:teste_%' or chave = 'wa:fixo_123';
 ```
 
 ---
@@ -344,6 +363,57 @@ número do agente e acompanhe:
 | 8 | Pagar | Confirmação chega; `status = cliente` |
 | 9 | Esperar 10 min | Chega a oferta do próximo produto; ela aparece em `conversas` |
 | 10 | Responder `sim` | O agente entende do que se trata (só funciona por causa do passo 9) |
+
+### Teste as correções de robustez
+
+Cada um exercita um defeito que estava aberto até 2026-07-26.
+
+**Dedup (#5)** — mande a mesma mensagem duas vezes com o **mesmo** `id`:
+
+```bash
+ID="fixo_123"
+for i in 1 2; do
+  curl -s -X POST "$N8N_URL/webhook/whatsapp-in" -H 'Content-Type: application/json' \
+    -d "{\"entry\":[{\"changes\":[{\"value\":{
+      \"contacts\":[{\"profile\":{\"name\":\"Teste\"},\"wa_id\":\"5511988887777\"}],
+      \"messages\":[{\"id\":\"$ID\",\"from\":\"5511988887777\",\"type\":\"text\",
+                    \"text\":{\"body\":\"oi\"}}]}}]}]}"
+done
+```
+
+A segunda execução tem que parar em `Duplicata ignorada`.
+
+**Debounce (#8)** — três mensagens em menos de 8 segundos:
+
+```bash
+enviar "oi"; enviar "vi o anuncio"; enviar "quanto custa?"
+```
+
+Só **uma** resposta. As duas primeiras execuções param em `Superada por
+mensagem nova`, e a que responde recebe as três linhas juntas.
+
+**Opt-out (#4)** — `enviar "nao quero mais receber mensagem"`:
+
+```sql
+select status, consentimento_contato from leads where lead_id = '5511988887777';
+```
+
+Tem que estar `opt_out` / `false`. Mande outra mensagem depois: a execução
+precisa parar em `Opt-out respeitado`, **sem responder**.
+
+**Estado preservado (#2)** — o teste que mais importa. Force um estado e mande
+mensagem:
+
+```sql
+update leads set status = 'aguardando_humano' where lead_id = '5511988887777';
+```
+
+`enviar "oi de novo"` e confira que **continua** `aguardando_humano` (antes
+voltava para `ativo` a cada mensagem) e que o system prompt do
+`Montar mensagens OpenAI` contém **MODO SEM VENDA**.
+
+**Já comprou (#11)** — com `produtos_comprados` preenchido, o catálogo no
+system prompt precisa listar **menos** produtos, sem o que ela já tem.
 
 ### Teste do handoff (faça por último, num lead separado)
 
