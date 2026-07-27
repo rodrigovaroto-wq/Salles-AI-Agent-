@@ -23,11 +23,16 @@ fora desta lista → **descobrir/perguntar, nunca inventar**.
   espiritual/devocional.
 - Order bumps reais: **Oração em Áudio** (R$ 13,90), **Comunidade** (R$ 44,90
   de entrada, única), **Contato Direto com o Padre** (R$ 19,90).
-- **Comunidade é assinatura**: R$ 44,90 de entrada + **R$ 9,78/mês**, com os
-  **primeiros 30 dias grátis** — a mensalidade só começa no dia 31. Ao oferecer
-  a Comunidade, **sempre** informar a mensalidade e o período grátis junto do
-  preço de entrada, na mesma mensagem. Cancela quando quiser, sem multa.
-  Nunca apresentar como pagamento único.
+- **Dois produtos são assinatura**, ambos com **30 dias grátis** (a mensalidade
+  só começa no dia 31):
+  - **Comunidade**: R$ 44,90 de entrada + **R$ 9,78/mês**
+  - **Contato Direto com o Padre**: R$ 19,90 de entrada + **R$ 5,47/mês**
+
+  Ao oferecer qualquer um dos dois, **sempre** informar a mensalidade e o
+  período grátis junto do preço de entrada, na mesma mensagem. Cancela quando
+  quiser, sem multa. Nunca apresentar como pagamento único.
+  Se a lead levar os dois, são duas mensalidades: R$ 15,25/mês a partir do
+  dia 31.
 - Desconto real por item somado no stack (10% / 20% / 30%) — sempre aplicado
   de verdade no valor cobrado.
 - Downsell de recuperação: 20% real na Oração em Áudio, sempre disponível
