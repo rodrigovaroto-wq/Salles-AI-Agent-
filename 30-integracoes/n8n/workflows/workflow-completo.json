@@ -80,7 +80,7 @@
       ],
       "notes": "Monta o system prompt. Novidades: exclui do catalogo o que a lead ja comprou (#11), entra em modo sem-venda se ela estiver aguardando_humano (#3), reaproveita link aberto (#13), pede resposta em 1-3 mensagens curtas (#9) e reconhece pedido de opt-out (#4). O texto da lead vem do buffer, ja consolidado (#8).",
       "parameters": {
-        "jsCode": "const ctx = $node[\"Carregar contexto\"].json;\nconst promptRows = ctx.prompts || [];\nconst produtos = ctx.produtos || [];\nconst lead = ctx.lead || {};\nconst extra = $node[\"Extrair mensagem e origem\"].json;\n\n// Texto ja consolidado pelo debounce: se ela mandou 3 mensagens seguidas,\n// chega tudo junto aqui e o agente responde uma vez, considerando as tres.\nconst textoFinal = $node[\"Consumir buffer\"].json;\n\nconst objetivo   = promptRows.find(r => r.chave === 'objetivo')?.conteudo || '';\nconst compliance = promptRows.find(r => r.chave === 'compliance')?.conteudo || '';\nconst objecoes   = promptRows.find(r => r.chave === 'objecoes')?.conteudo || '';\n\n// vem em ordem decrescente da funcao; inverte para cronologica\nconst historico = (ctx.historico || []).slice().reverse();\n\n// Tabela de desconto REAL, com a MESMA formula usada em \"Montar items do carrinho\".\nfunction calcularTotal(itens) {\n  const fator = 1 - (Math.max(0, itens.length - 1) * 10) / 100;\n  return itens.reduce((soma, p) => soma + Math.round(p.preco_centavos * fator), 0);\n}\nfunction fmt(centavos) { return (centavos / 100).toFixed(2).replace('.', ','); }\n\n// #11 O agente precisa saber o que ela JA TEM, senao tenta vender de novo.\nconst jaComprados = new Set((lead.produtos_comprados || []).map(i => i.produto_id || i.title));\nconst disponiveis = produtos.filter(p => !jaComprados.has(p.produto_id) && !jaComprados.has(p.nome));\n\n// Montado a partir de `disponiveis`, nao de `produtos`: o prompt afirma que os\n// ja comprados foram excluidos, entao a lista precisa refletir isso de fato.\nconst catalogoTexto = disponiveis.map(p => {\n  let linha = '- ' + p.produto_id + ' (' + p.tipo + '): ' + p.nome + ' - R$ ' + (p.preco_centavos/100).toFixed(2);\n  if (p.resolve_objecao && p.resolve_objecao.length) linha += ' [resolve objecao: ' + p.resolve_objecao.join(', ') + ']';\n  if (p.arquetipos && p.arquetipos.length) linha += ' [arquetipo: ' + p.arquetipos.join(', ') + ']';\n  return linha;\n}).join('\\n');\n\nconst principal = disponiveis.find(p => p.tipo === 'principal');\nconst bumps = disponiveis.filter(p => p.tipo === 'order_bump').sort((a, b) => a.ordem - b.ordem);\n\nlet tabelaDesconto = '';\nif (principal && bumps.length) {\n  let acumulado = [principal];\n  const linhas = [];\n  for (const bump of bumps) {\n    const semDesconto = acumulado.reduce((s, p) => s + p.preco_centavos, 0) + bump.preco_centavos;\n    acumulado = [...acumulado, bump];\n    const comDesconto = calcularTotal(acumulado);\n    const descontoPct = Math.max(0, acumulado.length - 1) * 10;\n    linhas.push('*+ ' + bump.nome + '* (R$ ' + fmt(bump.preco_centavos) + ')\\n   Total: R$ ' + fmt(comDesconto) + ' - voce economiza *R$ ' + fmt(semDesconto - comDesconto) + '* (' + descontoPct + '% OFF)');\n  }\n  tabelaDesconto = '*Sua ' + principal.nome + ' - R$ ' + fmt(principal.preco_centavos) + '*\\n\\nVeja como o valor final cai conforme voce completa sua protecao:\\n\\n' + linhas.join('\\n\\n') + '\\n\\nEscolha quantos quiser -- quanto mais completa, maior o desconto';\n}\n\nlet systemPrompt = objetivo + '\\n\\n' + compliance\n  + (objecoes ? '\\n\\nGUIA DE OBJECOES (referencia para responder recusas e duvidas, sempre dentro do compliance acima):\\n' + objecoes : '')\n  + '\\n\\nOrigem do lead nesta conversa: ' + extra.origem + '.';\n\n// #3 Estado da lead manda em tudo que vem depois.\nif (lead.status === 'aguardando_humano') {\n  systemPrompt += '\\n\\n*** MODO SEM VENDA (prioridade maxima) ***\\nEsta lead foi sinalizada por sofrimento real e esta aguardando atendimento humano. NAO ofereca produto, NAO cite preco, NAO tente retomar a venda em nenhuma hipotese, mesmo que ela pergunte sobre produto. Acolha com humanidade, diga que uma pessoa de verdade vai falar com ela, e se houver risco a vida oriente ajuda imediata (CVV 188). Retorne intent=\"sofrimento\".';\n}\n\nif (jaComprados.size) {\n  systemPrompt += '\\n\\nPRODUTOS QUE ESTA LEAD JA COMPROU (nunca ofereca de novo, nunca inclua em produtos_aceitos): '\n    + [...jaComprados].join(', ') + '. Se ela perguntar sobre um deles, trate como cliente: ajude com acesso e uso, nao venda.';\n}\n\nsystemPrompt += '\\n\\nCatalogo disponivel para ESTA lead (ja excluidos os que ela possui; use exatamente estes produto_id, nunca invente produto ou preco fora desta lista):\\n' + (catalogoTexto || '(nenhum produto novo a oferecer)');\n\nif (tabelaDesconto) {\n  systemPrompt += '\\n\\nQuando o lead aceitar o produto principal, apresente TODOS os order_bump de uma vez (nao um a um). Use EXATAMENTE estes valores (ja calculados, batem com o que sera cobrado -- nunca invente ou recalcule):\\n\\n' + tabelaDesconto\n    + '\\n\\nVoce pode ajustar saudacao/tom ao redor, mas NUNCA altere os valores em R$ ou os percentuais.';\n}\n\n// #13 link ainda valido: reenviar em vez de criar outra cobranca\nif (lead.link_recente && lead.ultimo_link_url) {\n  systemPrompt += '\\n\\nJA EXISTE UM LINK DE PAGAMENTO ABERTO para esta lead, gerado ha menos de 30 minutos: ' + lead.ultimo_link_url\n    + '\\nSe ela pedir o link de novo, disser que perdeu ou que nao chegou, REENVIE ESTE MESMO LINK no texto da sua resposta e retorne intent=\"qualificando\". NAO retorne gerar_link -- criar outra cobranca deixaria duas em aberto no nome dela.';\n}\n\nsystemPrompt += '\\n\\nPIVO POR OBJECAO: se o lead recusar o principal ou repetir uma objecao forte (ex: \"esta caro\", \"nao tenho interesse\", \"vou pensar\") DEPOIS de voce ja ter tentado tratar a objecao uma vez, ofereca o produto do catalogo cuja tag [resolve objecao] bate com o sinal. Nao insista mais de uma vez na mesma linha de recusa.'\n  + '\\n\\nARQUETIPO: identifique ao longo da conversa qual arquetipo da lead mais se encaixa (mae_protetora: fala de filhos/familia/protecao; guerreira_fe: fala de batalha/forca/nao desistir; devota_busca: fala de milagre/graca/resposta/sinal; mulher_pertence: fala de comunidade/nao estar sozinha). Priorize o produto cujo [arquetipo] bate com o perfil. Sem sinal claro, retorne null -- nunca invente arquetipo sem evidencia.'\n  + '\\n\\nDESCONTO DE RECUPERACAO: ao oferecer o produto alternativo do pivo, voce pode liberar 20% para ela fechar agora. Diga algo como \"consigo liberar 20% pra voce fechar agora\" -- NUNCA diga que e \"so hoje\", \"ultima chance\" ou qualquer coisa datada. E concessao real e sempre disponivel. Nesse caso defina pivo_downsell=true; em qualquer outro gerar_link, false.'\n  + '\\n\\nDADOS DE PAGAMENTO: o BlackCat exige email e CPF no proprio pedido -- o link so e gerado com os dois. Assim que ela aceitar o stack, peca ambos numa unica mensagem objetiva. So retorne intent=\"gerar_link\" quando tiver os dois; enquanto faltar, use intent=\"aceitou_stack\" pedindo so o que falta. Retorne SEMPRE os campos email e cpf com o valor mais recente informado, ou null. Nunca invente nem deduza.'\n  + '\\n\\nDADOS JA CONHECIDOS DESTE LEAD: email=' + (lead.email || 'nao informado') + ', cpf=' + (lead.cpf || 'nao informado') + '. Se algum ja constar, trate como JA INFORMADO: nao peca de novo, reutilize e devolva no campo correspondente.'\n  + '\\n\\nSINAL DE SOFRIMENTO REAL (objecoes.md, secao P): se a lead demonstrar angustia genuina -- perda, doenca grave, desesperanca, qualquer mencao a se ferir -- isso sobrepoe qualquer objetivo de venda. Pare de vender, acolha, nao ofereca produto, e retorne intent=\"sofrimento\". Havendo risco a vida, oriente ajuda imediata (CVV 188).'\n  + '\\n\\nPEDIDO DE PARAR: se ela pedir para nao receber mais mensagens (\"nao me manda mais\", \"para\", \"sai\", \"me tira daqui\"), retorne intent=\"opt_out\" e uma unica mensagem curta de despedida respeitosa, sem tentar reverter e sem perguntar o motivo. Respeitar isso na hora e obrigacao legal.'\n  // #9 uma parede de texto nao se le no celular, ainda menos neste publico\n  + '\\n\\nFORMATO DA RESPOSTA: responda como uma pessoa digitando no WhatsApp -- de 1 a 3 mensagens curtas, na ordem em que seriam enviadas, cada uma com 1 a 3 linhas. Quebre pensamentos diferentes em mensagens diferentes em vez de mandar um bloco unico. A tabela de precos, quando usada, vai numa mensagem propria e inteira (nunca partida no meio).'\n  + '\\n\\nResponda SEMPRE em JSON: {\"mensagens\": string[], \"intent\": \"qualificando\"|\"objecao\"|\"aceitou_stack\"|\"gerar_link\"|\"recusou\"|\"sofrimento\"|\"opt_out\", \"produtos_aceitos\": string[], \"arquetipo\": \"mae_protetora\"|\"guerreira_fe\"|\"devota_busca\"|\"mulher_pertence\"|null, \"pivo_downsell\": boolean, \"email\": string|null, \"cpf\": string|null}';\n\nconst messages = [{ role: 'system', content: systemPrompt }];\nfor (const h of historico) {\n  if (h.mensagem_lead) messages.push({ role: 'user', content: h.mensagem_lead });\n  if (h.mensagem_agente) messages.push({ role: 'assistant', content: h.mensagem_agente });\n}\nmessages.push({ role: 'user', content: textoFinal });\n\nreturn [{ json: { model: 'gpt-4.1', response_format: { type: 'json_object' }, messages } }];"
+        "jsCode": "const ctx = $node[\"Carregar contexto\"].json;\nconst promptRows = ctx.prompts || [];\nconst produtos = ctx.produtos || [];\nconst lead = ctx.lead || {};\nconst extra = $node[\"Extrair mensagem e origem\"].json;\n\n// Texto ja consolidado pelo debounce: se ela mandou 3 mensagens seguidas,\n// chega tudo junto aqui e o agente responde uma vez, considerando as tres.\nconst textoFinal = $node[\"Consumir buffer\"].json.texto;\n\nconst objetivo   = promptRows.find(r => r.chave === 'objetivo')?.conteudo || '';\nconst compliance = promptRows.find(r => r.chave === 'compliance')?.conteudo || '';\nconst objecoes   = promptRows.find(r => r.chave === 'objecoes')?.conteudo || '';\n\n// vem em ordem decrescente da funcao; inverte para cronologica\nconst historico = (ctx.historico || []).slice().reverse();\n\n// Tabela de desconto REAL, com a MESMA formula usada em \"Montar items do carrinho\".\nfunction calcularTotal(itens) {\n  const fator = 1 - (Math.max(0, itens.length - 1) * 10) / 100;\n  return itens.reduce((soma, p) => soma + Math.round(p.preco_centavos * fator), 0);\n}\nfunction fmt(centavos) { return (centavos / 100).toFixed(2).replace('.', ','); }\n\n// #11 O agente precisa saber o que ela JA TEM, senao tenta vender de novo.\nconst jaComprados = new Set((lead.produtos_comprados || []).map(i => i.produto_id || i.title));\nconst disponiveis = produtos.filter(p => !jaComprados.has(p.produto_id) && !jaComprados.has(p.nome));\n\n// Montado a partir de `disponiveis`, nao de `produtos`: o prompt afirma que os\n// ja comprados foram excluidos, entao a lista precisa refletir isso de fato.\nconst catalogoTexto = disponiveis.map(p => {\n  let linha = '- ' + p.produto_id + ' (' + p.tipo + '): ' + p.nome + ' - R$ ' + (p.preco_centavos/100).toFixed(2);\n  if (p.resolve_objecao && p.resolve_objecao.length) linha += ' [resolve objecao: ' + p.resolve_objecao.join(', ') + ']';\n  if (p.arquetipos && p.arquetipos.length) linha += ' [arquetipo: ' + p.arquetipos.join(', ') + ']';\n  return linha;\n}).join('\\n');\n\nconst principal = disponiveis.find(p => p.tipo === 'principal');\nconst bumps = disponiveis.filter(p => p.tipo === 'order_bump').sort((a, b) => a.ordem - b.ordem);\n\nlet tabelaDesconto = '';\nif (principal && bumps.length) {\n  let acumulado = [principal];\n  const linhas = [];\n  for (const bump of bumps) {\n    const semDesconto = acumulado.reduce((s, p) => s + p.preco_centavos, 0) + bump.preco_centavos;\n    acumulado = [...acumulado, bump];\n    const comDesconto = calcularTotal(acumulado);\n    const descontoPct = Math.max(0, acumulado.length - 1) * 10;\n    linhas.push('*+ ' + bump.nome + '* (R$ ' + fmt(bump.preco_centavos) + ')\\n   Total: R$ ' + fmt(comDesconto) + ' - voce economiza *R$ ' + fmt(semDesconto - comDesconto) + '* (' + descontoPct + '% OFF)');\n  }\n  tabelaDesconto = '*Sua ' + principal.nome + ' - R$ ' + fmt(principal.preco_centavos) + '*\\n\\nVeja como o valor final cai conforme voce completa sua protecao:\\n\\n' + linhas.join('\\n\\n') + '\\n\\nEscolha quantos quiser -- quanto mais completa, maior o desconto';\n}\n\nlet systemPrompt = objetivo + '\\n\\n' + compliance\n  + (objecoes ? '\\n\\nGUIA DE OBJECOES (referencia para responder recusas e duvidas, sempre dentro do compliance acima):\\n' + objecoes : '')\n  + '\\n\\nOrigem do lead nesta conversa: ' + extra.origem + '.';\n\n// #3 Estado da lead manda em tudo que vem depois.\nif (lead.status === 'aguardando_humano') {\n  systemPrompt += '\\n\\n*** MODO SEM VENDA (prioridade maxima) ***\\nEsta lead foi sinalizada por sofrimento real e esta aguardando atendimento humano. NAO ofereca produto, NAO cite preco, NAO tente retomar a venda em nenhuma hipotese, mesmo que ela pergunte sobre produto. Acolha com humanidade, diga que uma pessoa de verdade vai falar com ela, e se houver risco a vida oriente ajuda imediata (CVV 188). Retorne intent=\"sofrimento\".';\n}\n\nif (jaComprados.size) {\n  systemPrompt += '\\n\\nPRODUTOS QUE ESTA LEAD JA COMPROU (nunca ofereca de novo, nunca inclua em produtos_aceitos): '\n    + [...jaComprados].join(', ') + '. Se ela perguntar sobre um deles, trate como cliente: ajude com acesso e uso, nao venda.';\n}\n\nsystemPrompt += '\\n\\nCatalogo disponivel para ESTA lead (ja excluidos os que ela possui; use exatamente estes produto_id, nunca invente produto ou preco fora desta lista):\\n' + (catalogoTexto || '(nenhum produto novo a oferecer)');\n\nif (tabelaDesconto) {\n  systemPrompt += '\\n\\nQuando o lead aceitar o produto principal, apresente TODOS os order_bump de uma vez (nao um a um). Use EXATAMENTE estes valores (ja calculados, batem com o que sera cobrado -- nunca invente ou recalcule):\\n\\n' + tabelaDesconto\n    + '\\n\\nVoce pode ajustar saudacao/tom ao redor, mas NUNCA altere os valores em R$ ou os percentuais.';\n}\n\n// #13 link ainda valido: reenviar em vez de criar outra cobranca\nif (lead.link_recente && lead.ultimo_link_url) {\n  systemPrompt += '\\n\\nJA EXISTE UM LINK DE PAGAMENTO ABERTO para esta lead, gerado ha menos de 30 minutos: ' + lead.ultimo_link_url\n    + '\\nSe ela pedir o link de novo, disser que perdeu ou que nao chegou, REENVIE ESTE MESMO LINK no texto da sua resposta e retorne intent=\"qualificando\". NAO retorne gerar_link -- criar outra cobranca deixaria duas em aberto no nome dela.';\n}\n\nsystemPrompt += '\\n\\nPIVO POR OBJECAO: se o lead recusar o principal ou repetir uma objecao forte (ex: \"esta caro\", \"nao tenho interesse\", \"vou pensar\") DEPOIS de voce ja ter tentado tratar a objecao uma vez, ofereca o produto do catalogo cuja tag [resolve objecao] bate com o sinal. Nao insista mais de uma vez na mesma linha de recusa.'\n  + '\\n\\nARQUETIPO: identifique ao longo da conversa qual arquetipo da lead mais se encaixa (mae_protetora: fala de filhos/familia/protecao; guerreira_fe: fala de batalha/forca/nao desistir; devota_busca: fala de milagre/graca/resposta/sinal; mulher_pertence: fala de comunidade/nao estar sozinha). Priorize o produto cujo [arquetipo] bate com o perfil. Sem sinal claro, retorne null -- nunca invente arquetipo sem evidencia.'\n  + '\\n\\nDESCONTO DE RECUPERACAO: ao oferecer o produto alternativo do pivo, voce pode liberar 20% para ela fechar agora. Diga algo como \"consigo liberar 20% pra voce fechar agora\" -- NUNCA diga que e \"so hoje\", \"ultima chance\" ou qualquer coisa datada. E concessao real e sempre disponivel. Nesse caso defina pivo_downsell=true; em qualquer outro gerar_link, false.'\n  + '\\n\\nDADOS DE PAGAMENTO: o BlackCat exige email e CPF no proprio pedido -- o link so e gerado com os dois. Assim que ela aceitar o stack, peca ambos numa unica mensagem objetiva. So retorne intent=\"gerar_link\" quando tiver os dois; enquanto faltar, use intent=\"aceitou_stack\" pedindo so o que falta. Retorne SEMPRE os campos email e cpf com o valor mais recente informado, ou null. Nunca invente nem deduza.'\n  + '\\n\\nDADOS JA CONHECIDOS DESTE LEAD: email=' + (lead.email || 'nao informado') + ', cpf=' + (lead.cpf || 'nao informado') + '. Se algum ja constar, trate como JA INFORMADO: nao peca de novo, reutilize e devolva no campo correspondente.'\n  + '\\n\\nSINAL DE SOFRIMENTO REAL (objecoes.md, secao P): se a lead demonstrar angustia genuina -- perda, doenca grave, desesperanca, qualquer mencao a se ferir -- isso sobrepoe qualquer objetivo de venda. Pare de vender, acolha, nao ofereca produto, e retorne intent=\"sofrimento\". Havendo risco a vida, oriente ajuda imediata (CVV 188).'\n  + '\\n\\nPEDIDO DE PARAR: se ela pedir para nao receber mais mensagens (\"nao me manda mais\", \"para\", \"sai\", \"me tira daqui\"), retorne intent=\"opt_out\" e uma unica mensagem curta de despedida respeitosa, sem tentar reverter e sem perguntar o motivo. Respeitar isso na hora e obrigacao legal.'\n  // #9 uma parede de texto nao se le no celular, ainda menos neste publico\n  + '\\n\\nFORMATO DA RESPOSTA: responda como uma pessoa digitando no WhatsApp -- de 1 a 3 mensagens curtas, na ordem em que seriam enviadas, cada uma com 1 a 3 linhas. Quebre pensamentos diferentes em mensagens diferentes em vez de mandar um bloco unico. A tabela de precos, quando usada, vai numa mensagem propria e inteira (nunca partida no meio).'\n  + '\\n\\nResponda SEMPRE em JSON: {\"mensagens\": string[], \"intent\": \"qualificando\"|\"objecao\"|\"aceitou_stack\"|\"gerar_link\"|\"recusou\"|\"sofrimento\"|\"opt_out\", \"produtos_aceitos\": string[], \"arquetipo\": \"mae_protetora\"|\"guerreira_fe\"|\"devota_busca\"|\"mulher_pertence\"|null, \"pivo_downsell\": boolean, \"email\": string|null, \"cpf\": string|null}';\n\nconst messages = [{ role: 'system', content: systemPrompt }];\nfor (const h of historico) {\n  if (h.mensagem_lead) messages.push({ role: 'user', content: h.mensagem_lead });\n  if (h.mensagem_agente) messages.push({ role: 'assistant', content: h.mensagem_agente });\n}\nmessages.push({ role: 'user', content: textoFinal });\n\nreturn [{ json: { model: 'gpt-4.1', response_format: { type: 'json_object' }, messages } }];"
       }
     },
     {
@@ -161,7 +161,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, mensagem_agente: $node[\"Extrair resposta e intent\"].json.resposta, mensagem_lead: $node[\"Consumir buffer\"].json, produtos_aceitos: $node[\"Extrair resposta e intent\"].json.produtos_aceitos || [] } }}",
+        "jsonBody": "={{ { lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, mensagem_agente: $node[\"Extrair resposta e intent\"].json.resposta, mensagem_lead: $node[\"Consumir buffer\"].json.texto, produtos_aceitos: $node[\"Extrair resposta e intent\"].json.produtos_aceitos || [] } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -832,7 +832,7 @@
       ],
       "notes": "Handoff automatico: avisa o humano imediatamente quando o gatilho de sofrimento real disparar. RODRIGO_WA_NUMBER so existe depois da verificacao Meta (ver ../../whatsapp/README.md); enquanto isso o node fica inativo/sem efeito real, mas o registro em conversas (n22) ja preserva o sinal.",
       "parameters": {
-        "jsCode": "const e = $node[\"Extrair mensagem e origem\"].json;\nconst texto = $node[\"Consumir buffer\"].json;\nreturn [{ json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: '\\u26a0\\ufe0f Sinal de sofrimento real detectado.\\nLead: ' + (e.nome || e.wa_id) + ' (' + e.wa_id + ')\\nMensagem: \"' + texto + '\"\\nO agente ja parou de vender e acolheu. Preciso que voce (ou alguem de confianca) assuma esta conversa agora.' } }];"
+        "jsCode": "const e = $node[\"Extrair mensagem e origem\"].json;\nconst texto = $node[\"Consumir buffer\"].json.texto;\nreturn [{ json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: '\\u26a0\\ufe0f Sinal de sofrimento real detectado.\\nLead: ' + (e.nome || e.wa_id) + ' (' + e.wa_id + ')\\nMensagem: \"' + texto + '\"\\nO agente ja parou de vender e acolheu. Preciso que voce (ou alguem de confianca) assuma esta conversa agora.' } }];"
       }
     },
     {
@@ -973,14 +973,14 @@
     },
     {
       "id": "av-g1",
-      "name": "Lead pediu para parar?",
+      "name": "Lead liberado para conversar?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
         2640,
         160
       ],
-      "notes": "#3/#4 Compliance secao 5: respeitar imediatamente quem pediu para parar. Barra ANTES da OpenAI -- nao responde, nao gasta token, nao registra conversa.",
+      "notes": "#3/#4 Quem pediu para parar nao recebe nada -- barra ANTES da OpenAI. A pergunta e afirmativa de proposito: ramo 0 = segue, igual aos demais IFs. Perguntar 'pediu para parar?' invertia o significado do ramo 0 e foi exatamente o erro que existiu aqui: lead novo caia no fim silencioso e quem tinha saido seguia vendendo.",
       "parameters": {
         "conditions": {
           "options": {
@@ -994,7 +994,7 @@
               "rightValue": "opt_out",
               "operator": {
                 "type": "string",
-                "operation": "equals"
+                "operation": "notEquals"
               }
             }
           ],
@@ -1110,7 +1110,7 @@
         3740,
         160
       ],
-      "notes": "null = superada por mensagem mais nova. Encerrar aqui e o que evita as respostas desencontradas.",
+      "notes": "texto nulo = superada por mensagem mais nova. A funcao devolve objeto (e nao texto cru) porque o n8n embrulha resposta escalar em {data:...} -- com objeto, `.texto` e sempre o mesmo caminho.",
       "parameters": {
         "conditions": {
           "options": {
@@ -1120,7 +1120,7 @@
           },
           "conditions": [
             {
-              "leftValue": "={{ $json }}",
+              "leftValue": "={{ $json.texto }}",
               "rightValue": "",
               "operator": {
                 "type": "string",
@@ -1411,7 +1411,7 @@
           },
           "conditions": [
             {
-              "leftValue": "={{$json.body.event}}",
+              "leftValue": "={{$node[\"BlackCat IN\"].json.body.event}}",
               "rightValue": "transaction.paid",
               "operator": {
                 "type": "string",
@@ -1441,7 +1441,7 @@
           },
           "conditions": [
             {
-              "leftValue": "={{$json.body.event}}",
+              "leftValue": "={{$node[\"BlackCat IN\"].json.body.event}}",
               "rightValue": "transaction.created",
               "operator": {
                 "type": "string",
@@ -1471,7 +1471,7 @@
           },
           "conditions": [
             {
-              "leftValue": "={{$json.body.event}}",
+              "leftValue": "={{$node[\"BlackCat IN\"].json.body.event}}",
               "rightValue": "transaction.failed",
               "operator": {
                 "type": "string",
@@ -1577,7 +1577,7 @@
       "notes": "transaction.created sem paid ainda: arma o estado para o timer de recuperacao de 2h.",
       "parameters": {
         "method": "PATCH",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalReference}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"BlackCat IN\"].json.body.externalReference}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -1693,7 +1693,7 @@
       "notes": "transaction.failed: expirou ou falhou. Volta para follow-up padrao (Gatilho 4).",
       "parameters": {
         "method": "PATCH",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalReference}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"BlackCat IN\"].json.body.externalReference}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -2139,7 +2139,8 @@
           "id": "9XxwNt8U6u5tce4w",
           "name": "SUPABASE"
         }
-      }
+      },
+      "notes": "Recebe o lead direto de 'Separar leads' -- ver a nota de 'Marcar follow-up enviado'."
     },
     {
       "id": "f24-n3p",
@@ -2184,7 +2185,7 @@
         1100,
         1820
       ],
-      "notes": "#1 Sem este passo o lead volta a casar na query na hora seguinte. Incrementa via RPC-livre: le o valor atual do proprio item.",
+      "notes": "Sai direto de 'Separar leads' junto com os outros dois: encadeado DEPOIS do envio, o $json passaria a ser a resposta do node anterior e lead_id viria nulo -- foi exatamente o que aconteceu com 'Gravar evento'. Em paralelo, os tres veem o mesmo item de lead. Marcar antes de enviar tambem e o lado seguro do erro: na duvida, deixa de mandar em vez de repetir.",
       "parameters": {
         "method": "PATCH",
         "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.lead_id}}",
@@ -2507,9 +2508,9 @@
         1100,
         2840
       ],
-      "notes": "TODO: heuristica simples por nome de arquivo. Ajustar se o mapeamento arquivo->chave crescer (ex.: por skill individual).",
+      "notes": "Mapeia o arquivo alvo para a chave de prompt_ativo. As 3 chaves de runtime (objetivo, compliance, objecoes) sao as que o agente le; qualquer outro arquivo vira skill:<caminho>, versionado e espelhado no git mas NAO carregado em runtime -- o campo afeta_runtime deixa isso visivel.",
       "parameters": {
-        "jsCode": "const s = $input.first().json[0];\nlet chave = 'skill:' + (s.arquivo_alvo || 'desconhecido');\nif (/objetivo\\.md$/.test(s.arquivo_alvo)) chave = 'objetivo';\nelse if (/compliance-e-etica\\.md$/.test(s.arquivo_alvo)) chave = 'compliance';\nreturn [{ json: { chave, conteudo: s.mudanca_proposta, sugestao_id: s.sugestao_id } }];"
+        "jsCode": "const s = $input.first().json[0];\nconst alvo = s.arquivo_alvo || '';\n\n// As TRES chaves que o agente carrega em runtime (ver carregar_contexto).\n// Faltava 'objecoes' aqui: a sugestao aprovada ia para skill:<arquivo>, que\n// ninguem le -- a aprovacao parecia funcionar e nao mudava nada ao vivo.\nconst RUNTIME = {\n  'objetivo.md': 'objetivo',\n  'compliance-e-etica.md': 'compliance',\n  'objecoes.md': 'objecoes',\n};\n\nconst arquivo = alvo.split('/').pop();\nconst chave = RUNTIME[arquivo] || ('skill:' + (alvo || 'desconhecido'));\n\n// skill:* NAO e lido pelo agente: serve so para versionar a mudanca e espelhar\n// no git. Sinalizado para quem inspecionar a execucao nao achar que foi ao ar.\nreturn [{ json: { chave, conteudo: s.mudanca_proposta, sugestao_id: s.sugestao_id,\n                  afeta_runtime: !chave.startsWith('skill:') } }];"
       }
     },
     {
@@ -3170,25 +3171,7 @@
       "main": [
         [
           {
-            "node": "Lead pediu para parar?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Lead pediu para parar?": {
-      "main": [
-        [
-          {
-            "node": "Tem texto para responder?",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Opt-out respeitado",
+            "node": "Lead liberado para conversar?",
             "type": "main",
             "index": 0
           }
@@ -3321,6 +3304,24 @@
         [
           {
             "node": "Guardar link gerado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead liberado para conversar?": {
+      "main": [
+        [
+          {
+            "node": "Tem texto para responder?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Opt-out respeitado",
             "type": "main",
             "index": 0
           }
@@ -3640,6 +3641,16 @@
             "node": "Preparar template de follow-up",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Marcar follow-up enviado",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gravar evento (follow-up)",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -3649,28 +3660,6 @@
         [
           {
             "node": "Enviar template de follow-up",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Enviar template de follow-up": {
-      "main": [
-        [
-          {
-            "node": "Marcar follow-up enviado",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Marcar follow-up enviado": {
-      "main": [
-        [
-          {
-            "node": "Gravar evento (follow-up)",
             "type": "main",
             "index": 0
           }

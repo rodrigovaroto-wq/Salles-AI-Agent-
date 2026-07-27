@@ -94,7 +94,8 @@
           "id": "9XxwNt8U6u5tce4w",
           "name": "SUPABASE"
         }
-      }
+      },
+      "notes": "Recebe o lead direto de 'Separar leads' -- ver a nota de 'Marcar follow-up enviado'."
     },
     {
       "id": "n3p",
@@ -139,7 +140,7 @@
         1100,
         0
       ],
-      "notes": "#1 Sem este passo o lead volta a casar na query na hora seguinte. Incrementa via RPC-livre: le o valor atual do proprio item.",
+      "notes": "Sai direto de 'Separar leads' junto com os outros dois: encadeado DEPOIS do envio, o $json passaria a ser a resposta do node anterior e lead_id viria nulo -- foi exatamente o que aconteceu com 'Gravar evento'. Em paralelo, os tres veem o mesmo item de lead. Marcar antes de enviar tambem e o lado seguro do erro: na duvida, deixa de mandar em vez de repetir.",
       "parameters": {
         "method": "PATCH",
         "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.lead_id}}",
@@ -197,6 +198,16 @@
             "node": "Preparar template de follow-up",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Marcar follow-up enviado",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gravar evento (follow-up)",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -206,28 +217,6 @@
         [
           {
             "node": "Enviar template de follow-up",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Enviar template de follow-up": {
-      "main": [
-        [
-          {
-            "node": "Marcar follow-up enviado",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Marcar follow-up enviado": {
-      "main": [
-        [
-          {
-            "node": "Gravar evento (follow-up)",
             "type": "main",
             "index": 0
           }

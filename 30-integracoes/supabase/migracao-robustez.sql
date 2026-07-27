@@ -53,6 +53,23 @@ comment on table eventos_processados is
   'resposta vazia significa "já processado" e a execução para ali.';
 
 -- ══════════════════════════════════════════════════════════════════
+-- 2b. Limpeza das funções antes de recriar
+-- ══════════════════════════════════════════════════════════════════
+-- `create or replace function` NÃO consegue trocar o tipo de retorno: se a
+-- assinatura mudar entre uma versão e outra, ele falha com "cannot change
+-- return type of existing function" e, como tudo aqui está numa transação,
+-- **a migração inteira aborta** -- inclusive as partes que já funcionavam.
+--
+-- Aconteceu de verdade: consumir_buffer passou de `returns text` para
+-- `returns json`. Dropar antes torna o arquivo seguro para rodar de novo em
+-- banco que já tem a versão anterior.
+drop function if exists consumir_buffer(text, text);
+drop function if exists bufferizar_mensagem(text, text, text);
+drop function if exists registrar_lead(text, text, text);
+drop function if exists registrar_compra(text, jsonb);
+drop function if exists carregar_contexto(text);
+
+-- ══════════════════════════════════════════════════════════════════
 -- 3. registrar_lead  (#2 e origem sobrescrita)
 -- ══════════════════════════════════════════════════════════════════
 -- O upsert antigo mandava status='ativo' em TODA mensagem, apagando três
@@ -123,7 +140,7 @@ create or replace function consumir_buffer(
   p_lead_id text,
   p_msg_id  text
 )
-returns text
+returns json
 language plpgsql
 as $$
 declare
@@ -144,14 +161,17 @@ begin
 
   -- Sem linha = outra mensagem assumiu a vez durante a espera.
   if not found then
-    return null;
+    -- Objeto com texto nulo, e nao NULL puro: o n8n embrulha resposta escalar
+    -- em {data: ...}, entao devolver escalar tornaria o acesso ambiguo do lado
+    -- do workflow. Com objeto, `.texto` sempre existe e diz a verdade.
+    return json_build_object('texto', null);
   end if;
 
   update leads set buffer_mensagens = '{}' where lead_id = p_lead_id;
 
   -- Buffer vazio com msg_id casando nao deveria acontecer, mas se acontecer
   -- devolver '' faria o chamador tratar como "superada" e ficar mudo.
-  return nullif(v_texto, '');
+  return json_build_object('texto', nullif(v_texto, ''));
 end;
 $$;
 

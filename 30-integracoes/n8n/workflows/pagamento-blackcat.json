@@ -37,7 +37,7 @@
           },
           "conditions": [
             {
-              "leftValue": "={{$json.body.event}}",
+              "leftValue": "={{$node[\"BlackCat IN\"].json.body.event}}",
               "rightValue": "transaction.paid",
               "operator": {
                 "type": "string",
@@ -67,7 +67,7 @@
           },
           "conditions": [
             {
-              "leftValue": "={{$json.body.event}}",
+              "leftValue": "={{$node[\"BlackCat IN\"].json.body.event}}",
               "rightValue": "transaction.created",
               "operator": {
                 "type": "string",
@@ -97,7 +97,7 @@
           },
           "conditions": [
             {
-              "leftValue": "={{$json.body.event}}",
+              "leftValue": "={{$node[\"BlackCat IN\"].json.body.event}}",
               "rightValue": "transaction.failed",
               "operator": {
                 "type": "string",
@@ -203,7 +203,7 @@
       "notes": "transaction.created sem paid ainda: arma o estado para o timer de recuperacao de 2h.",
       "parameters": {
         "method": "PATCH",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalReference}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"BlackCat IN\"].json.body.externalReference}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -319,7 +319,7 @@
       "notes": "transaction.failed: expirou ou falhou. Volta para follow-up padrao (Gatilho 4).",
       "parameters": {
         "method": "PATCH",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalReference}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"BlackCat IN\"].json.body.externalReference}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

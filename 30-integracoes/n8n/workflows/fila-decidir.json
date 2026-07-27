@@ -130,9 +130,9 @@
         1100,
         -80
       ],
-      "notes": "TODO: heuristica simples por nome de arquivo. Ajustar se o mapeamento arquivo->chave crescer (ex.: por skill individual).",
+      "notes": "Mapeia o arquivo alvo para a chave de prompt_ativo. As 3 chaves de runtime (objetivo, compliance, objecoes) sao as que o agente le; qualquer outro arquivo vira skill:<caminho>, versionado e espelhado no git mas NAO carregado em runtime -- o campo afeta_runtime deixa isso visivel.",
       "parameters": {
-        "jsCode": "const s = $input.first().json[0];\nlet chave = 'skill:' + (s.arquivo_alvo || 'desconhecido');\nif (/objetivo\\.md$/.test(s.arquivo_alvo)) chave = 'objetivo';\nelse if (/compliance-e-etica\\.md$/.test(s.arquivo_alvo)) chave = 'compliance';\nreturn [{ json: { chave, conteudo: s.mudanca_proposta, sugestao_id: s.sugestao_id } }];"
+        "jsCode": "const s = $input.first().json[0];\nconst alvo = s.arquivo_alvo || '';\n\n// As TRES chaves que o agente carrega em runtime (ver carregar_contexto).\n// Faltava 'objecoes' aqui: a sugestao aprovada ia para skill:<arquivo>, que\n// ninguem le -- a aprovacao parecia funcionar e nao mudava nada ao vivo.\nconst RUNTIME = {\n  'objetivo.md': 'objetivo',\n  'compliance-e-etica.md': 'compliance',\n  'objecoes.md': 'objecoes',\n};\n\nconst arquivo = alvo.split('/').pop();\nconst chave = RUNTIME[arquivo] || ('skill:' + (alvo || 'desconhecido'));\n\n// skill:* NAO e lido pelo agente: serve so para versionar a mudanca e espelhar\n// no git. Sinalizado para quem inspecionar a execucao nao achar que foi ao ar.\nreturn [{ json: { chave, conteudo: s.mudanca_proposta, sugestao_id: s.sugestao_id,\n                  afeta_runtime: !chave.startsWith('skill:') } }];"
       }
     },
     {
