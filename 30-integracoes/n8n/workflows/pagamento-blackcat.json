@@ -423,7 +423,7 @@
       "notes": "Le entrega_texto do catalogo. O conteudo mora no banco e nao no workflow: quando o padre trocar um audio ou o link do grupo mudar, e um UPDATE, sem republicar workflow.",
       "parameters": {
         "method": "GET",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/produtos?select=produto_id,nome,entrega_texto",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/produtos?select=produto_id,nome,entrega_texto,entrega_midia,mensalidade_centavos,trial_dias",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -444,9 +444,9 @@
         1980,
         -160
       ],
-      "notes": "Casa o que foi comprado (items do BlackCat, que trazem 'title') com o catalogo. Produto sem entrega_texto NAO vira silencio: a cliente recebe aviso de que o acesso chega em seguida e o Rodrigo e alertado para entregar na mao.",
+      "notes": "Le entrega_texto e entrega_midia do catalogo. Midia (PDF, audios) e enviada antes do texto, no proprio chat. Produto sem entrega alguma NAO vira silencio: aviso + alerta ao Rodrigo. Se a venda inclui produto com mensalidade, devolve `assinatura` para registro.",
       "parameters": {
-        "jsCode": "const comprados = $node[\"BlackCat IN\"].json.body.items || [];\nconst catalogo = $node[\"Buscar conteudo de entrega\"].json || [];\n\nconst partes = [];\nconst faltando = [];\n\nfor (const item of comprados) {\n  const p = catalogo.find(c => c.produto_id === item.produto_id || c.nome === item.title);\n  const nome = (p && p.nome) || item.title || 'seu item';\n  if (p && p.entrega_texto) {\n    partes.push(p.entrega_texto);\n  } else {\n    faltando.push(nome);\n    partes.push('Sobre *' + nome + '*: seu acesso chega em seguida, aqui mesmo por este WhatsApp.');\n  }\n}\n\n// Nunca deixar a cliente sem mensagem alguma depois de pagar.\nconst texto = partes.length\n  ? partes.join('\\n\\n')\n  : 'Seu acesso chega em seguida, aqui mesmo por este WhatsApp.';\n\nreturn [{ json: { texto, faltando, tem_falta: faltando.length > 0 } }];"
+        "jsCode": "const comprados = $node[\"BlackCat IN\"].json.body.items || [];\nconst catalogo = $node[\"Buscar conteudo de entrega\"].json || [];\n\nconst partes = [];   // mensagens de texto\nconst midias = [];   // documentos/audios enviados ANTES do texto\nconst faltando = [];\nlet assinatura = null; // produto recorrente comprado nesta venda, se houver\n\nfor (const item of comprados) {\n  const p = catalogo.find(c => c.produto_id === item.produto_id || c.nome === item.title);\n  const nome = (p && p.nome) || item.title || 'seu item';\n\n  if (p && Array.isArray(p.entrega_midia)) {\n    for (const mid of p.entrega_midia) {\n      if (mid && mid.url) midias.push(mid);\n    }\n  }\n\n  if (p && p.mensalidade_centavos) {\n    assinatura = {\n      produto_id: p.produto_id,\n      valor_centavos: p.mensalidade_centavos,\n      trial_dias: p.trial_dias || 0\n    };\n  }\n\n  if (p && p.entrega_texto) {\n    partes.push(p.entrega_texto);\n  } else if (!(p && Array.isArray(p.entrega_midia) && p.entrega_midia.length)) {\n    // so conta como faltando se nao tiver NEM texto NEM midia\n    faltando.push(nome);\n    partes.push('Sobre *' + nome + '*: seu acesso chega em seguida, aqui mesmo por este WhatsApp.');\n  }\n}\n\n// Nunca deixar a cliente sem mensagem alguma depois de pagar.\nconst texto = partes.length\n  ? partes.join('\\n\\n')\n  : 'Seu acesso chega em seguida, aqui mesmo por este WhatsApp.';\n\nreturn [{ json: { texto, midias, assinatura, faltando, tem_falta: faltando.length > 0 } }];"
       }
     },
     {
@@ -459,7 +459,7 @@
         -160
       ],
       "parameters": {
-        "jsCode": "return [{ json: { to: $node[\"BlackCat IN\"].json.body.externalReference, tipo: 'text', texto: $node[\"Montar entrega\"].json.texto } }];"
+        "jsCode": "const to = $node[\"BlackCat IN\"].json.body.externalReference;\nconst e = $node[\"Montar entrega\"].json;\n\nconst saida = [];\nfor (const m of (e.midias || [])) {\n  const item = { to, tipo: m.tipo === 'audio' ? 'audio' : 'documento', url: m.url };\n  if (m.filename) item.filename = m.filename;\n  if (m.legenda) item.legenda = m.legenda;\n  saida.push({ json: item });\n}\nsaida.push({ json: { to, tipo: 'text', texto: e.texto } });\nreturn saida;"
       }
     },
     {
@@ -673,6 +673,79 @@
         320
       ],
       "parameters": {}
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node[\"Montar entrega\"].json.assinatura }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "tem-assinatura-0001",
+      "name": "Tem assinatura?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2180,
+        60
+      ],
+      "notes": "So registra assinatura se a venda incluir produto recorrente."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/assinaturas?on_conflict=lead_id,produto_id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const a = $node[\"Montar entrega\"].json.assinatura; const dias = a.trial_dias || 0; const ate = new Date(Date.now() + dias*86400000).toISOString(); return { lead_id: $node[\"BlackCat IN\"].json.body.externalReference, produto_id: a.produto_id, status: dias > 0 ? 'trial' : 'ativa', trial_ate: dias > 0 ? ate : null, proxima_cobranca: ate, valor_centavos: a.valor_centavos }; })() }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "id": "reg-assinatura-0001",
+      "name": "Registrar assinatura",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        60
+      ],
+      "notes": "Upsert em assinaturas quando a venda inclui produto com mensalidade (Comunidade). trial_dias>0 => status=trial e primeira cobranca no fim do trial. Valor congelado na adesao.",
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
     }
   ],
   "connections": {
@@ -854,6 +927,11 @@
             "node": "Preparar entrega",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Tem assinatura?",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -958,6 +1036,18 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "Tem assinatura?": {
+      "main": [
+        [
+          {
+            "node": "Registrar assinatura",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     }
   }

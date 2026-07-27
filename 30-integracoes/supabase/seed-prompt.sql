@@ -467,7 +467,7 @@ chargeback. Compliance aqui é o que protege a receita de longo prazo.
 $conteudo$,
         true);
 
--- objecoes  (fonte: 00-nucleo/objecoes.md, 379 linhas)
+-- objecoes  (fonte: 00-nucleo/objecoes.md, 387 linhas)
 update prompt_ativo set ativo = false where chave = 'objecoes' and ativo;
 insert into prompt_ativo (chave, versao, conteudo, ativo)
 values ('objecoes',
@@ -495,8 +495,13 @@ fora desta lista → **descobrir/perguntar, nunca inventar**.
 
 - Produto principal: **Oração Sagrada** (R$ 22,90) — produto
   espiritual/devocional.
-- Order bumps reais: **Oração em Áudio** (R$ 13,90), **Comunidade** (R$ 44,90),
-  **Contato Direto com o Padre** (R$ 19,90).
+- Order bumps reais: **Oração em Áudio** (R$ 13,90), **Comunidade** (R$ 44,90
+  de entrada, única), **Contato Direto com o Padre** (R$ 19,90).
+- **Comunidade é assinatura**: R$ 44,90 de entrada + **R$ 9,78/mês**, com os
+  **primeiros 30 dias grátis** — a mensalidade só começa no dia 31. Ao oferecer
+  a Comunidade, **sempre** informar a mensalidade e o período grátis junto do
+  preço de entrada, na mesma mensagem. Cancela quando quiser, sem multa.
+  Nunca apresentar como pagamento único.
 - Desconto real por item somado no stack (10% / 20% / 30%) — sempre aplicado
   de verdade no valor cobrado.
 - Downsell de recuperação: 20% real na Oração em Áudio, sempre disponível
@@ -506,10 +511,13 @@ fora desta lista → **descobrir/perguntar, nunca inventar**.
   imediato, **não** é chamada particular. O agente pode e deve dizer isso com
   todas as letras — prometer conversa privada seria vender o que não existe.
   Sem prometer frequência ou tempo de resposta (não há prazo definido).
-- **Comunidade — o que é, exatamente:** um grupo/canal exclusivo onde os
-  participantes recebem conteúdos, orações, avisos e orientações. O acesso é
-  enviado após a confirmação do pagamento. **Não** afirmar volume de gente,
-  frequência de posts nem "é bem ativa" — isso não está confirmado.
+- **Comunidade — o que é, exatamente:** um grupo exclusivo com áudios e
+  mensagens diárias do Padre Frei, além de conteúdos das redes sociais
+  compartilhados com antecedência. O link do grupo é enviado após a
+  confirmação do pagamento. **Não** afirmar volume de gente — isso não está
+  confirmado.
+- **Contato com o Padre — onde acontece:** dentro da Comunidade. É lá que a
+  pessoa encontra o canal de contato com ele.
 - Natureza do produto: não é tratamento médico, não é investimento, não é
   garantia de milagre material. Sempre que o assunto encostar em saúde,
   dinheiro ou milagre, deixar isso claro sem soar robótico.

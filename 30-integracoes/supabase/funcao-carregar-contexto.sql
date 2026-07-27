@@ -49,7 +49,8 @@ as $$
     'produtos', coalesce((
       select json_agg(pr) from (
         select produto_id, nome, tipo, preco_centavos, ordem,
-               resolve_objecao, arquetipos
+               resolve_objecao, arquetipos,
+               mensalidade_centavos, trial_dias
         from produtos
         where ativo
         order by ordem
