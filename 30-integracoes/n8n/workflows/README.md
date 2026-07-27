@@ -248,6 +248,42 @@ ramo verticalmente para não se sobreporem, e **falha** se dois ramos tiverem
 um nó com o mesmo nome (conexões e expressões `$node["..."]` referenciam por
 nome — nome duplicado geraria um consolidado silenciosamente quebrado).
 
+## Correções de robustez (auditoria de 2026-07-26)
+
+Treze defeitos encontrados e fechados. Os quatro primeiros anulavam mecanismos
+de segurança que já existiam — não eram melhorias, eram buracos.
+
+| # | Defeito | Como ficou |
+|---|---|---|
+| 1 | `followup-24h` reenviava template **de hora em hora, para sempre** (24/dia por lead) — derrubaria a qualidade da conta até o banimento | Contador `followups_enviados` (teto 2), `ultimo_followup_em` com intervalo mínimo de 48h, e o envio agora marca o lead |
+| 2 | O upsert gravava `status='ativo'` em toda mensagem, apagando `opt_out`, `aguardando_humano` e `cliente` | `registrar_lead()` nunca toca no status; a origem só entra se ainda não houver uma |
+| 3 | Nada checava o estado do lead antes de vender — o handoff valia só para a mensagem que o disparou | `opt_out` barra antes da OpenAI; `aguardando_humano` entra em **modo sem venda** no system prompt |
+| 4 | `consentimento_contato` nunca era usado, e não havia como a lead pedir para sair | Follow-up filtra por consentimento; novo `intent="opt_out"` grava `status` e derruba o consentimento |
+| 5 | Sem idempotência: reenvio de webhook gerava resposta e **entrega duplicadas** | Tabela `eventos_processados` com `Prefer: resolution=ignore-duplicates` — atômico, sem janela entre checar e inserir |
+| 6 | `produtos_comprados` era sobrescrito na segunda compra | `registrar_compra()` concatena e avança `etapa_funil` |
+| 7 | Falha de OpenAI ou BlackCat abortava a execução — a lead ficava no silêncio | Ambos com `onError`; caminho de erro avisa a lead e alerta o Rodrigo |
+| 8 | Três mensagens seguidas = três execuções paralelas respondendo cego | Buffer + espera de 8s; só a última consome e responde, com o texto das três |
+| 9 | Resposta de 428 caracteres em 14 linhas numa mensagem só | Modelo devolve `mensagens[]` (1–3 curtas); sub-workflow envia em ordem, 900ms entre elas |
+| 10 | Janela de histórico de 10 eventos, gasta com registros sem texto | 20 eventos, e só os que têm mensagem |
+| 11 | O agente não sabia o que a lead já comprou | `carregar_contexto` devolve o lead; o catálogo ofertável exclui o que ela tem |
+| 12 | Digest do Hermes reenviava as mesmas sugestões todo dia | `notificado_em` filtra e é marcado após o envio |
+| 13 | `ultima_interacao` nulo nunca entrava no follow-up; link duplicado se pedisse duas vezes | `or=(...is.null)` na query; link válido por 30 min é reenviado em vez de recriado |
+
+Depende de [`../../supabase/migracao-robustez.sql`](../../supabase/migracao-robustez.sql).
+**Sem rodar essa migração os workflows chamam RPC inexistente e o agente não
+responde nada.**
+
+### O debounce, em detalhe
+
+Vale entender porque ele é o mais sutil. Cada mensagem entra no buffer e grava
+seu `msg_id` no lead. A execução espera 8s e chama `consumir_buffer`, que só
+devolve texto **se aquele `msg_id` ainda for o último**. Quem foi superado
+recebe `null` e encerra em silêncio.
+
+O ganho não é só evitar corrida: quem escreve em três pedaços ("oi" / "vi o
+anúncio" / "quanto custa?") recebia três respostas desencontradas, cada uma
+sem conhecer as outras. Agora recebe uma resposta que considera as três.
+
 ## Convenção de layout (para novos workflows)
 
 Padrão usado em todos os arquivos deste diretório — seguir nos próximos:

@@ -32,10 +32,10 @@
         220,
         0
       ],
-      "notes": "HTTP Request mantem o array inteiro como 1 item por padrao (nao explode sozinho) -- por isso o node seguinte separa explicitamente.",
+      "notes": "#1 Antes so filtrava por ultima_interacao, e nada marcava o envio: o mesmo lead recebia template TODA HORA, para sempre -- 24/dia, o suficiente para derrubar a qualidade da conta e levar a banimento. Agora exige consentimento (#4, compliance secao 5), teto de 2 follow-ups por lead, e intervalo minimo de 48h entre eles. O 'or' com is.null cobre quem nunca recebeu (#13: 'lt' nao casa NULL).",
       "parameters": {
         "method": "GET",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?status=in.(ativo,abandonou)&ultima_interacao=lt.{{new Date(Date.now()-24*60*60*1000).toISOString()}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?status=in.(ativo,abandonou)&consentimento_contato=eq.true&followups_enviados=lt.2&ultima_interacao=lt.{{new Date(Date.now()-24*60*60*1000).toISOString()}}&or=(ultimo_followup_em.is.null,ultimo_followup_em.lt.{{new Date(Date.now()-48*60*60*1000).toISOString()}})",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -67,8 +67,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1100,
-        0
+        1320,
+        80
       ],
       "parameters": {
         "method": "POST",
@@ -129,6 +129,42 @@
         },
         "options": {}
       }
+    },
+    {
+      "id": "n5",
+      "name": "Marcar follow-up enviado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        0
+      ],
+      "notes": "#1 Sem este passo o lead volta a casar na query na hora seguinte. Incrementa via RPC-livre: le o valor atual do proprio item.",
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.lead_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { ultimo_followup_em: new Date().toISOString(), followups_enviados: ($json.followups_enviados || 0) + 1 } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
     }
   ],
   "connections": {
@@ -177,6 +213,17 @@
       ]
     },
     "Enviar template de follow-up": {
+      "main": [
+        [
+          {
+            "node": "Marcar follow-up enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar follow-up enviado": {
       "main": [
         [
           {

@@ -30,29 +30,25 @@
       ],
       "notes": "Fallback seguro: sem marcador [ref:lp]/[ref:tiktok] => trata como tiktok (nunca assume compra sem confirmar). Ver ../../whatsapp/README.md secao 8. Tipo 'audio' e roteado para transcricao via Whisper antes de seguir (ver 'E audio?' / 'Transcrever audio').",
       "parameters": {
-        "jsCode": "const body = $input.first().json.body;\nconst entry = body.entry?.[0]?.changes?.[0]?.value;\nconst msg = entry?.messages?.[0];\nconst contato = entry?.contacts?.[0];\n\nconst wa_id = msg?.from;\nconst nome = contato?.profile?.name || null;\nconst tipo_mensagem = msg?.type || 'unknown';\nconst audio_media_id = msg?.audio?.id || null;\nconst texto = msg?.text?.body || '';\n\nlet origem = 'tiktok';\nif (/\\[ref:lp\\]/i.test(texto)) origem = 'lp';\nelse if (/\\[ref:tiktok\\]/i.test(texto)) origem = 'tiktok';\n\nreturn [{ json: { wa_id, nome, texto_recebido: texto, tipo_mensagem, audio_media_id, origem } }];"
+        "jsCode": "const body = $input.first().json.body;\nconst entry = body.entry?.[0]?.changes?.[0]?.value;\nconst msg = entry?.messages?.[0];\nconst contato = entry?.contacts?.[0];\n\nconst wa_id = msg?.from;\nconst nome = contato?.profile?.name || null;\nconst tipo_mensagem = msg?.type || 'unknown';\nconst msg_id = msg?.id || null;\nconst audio_media_id = msg?.audio?.id || null;\nconst texto = msg?.text?.body || '';\n\nlet origem = 'tiktok';\nif (/\\[ref:lp\\]/i.test(texto)) origem = 'lp';\nelse if (/\\[ref:tiktok\\]/i.test(texto)) origem = 'tiktok';\n\nreturn [{ json: { wa_id, nome, texto_recebido: texto, tipo_mensagem, audio_media_id, msg_id, origem } }];"
       }
     },
     {
       "id": "av-n3",
-      "name": "Upsert lead",
+      "name": "Registrar lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1980,
+        2420,
         160
       ],
-      "notes": "Upsert evita branch IF de 'lead existe?': Prefer=resolution=merge-duplicates atualiza se ja existir.",
+      "notes": "#2 O upsert antigo mandava status='ativo' em toda mensagem, apagando opt_out, aguardando_humano e cliente -- e sobrescrevia a origem. A funcao preserva os tres e so grava origem se ainda nao houver uma.",
       "parameters": {
         "method": "POST",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?on_conflict=lead_id",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/rpc/registrar_lead",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Prefer",
-              "value": "resolution=merge-duplicates,return=representation"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -61,7 +57,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, nome: $node[\"Extrair mensagem e origem\"].json.nome, origem_canal: $node[\"Extrair mensagem e origem\"].json.origem === 'lp' ? 'meta_ads' : 'tiktok_ads', ultima_interacao: new Date().toISOString(), status: 'ativo' } }}",
+        "jsonBody": "={{ { p_lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, p_nome: $node[\"Extrair mensagem e origem\"].json.nome, p_origem: $node[\"Extrair mensagem e origem\"].json.origem === 'lp' ? 'meta_ads' : 'tiktok_ads' } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -79,12 +75,12 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2640,
+        4180,
         160
       ],
-      "notes": "Pede saida em JSON estruturado (resposta + intent + arquetipo + pivo_downsell). Calcula a tabela de desconto real em codigo. Inclui as tags resolve_objecao/arquetipos para o pivo (secao 3) e destaque por perfil (secao 4) funcionarem em runtime. Instrui o modelo a oferecer o desconto de recuperacao (20%, aplicado de verdade em 'Montar items do carrinho') com moldura honesta -- nunca 'so hoje' ou datado. Reaproveita email/cpf ja gravados no lead (vindos do proprio upsert) para nao re-perguntar a quem ja comprou antes.",
+      "notes": "Monta o system prompt. Novidades: exclui do catalogo o que a lead ja comprou (#11), entra em modo sem-venda se ela estiver aguardando_humano (#3), reaproveita link aberto (#13), pede resposta em 1-3 mensagens curtas (#9) e reconhece pedido de opt-out (#4). O texto da lead vem do buffer, ja consolidado (#8).",
       "parameters": {
-        "jsCode": "const ctx = $node[\"Carregar contexto\"].json;\nconst promptRows = ctx.prompts || [];\nconst objetivo = promptRows.find(r => r.chave === 'objetivo')?.conteudo || '';\nconst compliance = promptRows.find(r => r.chave === 'compliance')?.conteudo || '';\nconst objecoes = promptRows.find(r => r.chave === 'objecoes')?.conteudo || '';\n// vem em ordem decrescente da funcao; inverte para cronologica\nconst historico = (ctx.historico || []).slice().reverse();\nconst extra = $node[\"Extrair mensagem e origem\"].json;\nconst textoFinal = $node[\"Merge apos audio/texto\"].json.texto_recebido;\nconst produtos = ctx.produtos || [];\n// O upsert devolve a linha ja mesclada (return=representation) -- entao email/cpf\n// gravados numa conversa anterior chegam aqui de graca, sem query extra.\nconst leadSalvo = ($node[\"Upsert lead\"].json || [])[0] || {};\n\nconst catalogoTexto = produtos.map(p => {\n  let linha = '- ' + p.produto_id + ' (' + p.tipo + '): ' + p.nome + ' - R$ ' + (p.preco_centavos/100).toFixed(2);\n  if (p.resolve_objecao && p.resolve_objecao.length) linha += ' [resolve objecao: ' + p.resolve_objecao.join(', ') + ']';\n  if (p.arquetipos && p.arquetipos.length) linha += ' [arquetipo: ' + p.arquetipos.join(', ') + ']';\n  return linha;\n}).join('\\n');\n\n// Tabela de desconto REAL, calculada com a MESMA formula usada em \"Montar items do carrinho\".\n// O modelo nunca deve inventar ou recalcular estes numeros -- precisam bater exatamente\n// com o valor que sera de fato cobrado no BlackCat.\nfunction calcularTotal(itens) {\n  const fator = 1 - (Math.max(0, itens.length - 1) * 10) / 100;\n  return itens.reduce((soma, p) => soma + Math.round(p.preco_centavos * fator), 0);\n}\nfunction fmt(centavos) {\n  return (centavos / 100).toFixed(2).replace('.', ',');\n}\n\nconst principal = produtos.find(p => p.tipo === 'principal');\nconst bumps = produtos.filter(p => p.tipo === 'order_bump').sort((a, b) => a.ordem - b.ordem);\n\nlet tabelaDesconto = '';\nif (principal && bumps.length) {\n  let acumulado = [principal];\n  const linhas = [];\n  for (const bump of bumps) {\n    const semDesconto = acumulado.reduce((s, p) => s + p.preco_centavos, 0) + bump.preco_centavos;\n    acumulado = [...acumulado, bump];\n    const comDesconto = calcularTotal(acumulado);\n    const descontoPct = Math.max(0, acumulado.length - 1) * 10;\n    const economia = semDesconto - comDesconto;\n    linhas.push('*+ ' + bump.nome + '* (R$ ' + fmt(bump.preco_centavos) + ')\\n   Total: R$ ' + fmt(comDesconto) + ' - voce economiza *R$ ' + fmt(economia) + '* (' + descontoPct + '% OFF)');\n  }\n  tabelaDesconto = '*Sua ' + principal.nome + ' - R$ ' + fmt(principal.preco_centavos) + '*\\n\\nVeja como o valor final cai conforme voce completa sua protecao:\\n\\n' + linhas.join('\\n\\n') + '\\n\\nEscolha quantos quiser -- quanto mais completa, maior o desconto';\n}\n\nconst systemPrompt = objetivo + '\\n\\n' + compliance\n  + (objecoes ? '\\n\\nGUIA DE OBJECOES (referencia para responder recusas e duvidas, sempre dentro do compliance acima):\\n' + objecoes : '')\n  + '\\n\\nOrigem do lead nesta conversa: ' + extra.origem + '.'\n  + '\\n\\nCatalogo de produtos disponiveis (use exatamente estes produto_id em produtos_aceitos, nunca invente produto ou preco fora desta lista):\\n' + catalogoTexto\n  + '\\n\\nQuando o lead aceitar o produto principal, apresente TODOS os order_bump de uma vez (nao um a um). Use EXATAMENTE este texto para mostrar a economia (os numeros ja estao calculados e batem com o valor real cobrado -- nunca invente ou recalcule):\\n\\n' + tabelaDesconto\n  + '\\n\\nVoce pode ajustar saudacao/tom ao redor deste texto, mas NUNCA altere os valores em R$ ou os percentuais.'\n  + '\\n\\nPIVO POR OBJECAO: se o lead recusar o principal ou repetir uma objecao forte (ex: \"esta caro\", \"nao tenho interesse\", \"vou pensar\") DEPOIS de voce ja ter tentado tratar a objecao uma vez, ofereca o produto do catalogo cuja tag [resolve objecao] bate com o sinal. Nao insista mais de uma vez na mesma linha de recusa.'\n  + '\\n\\nARQUETIPO: identifique ao longo da conversa qual arquetipo da lead mais se encaixa (mae_protetora: fala de filhos/familia/protecao; guerreira_fe: fala de batalha/forca/nao desistir; devota_busca: fala de milagre/graca/resposta/sinal; mulher_pertence: fala de comunidade/nao estar sozinha). Quando apresentar o stack, priorize o produto cujo [arquetipo] bate com o perfil identificado. Se nao houver sinal claro ainda na conversa, retorne arquetipo como null -- nunca invente um arquetipo sem evidencia real.\\n\\nDESCONTO DE RECUPERACAO (pivo por objecao): quando oferecer o produto alternativo da secao de pivo (aquele cuja tag [resolve objecao] bate com o sinal do lead), voce pode mencionar que consegue liberar 20% de desconto para ela fechar agora, nesse momento da conversa. Diga algo como \"consigo liberar 20% pra voce fechar agora\" -- NUNCA diga que essa condicao e \"so hoje\", \"exclusiva desta semana\", \"ultima chance\" ou qualquer coisa datada/limitada no tempo. E uma concessao real e sempre disponivel para quem chega a esse ponto da conversa, nunca uma urgencia fabricada. Quando gerar o link de pagamento para esse cenario (produto alternativo com o desconto de recuperacao), defina pivo_downsell=true na resposta. Em qualquer outro caso de gerar_link, pivo_downsell=false.'\n  + '\\n\\nDADOS DE PAGAMENTO (email e CPF): a API do BlackCat exige e-mail e CPF do comprador no proprio pedido de criacao da venda -- o link so e gerado se os dois ja estiverem preenchidos, nao da pra completar depois na pagina de checkout. Por isso, assim que o lead aceitar o stack (intent=aceitou_stack) e antes de gerar o link, peca e-mail e CPF numa unica mensagem objetiva (ex.: \\\"Perfeito! Pra gerar seu link de pagamento, me confirma seu e-mail e CPF?\\\"). So retorne intent=\\\"gerar_link\\\" quando voce ja tiver tanto o e-mail quanto o CPF do lead em algum ponto da conversa (mensagem atual ou historico) -- enquanto faltar qualquer um dos dois, continue com intent=\\\"aceitou_stack\\\" pedindo soh o que falta, sem repetir produtos ja aceitos. Extraia e retorne SEMPRE os campos \\\"email\\\" e \\\"cpf\\\" com o valor mais recente que o lead informou na conversa (atual ou historico), ou null se ainda nao informado. Nunca invente ou deduza email/CPF -- so preencha se o lead escreveu explicitamente.\\n\\nDADOS JA CONHECIDOS DESTE LEAD (de compras ou conversas anteriores): email=' + (leadSalvo.email || 'nao informado') + ', cpf=' + (leadSalvo.cpf || 'nao informado') + '. Se algum deles ja constar acima, trate como JA INFORMADO: nao peca de novo, reutilize o valor e devolva-o no campo correspondente da resposta. Peca apenas o que estiver como \"nao informado\".\\n\\nSINAL DE SOFRIMENTO REAL (objecoes.md, secao P): se a lead demonstrar angustia genuina -- perda, doenca grave, desesperanca, qualquer mencao a se ferir -- isso sobrepoe qualquer objetivo de venda. Pare de vender na hora, acolha com humanidade, nao ofereca produto algum nesta resposta, e retorne intent=\\\"sofrimento\\\". Se houver risco a vida, oriente procurar ajuda imediata (CVV 188) na propria resposta. Uma vez que intent=\\\"sofrimento\\\" for retornado, um humano sera notificado automaticamente -- voce nao precisa e nao deve tentar resolver isso sozinho nem retomar a venda nesta conversa ate que uma pessoa real intervenha.\\n\\nResponda SEMPRE em JSON no formato: {\"resposta\": string, \"intent\": \"qualificando\"|\"objecao\"|\"aceitou_stack\"|\"gerar_link\"|\"recusou\"|\"sofrimento\", \"produtos_aceitos\": string[], \"arquetipo\": \"mae_protetora\"|\"guerreira_fe\"|\"devota_busca\"|\"mulher_pertence\"|null, \"pivo_downsell\": boolean, \"email\": string|null, \"cpf\": string|null}';\n\nconst messages = [{ role: 'system', content: systemPrompt }];\nfor (const h of historico) {\n  if (h.mensagem_lead) messages.push({ role: 'user', content: h.mensagem_lead });\n  if (h.mensagem_agente) messages.push({ role: 'assistant', content: h.mensagem_agente });\n}\nmessages.push({ role: 'user', content: textoFinal });\n\nreturn [{ json: { model: 'gpt-4.1', response_format: { type: 'json_object' }, messages } }];"
+        "jsCode": "const ctx = $node[\"Carregar contexto\"].json;\nconst promptRows = ctx.prompts || [];\nconst produtos = ctx.produtos || [];\nconst lead = ctx.lead || {};\nconst extra = $node[\"Extrair mensagem e origem\"].json;\n\n// Texto ja consolidado pelo debounce: se ela mandou 3 mensagens seguidas,\n// chega tudo junto aqui e o agente responde uma vez, considerando as tres.\nconst textoFinal = $node[\"Consumir buffer\"].json;\n\nconst objetivo   = promptRows.find(r => r.chave === 'objetivo')?.conteudo || '';\nconst compliance = promptRows.find(r => r.chave === 'compliance')?.conteudo || '';\nconst objecoes   = promptRows.find(r => r.chave === 'objecoes')?.conteudo || '';\n\n// vem em ordem decrescente da funcao; inverte para cronologica\nconst historico = (ctx.historico || []).slice().reverse();\n\nconst catalogoTexto = produtos.map(p => {\n  let linha = '- ' + p.produto_id + ' (' + p.tipo + '): ' + p.nome + ' - R$ ' + (p.preco_centavos/100).toFixed(2);\n  if (p.resolve_objecao && p.resolve_objecao.length) linha += ' [resolve objecao: ' + p.resolve_objecao.join(', ') + ']';\n  if (p.arquetipos && p.arquetipos.length) linha += ' [arquetipo: ' + p.arquetipos.join(', ') + ']';\n  return linha;\n}).join('\\n');\n\n// Tabela de desconto REAL, com a MESMA formula usada em \"Montar items do carrinho\".\nfunction calcularTotal(itens) {\n  const fator = 1 - (Math.max(0, itens.length - 1) * 10) / 100;\n  return itens.reduce((soma, p) => soma + Math.round(p.preco_centavos * fator), 0);\n}\nfunction fmt(centavos) { return (centavos / 100).toFixed(2).replace('.', ','); }\n\n// #11 O agente precisa saber o que ela JA TEM, senao tenta vender de novo.\nconst jaComprados = new Set((lead.produtos_comprados || []).map(i => i.produto_id || i.title));\nconst disponiveis = produtos.filter(p => !jaComprados.has(p.produto_id) && !jaComprados.has(p.nome));\n\nconst principal = disponiveis.find(p => p.tipo === 'principal');\nconst bumps = disponiveis.filter(p => p.tipo === 'order_bump').sort((a, b) => a.ordem - b.ordem);\n\nlet tabelaDesconto = '';\nif (principal && bumps.length) {\n  let acumulado = [principal];\n  const linhas = [];\n  for (const bump of bumps) {\n    const semDesconto = acumulado.reduce((s, p) => s + p.preco_centavos, 0) + bump.preco_centavos;\n    acumulado = [...acumulado, bump];\n    const comDesconto = calcularTotal(acumulado);\n    const descontoPct = Math.max(0, acumulado.length - 1) * 10;\n    linhas.push('*+ ' + bump.nome + '* (R$ ' + fmt(bump.preco_centavos) + ')\\n   Total: R$ ' + fmt(comDesconto) + ' - voce economiza *R$ ' + fmt(semDesconto - comDesconto) + '* (' + descontoPct + '% OFF)');\n  }\n  tabelaDesconto = '*Sua ' + principal.nome + ' - R$ ' + fmt(principal.preco_centavos) + '*\\n\\nVeja como o valor final cai conforme voce completa sua protecao:\\n\\n' + linhas.join('\\n\\n') + '\\n\\nEscolha quantos quiser -- quanto mais completa, maior o desconto';\n}\n\nlet systemPrompt = objetivo + '\\n\\n' + compliance\n  + (objecoes ? '\\n\\nGUIA DE OBJECOES (referencia para responder recusas e duvidas, sempre dentro do compliance acima):\\n' + objecoes : '')\n  + '\\n\\nOrigem do lead nesta conversa: ' + extra.origem + '.';\n\n// #3 Estado da lead manda em tudo que vem depois.\nif (lead.status === 'aguardando_humano') {\n  systemPrompt += '\\n\\n*** MODO SEM VENDA (prioridade maxima) ***\\nEsta lead foi sinalizada por sofrimento real e esta aguardando atendimento humano. NAO ofereca produto, NAO cite preco, NAO tente retomar a venda em nenhuma hipotese, mesmo que ela pergunte sobre produto. Acolha com humanidade, diga que uma pessoa de verdade vai falar com ela, e se houver risco a vida oriente ajuda imediata (CVV 188). Retorne intent=\"sofrimento\".';\n}\n\nif (jaComprados.size) {\n  systemPrompt += '\\n\\nPRODUTOS QUE ESTA LEAD JA COMPROU (nunca ofereca de novo, nunca inclua em produtos_aceitos): '\n    + [...jaComprados].join(', ') + '. Se ela perguntar sobre um deles, trate como cliente: ajude com acesso e uso, nao venda.';\n}\n\nsystemPrompt += '\\n\\nCatalogo disponivel para ESTA lead (ja excluidos os que ela possui; use exatamente estes produto_id, nunca invente produto ou preco fora desta lista):\\n' + (catalogoTexto || '(nenhum produto novo a oferecer)');\n\nif (tabelaDesconto) {\n  systemPrompt += '\\n\\nQuando o lead aceitar o produto principal, apresente TODOS os order_bump de uma vez (nao um a um). Use EXATAMENTE estes valores (ja calculados, batem com o que sera cobrado -- nunca invente ou recalcule):\\n\\n' + tabelaDesconto\n    + '\\n\\nVoce pode ajustar saudacao/tom ao redor, mas NUNCA altere os valores em R$ ou os percentuais.';\n}\n\n// #13 link ainda valido: reenviar em vez de criar outra cobranca\nif (lead.link_recente && lead.ultimo_link_url) {\n  systemPrompt += '\\n\\nJA EXISTE UM LINK DE PAGAMENTO ABERTO para esta lead, gerado ha menos de 30 minutos: ' + lead.ultimo_link_url\n    + '\\nSe ela pedir o link de novo, disser que perdeu ou que nao chegou, REENVIE ESTE MESMO LINK no texto da sua resposta e retorne intent=\"qualificando\". NAO retorne gerar_link -- criar outra cobranca deixaria duas em aberto no nome dela.';\n}\n\nsystemPrompt += '\\n\\nPIVO POR OBJECAO: se o lead recusar o principal ou repetir uma objecao forte (ex: \"esta caro\", \"nao tenho interesse\", \"vou pensar\") DEPOIS de voce ja ter tentado tratar a objecao uma vez, ofereca o produto do catalogo cuja tag [resolve objecao] bate com o sinal. Nao insista mais de uma vez na mesma linha de recusa.'\n  + '\\n\\nARQUETIPO: identifique ao longo da conversa qual arquetipo da lead mais se encaixa (mae_protetora: fala de filhos/familia/protecao; guerreira_fe: fala de batalha/forca/nao desistir; devota_busca: fala de milagre/graca/resposta/sinal; mulher_pertence: fala de comunidade/nao estar sozinha). Priorize o produto cujo [arquetipo] bate com o perfil. Sem sinal claro, retorne null -- nunca invente arquetipo sem evidencia.'\n  + '\\n\\nDESCONTO DE RECUPERACAO: ao oferecer o produto alternativo do pivo, voce pode liberar 20% para ela fechar agora. Diga algo como \"consigo liberar 20% pra voce fechar agora\" -- NUNCA diga que e \"so hoje\", \"ultima chance\" ou qualquer coisa datada. E concessao real e sempre disponivel. Nesse caso defina pivo_downsell=true; em qualquer outro gerar_link, false.'\n  + '\\n\\nDADOS DE PAGAMENTO: o BlackCat exige email e CPF no proprio pedido -- o link so e gerado com os dois. Assim que ela aceitar o stack, peca ambos numa unica mensagem objetiva. So retorne intent=\"gerar_link\" quando tiver os dois; enquanto faltar, use intent=\"aceitou_stack\" pedindo so o que falta. Retorne SEMPRE os campos email e cpf com o valor mais recente informado, ou null. Nunca invente nem deduza.'\n  + '\\n\\nDADOS JA CONHECIDOS DESTE LEAD: email=' + (lead.email || 'nao informado') + ', cpf=' + (lead.cpf || 'nao informado') + '. Se algum ja constar, trate como JA INFORMADO: nao peca de novo, reutilize e devolva no campo correspondente.'\n  + '\\n\\nSINAL DE SOFRIMENTO REAL (objecoes.md, secao P): se a lead demonstrar angustia genuina -- perda, doenca grave, desesperanca, qualquer mencao a se ferir -- isso sobrepoe qualquer objetivo de venda. Pare de vender, acolha, nao ofereca produto, e retorne intent=\"sofrimento\". Havendo risco a vida, oriente ajuda imediata (CVV 188).'\n  + '\\n\\nPEDIDO DE PARAR: se ela pedir para nao receber mais mensagens (\"nao me manda mais\", \"para\", \"sai\", \"me tira daqui\"), retorne intent=\"opt_out\" e uma unica mensagem curta de despedida respeitosa, sem tentar reverter e sem perguntar o motivo. Respeitar isso na hora e obrigacao legal.'\n  // #9 uma parede de texto nao se le no celular, ainda menos neste publico\n  + '\\n\\nFORMATO DA RESPOSTA: responda como uma pessoa digitando no WhatsApp -- de 1 a 3 mensagens curtas, na ordem em que seriam enviadas, cada uma com 1 a 3 linhas. Quebre pensamentos diferentes em mensagens diferentes em vez de mandar um bloco unico. A tabela de precos, quando usada, vai numa mensagem propria e inteira (nunca partida no meio).'\n  + '\\n\\nResponda SEMPRE em JSON: {\"mensagens\": string[], \"intent\": \"qualificando\"|\"objecao\"|\"aceitou_stack\"|\"gerar_link\"|\"recusou\"|\"sofrimento\"|\"opt_out\", \"produtos_aceitos\": string[], \"arquetipo\": \"mae_protetora\"|\"guerreira_fe\"|\"devota_busca\"|\"mulher_pertence\"|null, \"pivo_downsell\": boolean, \"email\": string|null, \"cpf\": string|null}';\n\nconst messages = [{ role: 'system', content: systemPrompt }];\nfor (const h of historico) {\n  if (h.mensagem_lead) messages.push({ role: 'user', content: h.mensagem_lead });\n  if (h.mensagem_agente) messages.push({ role: 'assistant', content: h.mensagem_agente });\n}\nmessages.push({ role: 'user', content: textoFinal });\n\nreturn [{ json: { model: 'gpt-4.1', response_format: { type: 'json_object' }, messages } }];"
       }
     },
     {
@@ -93,7 +89,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2860,
+        4400,
         160
       ],
       "parameters": {
@@ -120,7 +116,9 @@
           "id": "LVlwWDwzHmIujoAI",
           "name": "Open IA API"
         }
-      }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "#7 Antes abortava a execucao: a lead mandava mensagem e recebia silencio, sem registro nenhum. Agora a falha segue para o caminho de erro honesto."
     },
     {
       "id": "av-n8",
@@ -128,12 +126,13 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3080,
+        4840,
         160
       ],
       "parameters": {
-        "jsCode": "const content = $input.first().json.choices[0].message.content;\nconst parsed = JSON.parse(content);\nreturn [{ json: parsed }];"
-      }
+        "jsCode": "const parsed = JSON.parse($input.first().json.choices[0].message.content);\n\n// Tolerante ao modelo devolver 'resposta' (string) em vez de 'mensagens' (array).\nlet mensagens = parsed.mensagens;\nif (!Array.isArray(mensagens) || !mensagens.length) {\n  mensagens = parsed.resposta ? [parsed.resposta] : [];\n}\nmensagens = mensagens.map(m => String(m).trim()).filter(Boolean);\n\n// Nunca deixar a lead sem resposta por formato inesperado.\nif (!mensagens.length) mensagens = ['Me conta um pouco mais pra eu te ajudar direito.'];\n\nreturn [{ json: { ...parsed, mensagens, resposta: mensagens.join('\\n\\n') } }];"
+      },
+      "notes": "Normaliza a saida: garante array de mensagens e mantem 'resposta' concatenada para o registro em conversas."
     },
     {
       "id": "av-n10",
@@ -141,7 +140,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3740,
+        5500,
         160
       ],
       "parameters": {
@@ -162,7 +161,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, mensagem_agente: $node[\"Extrair resposta e intent\"].json.resposta, mensagem_lead: $node[\"Merge apos audio/texto\"].json.texto_recebido, produtos_aceitos: $node[\"Extrair resposta e intent\"].json.produtos_aceitos || [] } }}",
+        "jsonBody": "={{ { lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, mensagem_agente: $node[\"Extrair resposta e intent\"].json.resposta, mensagem_lead: $node[\"Consumir buffer\"].json, produtos_aceitos: $node[\"Extrair resposta e intent\"].json.produtos_aceitos || [] } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -180,7 +179,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        3960,
+        5720,
         160
       ],
       "parameters": {
@@ -210,7 +209,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4180,
+        5940,
         80
       ],
       "notes": "Dois mecanismos de desconto distintos, nunca misturados: pivo_downsell=true aplica 20% fixo (recuperacao por objecao); caso contrario, 10% por item adicional no stack normal. Le o catalogo real de Buscar produtos e aplica o desconto DE VERDADE no unitPrice -- o total cobrado precisa refletir exatamente o que foi dito na conversa (compliance-e-etica.md, secao 2/3). amount = soma dos unitPrice (a API do BlackCat exige o total em centavos separado do array de items).",
@@ -224,10 +223,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        4400,
+        6160,
         80
       ],
-      "notes": "Confirmado na doc oficial (docs.blackcatoficial.com) em 2026-07-21: endpoint e api.blackcatoficial.com (nao blackcathub.com), body exige 'amount' (centavos, total) e 'paymentMethod' alem de 'items', e 'customer' e OBRIGATORIO (name, email, phone, document{number,type}, type='cpf'|'cnpj' em minusculo). Email e CPF sao coletados na propria conversa (ver 'Montar mensagens OpenAI') antes do intent=gerar_link disparar esse node -- nao da pra completar depois na pagina de checkout, o link so e gerado se o customer ja vier completo. Autenticacao real e header 'X-API-Key: <chave>', nao Bearer. Fallback para o email/cpf ja gravados no lead, caso o modelo nao repita na resposta um dado que ja estava no banco.",
+      "notes": "Confirmado na doc oficial (docs.blackcatoficial.com) em 2026-07-21: endpoint e api.blackcatoficial.com (nao blackcathub.com), body exige 'amount' (centavos, total) e 'paymentMethod' alem de 'items', e 'customer' e OBRIGATORIO (name, email, phone, document{number,type}, type='cpf'|'cnpj' em minusculo). Email e CPF sao coletados na propria conversa (ver 'Montar mensagens OpenAI') antes do intent=gerar_link disparar esse node -- nao da pra completar depois na pagina de checkout, o link so e gerado se o customer ja vier completo. Autenticacao real e header 'X-API-Key: <chave>', nao Bearer. Fallback para o email/cpf ja gravados no lead, caso o modelo nao repita na resposta um dado que ja estava no banco. #7 Falha nao aborta mais: ela pediu o link, precisa saber que houve problema em vez de ficar esperando.",
       "parameters": {
         "method": "POST",
         "url": "https://api.blackcatoficial.com/api/sales/create-sale",
@@ -242,7 +241,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { amount: $json.amount, paymentMethod: 'pix', items: $json.items, customer: { name: $node[\"Extrair mensagem e origem\"].json.nome, email: $node[\"Extrair resposta e intent\"].json.email || ($node[\"Upsert lead\"].json[0] || {}).email, phone: $node[\"Extrair mensagem e origem\"].json.wa_id, document: { number: ($node[\"Extrair resposta e intent\"].json.cpf || ($node[\"Upsert lead\"].json[0] || {}).cpf || '').replace(/\\D/g, ''), type: 'cpf' } }, externalRef: $node[\"Extrair mensagem e origem\"].json.wa_id, postbackUrl: 'https://salles-ai-agent.pikapod.net' + '/webhook/blackcat', metadata: 'origem:' + $node[\"Extrair mensagem e origem\"].json.origem } }}",
+        "jsonBody": "={{ { amount: $json.amount, paymentMethod: 'pix', items: $json.items, customer: { name: $node[\"Extrair mensagem e origem\"].json.nome, email: $node[\"Extrair resposta e intent\"].json.email || ($node[\"Carregar contexto\"].json.lead || {}).email, phone: $node[\"Extrair mensagem e origem\"].json.wa_id, document: { number: ($node[\"Extrair resposta e intent\"].json.cpf || ($node[\"Carregar contexto\"].json.lead || {}).cpf || '').replace(/\\D/g, ''), type: 'cpf' } }, externalRef: $node[\"Extrair mensagem e origem\"].json.wa_id, postbackUrl: 'https://salles-ai-agent.pikapod.net' + '/webhook/blackcat', metadata: 'origem:' + $node[\"Extrair mensagem e origem\"].json.origem } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth"
@@ -252,7 +251,8 @@
           "id": "coOc51uEorNtsZmG",
           "name": "BlackCat API"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "id": "av-n13b",
@@ -260,7 +260,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        4620,
+        6600,
         240
       ],
       "notes": "Fecha o loop de auditoria do desconto: grava desconto_aplicado_pct e link_blackcat_id no evento inserido em 'Gravar evento conversa' (exige Prefer:return=representation la para termos o evento_id). Campo de retorno confirmado na doc oficial: data.transactionId (resposta vem aninhada em 'data').",
@@ -296,7 +296,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        4180,
+        5940,
         320
       ],
       "parameters": {}
@@ -307,7 +307,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        3300,
+        5060,
         320
       ],
       "notes": "So grava se o modelo realmente identificou sinal na conversa (nunca sobrescreve com null e perde um arquetipo ja detectado antes).",
@@ -338,7 +338,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3520,
+        5280,
         320
       ],
       "parameters": {
@@ -373,7 +373,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        3520,
+        5280,
         400
       ],
       "parameters": {}
@@ -384,7 +384,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        4180,
+        5940,
         240
       ],
       "notes": "Persiste email/cpf assim que o modelo confirma os dois (gerar_link so dispara com ambos presentes, ver 'Montar mensagens OpenAI'). cpf gravado com digits-only, igual ao enviado ao BlackCat. Nunca sobrescreve com vazio um email/cpf ja gravado antes.",
@@ -402,7 +402,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { email: $node[\"Extrair resposta e intent\"].json.email || ($node[\"Upsert lead\"].json[0] || {}).email, cpf: ($node[\"Extrair resposta e intent\"].json.cpf || ($node[\"Upsert lead\"].json[0] || {}).cpf || \"\").replace(/\\D/g, \"\") } }}",
+        "jsonBody": "={{ { email: $node[\"Extrair resposta e intent\"].json.email || ($node[\"Carregar contexto\"].json.lead || {}).email, cpf: ($node[\"Extrair resposta e intent\"].json.cpf || ($node[\"Carregar contexto\"].json.lead || {}).cpf || \"\").replace(/\\D/g, \"\") } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -420,7 +420,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        3300,
+        5060,
         480
       ],
       "notes": "Handoff humano (objecoes.md, secao P). O agente ja parou de vender e acolheu na resposta em si (n6/n8); este ramo so cobre o encaminhamento para uma pessoa real.",
@@ -451,7 +451,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3960,
+        5720,
         480
       ],
       "notes": "Registra o gatilho mesmo se a notificacao ao Rodrigo falhar ou o numero ainda nao existir -- garante rastreabilidade do handoff.",
@@ -487,7 +487,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        3520,
+        5280,
         560
       ],
       "parameters": {}
@@ -498,7 +498,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        440,
+        880,
         160
       ],
       "notes": "Hoje o sistema so lia texto; audio de voz (muito comum nesse publico) chegava vazio pro agente (objecoes.md, secao O). Este ramo baixa e transcreve antes de seguir.",
@@ -529,7 +529,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        660,
+        1100,
         0
       ],
       "notes": "Media id vem no payload do webhook; a URL de download real e obtida num segundo request (expira rapido, por isso nunca se cacheia).",
@@ -554,7 +554,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        880,
+        1320,
         0
       ],
       "notes": "A URL exige o mesmo token do WhatsApp Cloud API para baixar o binario (nao e publica).",
@@ -586,7 +586,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1320,
+        1760,
         0
       ],
       "notes": "OpenAI Whisper (whisper-1). Custo por minuto de audio -- volume esperado e baixo (mensagens de voz curtas), mas monitorar se subir muito.",
@@ -636,7 +636,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1540,
+        1980,
         0
       ],
       "notes": "Substitui texto_recebido pela transcricao, mantendo wa_id/nome/origem intactos. Transcricao vazia (falha ou audio ininteligivel) segue vazia de proposito.",
@@ -650,7 +650,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        660,
+        1100,
         240
       ],
       "notes": "Apara espacos para o IF 'Tem texto para responder?' nao tratar ' ' como mensagem valida.",
@@ -664,7 +664,7 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
       "position": [
-        1760,
+        2200,
         160
       ],
       "notes": "So um dos dois ramos produz item por execucao (IF so segue por um caminho); mode 'append' converge sem exigir que ambos disparem.",
@@ -678,7 +678,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1100,
+        1540,
         0
       ],
       "notes": "A URL de midia do Graph nao carrega extensao no nome, e a API da OpenAI decide o formato pelo nome do arquivo -- sem isso o upload e recusado. WhatsApp entrega voz em OGG/Opus.",
@@ -692,7 +692,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        2200,
+        2860,
         160
       ],
       "notes": "Cobre de uma vez: audio cuja transcricao falhou/veio vazia, imagem, figurinha e mensagem vazia. Sem isso o agente responderia no vacuo (objecoes.md, secao O). Tambem evita gastar uma chamada de OpenAI a toa.",
@@ -723,7 +723,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2420,
+        3960,
         160
       ],
       "notes": "Uma chamada no lugar de tres GETs paralelos + dois Merges. Ver ../../supabase/funcao-carregar-contexto.sql. Devolve { historico, prompts, produtos }.",
@@ -759,12 +759,12 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3300,
+        5060,
         160
       ],
-      "notes": "",
+      "notes": "#9 Devolve N itens -- o sub-workflow envia um a um, na ordem, com intervalo. Parede de texto nao se le no celular.",
       "parameters": {
-        "jsCode": "return [{ json: { to: $node[\"Extrair mensagem e origem\"].json.wa_id, tipo: 'text', texto: $node[\"Extrair resposta e intent\"].json.resposta } }];"
+        "jsCode": "const wa = $node[\"Extrair mensagem e origem\"].json.wa_id;\n// Um item por mensagem: o sub-workflow envia em sequencia, com pausa entre elas.\nreturn $node[\"Extrair resposta e intent\"].json.mensagens.map(texto => ({ json: { to: wa, tipo: 'text', texto } }));"
       }
     },
     {
@@ -773,7 +773,7 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        3520,
+        5280,
         160
       ],
       "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
@@ -793,7 +793,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4840,
+        6820,
         80
       ],
       "notes": "Campo de retorno confirmado na doc oficial: data.invoiceUrl (resposta vem aninhada em 'data').",
@@ -807,7 +807,7 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        5060,
+        7040,
         80
       ],
       "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
@@ -827,12 +827,12 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3520,
+        5280,
         480
       ],
       "notes": "Handoff automatico: avisa o humano imediatamente quando o gatilho de sofrimento real disparar. RODRIGO_WA_NUMBER so existe depois da verificacao Meta (ver ../../whatsapp/README.md); enquanto isso o node fica inativo/sem efeito real, mas o registro em conversas (n22) ja preserva o sinal.",
       "parameters": {
-        "jsCode": "const e = $node[\"Extrair mensagem e origem\"].json;\nconst texto = $node[\"Merge apos audio/texto\"].json.texto_recebido;\nreturn [{ json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: '\\u26a0\\ufe0f Sinal de sofrimento real detectado.\\nLead: ' + (e.nome || e.wa_id) + ' (' + e.wa_id + ')\\nMensagem: \"' + texto + '\"\\nO agente ja parou de vender e acolheu. Preciso que voce (ou alguem de confianca) assuma esta conversa agora.' } }];"
+        "jsCode": "const e = $node[\"Extrair mensagem e origem\"].json;\nconst texto = $node[\"Consumir buffer\"].json;\nreturn [{ json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: '\\u26a0\\ufe0f Sinal de sofrimento real detectado.\\nLead: ' + (e.nome || e.wa_id) + ' (' + e.wa_id + ')\\nMensagem: \"' + texto + '\"\\nO agente ja parou de vender e acolheu. Preciso que voce (ou alguem de confianca) assuma esta conversa agora.' } }];"
       }
     },
     {
@@ -841,7 +841,7 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        3740,
+        5500,
         480
       ],
       "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
@@ -861,7 +861,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2420,
+        3080,
         400
       ],
       "notes": "Texto verbatim da secao O do objecoes.md. Pede para reescrever em texto em vez de adivinhar o que a pessoa disse.",
@@ -875,7 +875,7 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        2640,
+        3300,
         400
       ],
       "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
@@ -890,13 +890,501 @@
       }
     },
     {
+      "id": "av-d1",
+      "name": "Marcar evento processado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/eventos_processados",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=ignore-duplicates,return=representation"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { chave: 'wa:' + $node[\"Extrair mensagem e origem\"].json.msg_id } }}"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      },
+      "notes": "#5 idempotencia. A Meta reenvia o webhook se nao receber 200 a tempo. Prefer=ignore-duplicates faz o reenvio devolver array VAZIO -- e isso que o IF seguinte detecta. Atomico: nao ha janela entre checar e inserir."
+    },
+    {
+      "id": "av-d2",
+      "name": "Mensagem inedita?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        160
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "notes": "Array vazio = a Meta ja tinha entregue esta mensagem antes. Encerra sem responder de novo."
+    },
+    {
+      "id": "av-d3",
+      "name": "Duplicata ignorada",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        880,
+        320
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "av-g1",
+      "name": "Lead pediu para parar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        160
+      ],
+      "notes": "#3/#4 Compliance secao 5: respeitar imediatamente quem pediu para parar. Barra ANTES da OpenAI -- nao responde, nao gasta token, nao registra conversa.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node[\"Registrar lead\"].json.status }}",
+              "rightValue": "opt_out",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "av-g2",
+      "name": "Opt-out respeitado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2860,
+        400
+      ],
+      "notes": "Fim silencioso de proposito: responder aqui ja seria desrespeitar o pedido.",
+      "parameters": {}
+    },
+    {
+      "id": "av-b1",
+      "name": "Bufferizar mensagem",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3080,
+        160
+      ],
+      "notes": "#8 Quem manda 3 mensagens seguidas disparava 3 execucoes paralelas, cada uma lendo o historico sem as outras. Agora cada mensagem entra num buffer.",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/rpc/bufferizar_mensagem",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { p_lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, p_msg_id: $node[\"Extrair mensagem e origem\"].json.msg_id, p_texto: $node[\"Merge apos audio/texto\"].json.texto_recebido } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "av-b2",
+      "name": "Aguardar rajada (8s)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3300,
+        160
+      ],
+      "notes": "Janela curta o bastante para nao parecer lentidao e longa o bastante para juntar a rajada tipica de quem escreve em pedacos.",
+      "parameters": {
+        "unit": "seconds",
+        "amount": 8
+      }
+    },
+    {
+      "id": "av-b3",
+      "name": "Consumir buffer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3520,
+        160
+      ],
+      "notes": "Devolve o texto acumulado APENAS se esta ainda for a ultima mensagem. Se outra chegou durante a espera, devolve null e esta execucao encerra -- quem responde e a mais recente, ja com tudo.",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/rpc/consumir_buffer",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { p_lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, p_msg_id: $node[\"Extrair mensagem e origem\"].json.msg_id } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "av-b4",
+      "name": "Ainda sou a ultima?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        160
+      ],
+      "notes": "null = superada por mensagem mais nova. Encerrar aqui e o que evita as respostas desencontradas.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "av-b5",
+      "name": "Superada por mensagem nova",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        3960,
+        400
+      ],
+      "notes": "",
+      "parameters": {}
+    },
+    {
+      "id": "av-f1",
+      "name": "OpenAI respondeu?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        160
+      ],
+      "notes": "Sem 'choices' a chamada falhou (cota, timeout, 5xx). Silencio seria o pior desfecho.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.choices }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "av-f2",
+      "name": "Preparar aviso de falha",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4840,
+        400
+      ],
+      "notes": "Duas mensagens: a lead nao fica no vacuo, e voce sabe na hora. Sem isto, uma cota estourada derruba o funil em silencio.",
+      "parameters": {
+        "jsCode": "const wa = $node[\"Extrair mensagem e origem\"].json.wa_id;\nreturn [\n  { json: { to: wa, tipo: 'text', texto: 'Deu um probleminha aqui do meu lado agora. Ja ja te respondo, ta bom? Nao vou te deixar sem resposta.' } },\n  { json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: '\\u26a0\\ufe0f OpenAI falhou para o lead ' + wa + '. Ela foi avisada e esta esperando. Verifique credito/limite da conta.' } }\n];"
+      }
+    },
+    {
+      "id": "av-f3",
+      "name": "Enviar aviso de falha",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5060,
+        400
+      ],
+      "notes": "",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G1sbNfyXXIwL3Cmh",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "av-f4",
+      "name": "Venda criada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        6380,
+        0
+      ],
+      "notes": "#7 create-sale pode falhar (chave, indisponibilidade, dado recusado). Ela pediu o link -- precisa saber.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.data }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "av-f5",
+      "name": "Preparar falha do link",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6600,
+        80
+      ],
+      "notes": "",
+      "parameters": {
+        "jsCode": "const wa = $node[\"Extrair mensagem e origem\"].json.wa_id;\nreturn [\n  { json: { to: wa, tipo: 'text', texto: 'Nao consegui gerar seu link agora, foi um problema tecnico aqui. Ja estou resolvendo e te mando em seguida.' } },\n  { json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: '\\u26a0\\ufe0f BlackCat recusou o create-sale do lead ' + wa + '. Ela pediu o link e esta esperando.' } }\n];"
+      }
+    },
+    {
+      "id": "av-f6",
+      "name": "Enviar falha do link",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        6820,
+        160
+      ],
+      "notes": "",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G1sbNfyXXIwL3Cmh",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "av-o1",
+      "name": "Intent = opt_out?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        5060,
+        640
+      ],
+      "notes": "#4 Nao existia caminho para a lead sair. O compliance (secao 5) exige respeitar na hora.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node[\"Extrair resposta e intent\"].json.intent }}",
+              "rightValue": "opt_out",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "av-o2",
+      "name": "Registrar opt-out",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5280,
+        640
+      ],
+      "notes": "Derruba tambem o consentimento: o follow-up filtra por ele, entao ela sai das duas frentes de uma vez.",
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { status: 'opt_out', consentimento_contato: false } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "av-l1",
+      "name": "Guardar link gerado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7260,
+        80
+      ],
+      "notes": "#13 Permite reenviar o MESMO link se ela pedir de novo em ate 30 min, em vez de abrir outra cobranca no nome dela.",
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { ultimo_link_url: $node[\"Criar venda BlackCat\"].json.data.invoiceUrl, ultimo_link_em: new Date().toISOString() } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
       "id": "pb-n1",
       "name": "BlackCat IN",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
         0,
-        1100
+        1180
       ],
       "parameters": {
         "httpMethod": "POST",
@@ -911,8 +1399,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        220,
-        940
+        660,
+        1020
       ],
       "parameters": {
         "conditions": {
@@ -941,8 +1429,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        440,
-        1100
+        880,
+        1180
       ],
       "parameters": {
         "conditions": {
@@ -971,8 +1459,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        660,
-        1260
+        1100,
+        1340
       ],
       "parameters": {
         "conditions": {
@@ -1001,24 +1489,24 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        880,
-        1420
+        1320,
+        1500
       ],
       "parameters": {}
     },
     {
       "id": "pb-n3",
-      "name": "Marcar cliente",
+      "name": "Registrar compra",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        440,
-        940
+        880,
+        1020
       ],
-      "notes": "transaction.paid: marca status=cliente e grava o(s) produto(s) comprados.",
+      "notes": "#6 O PATCH antigo SOBRESCREVIA produtos_comprados: quem comprava o principal e depois a Comunidade perdia o registro do primeiro. A funcao concatena, e ainda avanca etapa_funil para comprou_upsell na segunda compra.",
       "parameters": {
-        "method": "PATCH",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalReference}}",
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/rpc/registrar_compra",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -1030,7 +1518,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { status: 'cliente', etapa_funil: 'comprou_principal', produtos_comprados: $json.body.items } }}",
+        "jsonBody": "={{ { p_lead_id: $node[\"BlackCat IN\"].json.body.externalReference, p_items: $node[\"BlackCat IN\"].json.body.items } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -1048,8 +1536,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1100,
-        940
+        1540,
+        1020
       ],
       "parameters": {
         "method": "POST",
@@ -1083,8 +1571,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        660,
-        1100
+        1100,
+        1180
       ],
       "notes": "transaction.created sem paid ainda: arma o estado para o timer de recuperacao de 2h.",
       "parameters": {
@@ -1119,8 +1607,8 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        880,
-        1100
+        1320,
+        1180
       ],
       "notes": "n8n persiste a execucao e retoma sozinho apos 2h, mesmo que o pod reinicie.",
       "parameters": {
@@ -1134,8 +1622,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1100,
-        1100
+        1540,
+        1180
       ],
       "parameters": {
         "method": "GET",
@@ -1157,8 +1645,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1320,
-        1100
+        1760,
+        1180
       ],
       "notes": "So recupera se ainda nao pagou nesse meio-tempo (transaction.paid teria mudado o status para cliente).",
       "parameters": {
@@ -1188,8 +1676,8 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1540,
-        1180
+        1980,
+        1260
       ],
       "parameters": {}
     },
@@ -1199,8 +1687,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        880,
-        1260
+        1320,
+        1340
       ],
       "notes": "transaction.failed: expirou ou falhou. Volta para follow-up padrao (Gatilho 4).",
       "parameters": {
@@ -1235,8 +1723,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        660,
-        940
+        1100,
+        1020
       ],
       "notes": "",
       "parameters": {
@@ -1249,8 +1737,8 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        880,
-        940
+        1320,
+        1020
       ],
       "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
       "parameters": {
@@ -1269,8 +1757,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1540,
-        1020
+        1980,
+        1100
       ],
       "notes": "Dentro da janela de 24h (o lead iniciou a conversa) -> texto livre, sem template.",
       "parameters": {
@@ -1283,8 +1771,8 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        1760,
-        1020
+        2200,
+        1100
       ],
       "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
       "parameters": {
@@ -1303,8 +1791,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1320,
-        940
+        1760,
+        1020
       ],
       "notes": "Le entrega_texto do catalogo. O conteudo mora no banco e nao no workflow: quando o padre trocar um audio ou o link do grupo mudar, e um UPDATE, sem republicar workflow.",
       "parameters": {
@@ -1327,8 +1815,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1540,
-        940
+        1980,
+        1020
       ],
       "notes": "Casa o que foi comprado (items do BlackCat, que trazem 'title') com o catalogo. Produto sem entrega_texto NAO vira silencio: a cliente recebe aviso de que o acesso chega em seguida e o Rodrigo e alertado para entregar na mao.",
       "parameters": {
@@ -1341,8 +1829,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1760,
-        940
+        2200,
+        1020
       ],
       "parameters": {
         "jsCode": "return [{ json: { to: $node[\"BlackCat IN\"].json.body.externalReference, tipo: 'text', texto: $node[\"Montar entrega\"].json.texto } }];"
@@ -1354,8 +1842,8 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        1980,
-        940
+        2420,
+        1020
       ],
       "notes": "Chama sub-enviar-whatsapp. Dentro da janela de 24h -- a lead iniciou a conversa comprando.",
       "parameters": {
@@ -1374,8 +1862,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2200,
-        940
+        2640,
+        1020
       ],
       "notes": "Rastro de que a entrega saiu, e o que foi enviado. Sem isso, 'nao recebi' vira palavra contra palavra.",
       "parameters": {
@@ -1410,8 +1898,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        2420,
-        940
+        2860,
+        1020
       ],
       "parameters": {
         "conditions": {
@@ -1440,8 +1928,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2640,
-        880
+        3080,
+        960
       ],
       "notes": "A cliente pagou por algo que o sistema nao sabe entregar. Precisa de acao humana AGORA, nao de um relatorio no fim do dia.",
       "parameters": {
@@ -1454,8 +1942,8 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        2860,
-        880
+        3300,
+        960
       ],
       "parameters": {
         "workflowId": {
@@ -1473,8 +1961,90 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        2640,
-        1000
+        3080,
+        1080
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "pb-pd1",
+      "name": "Marcar webhook processado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        1180
+      ],
+      "notes": "#5 O BlackCat reenvia o postback se nao receber 200 em 10s. Sem esta trava, um reenvio de transaction.paid entrega o produto DUAS vezes e grava a venda duas vezes.",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/eventos_processados",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=ignore-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { chave: 'bc:' + $json.body.transactionId + ':' + $json.body.event } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "pb-pd2",
+      "name": "Webhook inedito?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        1180
+      ],
+      "notes": "Array vazio = reenvio do mesmo evento. Encerra sem reprocessar.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "pb-pd3",
+      "name": "Reenvio ignorado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        660,
+        1500
       ],
       "parameters": {}
     },
@@ -1485,7 +2055,7 @@
       "typeVersion": 1.2,
       "position": [
         0,
-        1740
+        1820
       ],
       "parameters": {
         "rule": {
@@ -1505,12 +2075,12 @@
       "typeVersion": 4.2,
       "position": [
         220,
-        1740
+        1820
       ],
-      "notes": "HTTP Request mantem o array inteiro como 1 item por padrao (nao explode sozinho) -- por isso o node seguinte separa explicitamente.",
+      "notes": "#1 Antes so filtrava por ultima_interacao, e nada marcava o envio: o mesmo lead recebia template TODA HORA, para sempre -- 24/dia, o suficiente para derrubar a qualidade da conta e levar a banimento. Agora exige consentimento (#4, compliance secao 5), teto de 2 follow-ups por lead, e intervalo minimo de 48h entre eles. O 'or' com is.null cobre quem nunca recebeu (#13: 'lt' nao casa NULL).",
       "parameters": {
         "method": "GET",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?status=in.(ativo,abandonou)&ultima_interacao=lt.{{new Date(Date.now()-24*60*60*1000).toISOString()}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?status=in.(ativo,abandonou)&consentimento_contato=eq.true&followups_enviados=lt.2&ultima_interacao=lt.{{new Date(Date.now()-24*60*60*1000).toISOString()}}&or=(ultimo_followup_em.is.null,ultimo_followup_em.lt.{{new Date(Date.now()-48*60*60*1000).toISOString()}})",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -1529,7 +2099,7 @@
       "typeVersion": 2,
       "position": [
         440,
-        1740
+        1820
       ],
       "notes": "Transforma o array unico em N itens n8n, um por lead, para os proximos nodes rodarem por item automaticamente.",
       "parameters": {
@@ -1542,8 +2112,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1100,
-        1740
+        1320,
+        1900
       ],
       "parameters": {
         "method": "POST",
@@ -1578,7 +2148,7 @@
       "typeVersion": 2,
       "position": [
         660,
-        1740
+        1820
       ],
       "notes": "Fora da janela de 24h so um template aprovado reabre a conversa. O template precisa ter EXATAMENTE uma variavel no corpo (o nome) e existir em pt_BR -- ver ../../whatsapp/README.md secao 9.",
       "parameters": {
@@ -1592,7 +2162,7 @@
       "typeVersion": 1.2,
       "position": [
         880,
-        1740
+        1820
       ],
       "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
       "parameters": {
@@ -1606,13 +2176,49 @@
       }
     },
     {
+      "id": "f24-n5",
+      "name": "Marcar follow-up enviado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        1820
+      ],
+      "notes": "#1 Sem este passo o lead volta a casar na query na hora seguinte. Incrementa via RPC-livre: le o valor atual do proprio item.",
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.lead_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { ultimo_followup_em: new Date().toISOString(), followups_enviados: ($json.followups_enviados || 0) + 1 } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
       "id": "fn-n1",
       "name": "Digest diario",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
         0,
-        2140
+        2300
       ],
       "parameters": {
         "rule": {
@@ -1632,12 +2238,12 @@
       "typeVersion": 4.2,
       "position": [
         220,
-        2140
+        2300
       ],
-      "notes": "order alfabetico de risco_conformidade coloca 'alto' antes de 'baixo' e 'medio' naturalmente (a < b < m).",
+      "notes": "#12 Sem o filtro de notificado_em, o digest reenviava as mesmas sugestoes todo dia ate voce decidir.",
       "parameters": {
         "method": "GET",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?status=eq.pendente&order=risco_conformidade.asc,criado_em.desc",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?status=eq.pendente&notificado_em=is.null&order=risco_conformidade.asc,criado_em.desc",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -1656,7 +2262,7 @@
       "typeVersion": 2,
       "position": [
         440,
-        2140
+        2300
       ],
       "parameters": {
         "conditions": {
@@ -1686,7 +2292,7 @@
       "typeVersion": 2,
       "position": [
         660,
-        2060
+        2220
       ],
       "notes": "Link de decisao aponta para o workflow fila-decidir.json. N8N_BASE_URL = URL publica do pod PikaPods.",
       "parameters": {
@@ -1700,7 +2306,7 @@
       "typeVersion": 1,
       "position": [
         660,
-        2220
+        2380
       ],
       "parameters": {}
     },
@@ -1711,7 +2317,7 @@
       "typeVersion": 2,
       "position": [
         880,
-        2060
+        2220
       ],
       "notes": "",
       "parameters": {
@@ -1725,7 +2331,7 @@
       "typeVersion": 1.2,
       "position": [
         1100,
-        2060
+        2220
       ],
       "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
       "parameters": {
@@ -1739,13 +2345,49 @@
       }
     },
     {
+      "id": "fn-n7",
+      "name": "Marcar como notificadas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        2300
+      ],
+      "notes": "Marca so o que entrou neste digest. Sugestao nova criada depois continua pendente para o proximo.",
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?status=eq.pendente&notificado_em=is.null",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { notificado_em: new Date().toISOString() } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
       "id": "fd-n1",
       "name": "Clique aprovar/rejeitar",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
         0,
-        2760
+        2920
       ],
       "notes": "Recebe o clique nos links do digest (fila-notificar.json): ?id=<sugestao_id>&decisao=aprovada|rejeitada",
       "parameters": {
@@ -1762,7 +2404,7 @@
       "typeVersion": 2,
       "position": [
         220,
-        2760
+        2920
       ],
       "parameters": {
         "jsCode": "const q = $input.first().json.query;\nreturn [{ json: { sugestao_id: q.id, decisao: q.decisao } }];"
@@ -1775,7 +2417,7 @@
       "typeVersion": 4.2,
       "position": [
         440,
-        2760
+        2920
       ],
       "parameters": {
         "method": "PATCH",
@@ -1810,7 +2452,7 @@
       "typeVersion": 2,
       "position": [
         660,
-        2760
+        2920
       ],
       "parameters": {
         "conditions": {
@@ -1840,7 +2482,7 @@
       "typeVersion": 4.2,
       "position": [
         880,
-        2680
+        2840
       ],
       "parameters": {
         "method": "GET",
@@ -1863,7 +2505,7 @@
       "typeVersion": 2,
       "position": [
         1100,
-        2680
+        2840
       ],
       "notes": "TODO: heuristica simples por nome de arquivo. Ajustar se o mapeamento arquivo->chave crescer (ex.: por skill individual).",
       "parameters": {
@@ -1877,7 +2519,7 @@
       "typeVersion": 4.2,
       "position": [
         1320,
-        2680
+        2840
       ],
       "parameters": {
         "method": "GET",
@@ -1900,7 +2542,7 @@
       "typeVersion": 4.2,
       "position": [
         1540,
-        2680
+        2840
       ],
       "notes": "Nao apaga: so marca ativo=false. E o que permite reverter com 1 toque (reativar a linha antiga manualmente se preciso).",
       "parameters": {
@@ -1936,7 +2578,7 @@
       "typeVersion": 4.2,
       "position": [
         1760,
-        2680
+        2840
       ],
       "parameters": {
         "method": "POST",
@@ -1971,7 +2613,7 @@
       "typeVersion": 4.2,
       "position": [
         1980,
-        2680
+        2840
       ],
       "parameters": {
         "method": "PATCH",
@@ -2006,7 +2648,7 @@
       "typeVersion": 1,
       "position": [
         880,
-        2840
+        3000
       ],
       "parameters": {}
     },
@@ -2017,7 +2659,7 @@
       "typeVersion": 4.2,
       "position": [
         1980,
-        2540
+        2700
       ],
       "notes": "Le o blob SHA atual do arquivo em main -- a API do GitHub exige o SHA da versao que esta sobrescrevendo para aceitar o PUT (evita sobrescrever mudanca concorrente sem querer).",
       "parameters": {
@@ -2050,7 +2692,7 @@
       "typeVersion": 4.2,
       "position": [
         2200,
-        2540
+        2700
       ],
       "notes": "Espelha a versao aprovada (ja aplicada em prompt_ativo) para o arquivo .md correspondente no repo, para historico legivel fora do banco. O Supabase (prompt_ativo) continua sendo a fonte que o agente le em tempo real -- este commit e so rastreabilidade, nao afeta o runtime.",
       "parameters": {
@@ -2090,7 +2732,7 @@
       "typeVersion": 2,
       "position": [
         0,
-        3160
+        3320
       ],
       "notes": "Responde a verificacao do webhook da Meta. Mesmo path do 'WhatsApp IN', metodo GET -- so existe para o handshake; nenhuma mensagem de lead passa por aqui.",
       "parameters": {
@@ -2107,7 +2749,7 @@
       "typeVersion": 2,
       "position": [
         220,
-        3160
+        3320
       ],
       "notes": "Recusa o handshake se o token nao bater, para um terceiro nao conseguir apontar o proprio app da Meta para este webhook. <<WHATSAPP_VERIFY_TOKEN>> e a string que voce inventa e cadastra dos dois lados.",
       "parameters": {
@@ -2121,7 +2763,7 @@
       "typeVersion": 1.1,
       "position": [
         440,
-        3160
+        3320
       ],
       "notes": "Texto puro, status 200. Se vier embrulhado em JSON, a Meta recusa a inscricao.",
       "parameters": {
@@ -2147,18 +2789,7 @@
       "main": [
         [
           {
-            "node": "E audio?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Upsert lead": {
-      "main": [
-        [
-          {
-            "node": "Tem texto para responder?",
+            "node": "Marcar evento processado",
             "type": "main",
             "index": 0
           }
@@ -2180,7 +2811,7 @@
       "main": [
         [
           {
-            "node": "Extrair resposta e intent",
+            "node": "OpenAI respondeu?",
             "type": "main",
             "index": 0
           }
@@ -2202,6 +2833,11 @@
           },
           {
             "node": "Intent = sofrimento?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Intent = opt_out?",
             "type": "main",
             "index": 0
           }
@@ -2257,7 +2893,7 @@
       "main": [
         [
           {
-            "node": "Atualizar evento com carrinho",
+            "node": "Venda criada?",
             "type": "main",
             "index": 0
           }
@@ -2377,7 +3013,7 @@
       "main": [
         [
           {
-            "node": "Upsert lead",
+            "node": "Registrar lead",
             "type": "main",
             "index": 0
           }
@@ -2410,7 +3046,7 @@
       "main": [
         [
           {
-            "node": "Carregar contexto",
+            "node": "Bufferizar mensagem",
             "type": "main",
             "index": 0
           }
@@ -2501,11 +3137,201 @@
         ]
       ]
     },
+    "Marcar evento processado": {
+      "main": [
+        [
+          {
+            "node": "Mensagem inedita?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem inedita?": {
+      "main": [
+        [
+          {
+            "node": "E audio?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Duplicata ignorada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar lead": {
+      "main": [
+        [
+          {
+            "node": "Lead pediu para parar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead pediu para parar?": {
+      "main": [
+        [
+          {
+            "node": "Tem texto para responder?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Opt-out respeitado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bufferizar mensagem": {
+      "main": [
+        [
+          {
+            "node": "Aguardar rajada (8s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar rajada (8s)": {
+      "main": [
+        [
+          {
+            "node": "Consumir buffer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consumir buffer": {
+      "main": [
+        [
+          {
+            "node": "Ainda sou a ultima?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ainda sou a ultima?": {
+      "main": [
+        [
+          {
+            "node": "Carregar contexto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Superada por mensagem nova",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI respondeu?": {
+      "main": [
+        [
+          {
+            "node": "Extrair resposta e intent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar aviso de falha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar aviso de falha": {
+      "main": [
+        [
+          {
+            "node": "Enviar aviso de falha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intent = opt_out?": {
+      "main": [
+        [
+          {
+            "node": "Registrar opt-out",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Venda criada?": {
+      "main": [
+        [
+          {
+            "node": "Atualizar evento com carrinho",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar falha do link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar falha do link": {
+      "main": [
+        [
+          {
+            "node": "Enviar falha do link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar link de pagamento": {
+      "main": [
+        [
+          {
+            "node": "Guardar link gerado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "BlackCat IN": {
       "main": [
         [
           {
-            "node": "event = paid?",
+            "node": "Marcar webhook processado",
             "type": "main",
             "index": 0
           }
@@ -2516,7 +3342,7 @@
       "main": [
         [
           {
-            "node": "Marcar cliente",
+            "node": "Registrar compra",
             "type": "main",
             "index": 0
           }
@@ -2560,17 +3386,6 @@
         [
           {
             "node": "Evento desconhecido",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Marcar cliente": {
-      "main": [
-        [
-          {
-            "node": "Preparar confirmacao de pagamento",
             "type": "main",
             "index": 0
           }
@@ -2756,6 +3571,46 @@
         ]
       ]
     },
+    "Marcar webhook processado": {
+      "main": [
+        [
+          {
+            "node": "Webhook inedito?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook inedito?": {
+      "main": [
+        [
+          {
+            "node": "event = paid?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reenvio ignorado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar compra": {
+      "main": [
+        [
+          {
+            "node": "Preparar confirmacao de pagamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "A cada hora": {
       "main": [
         [
@@ -2801,6 +3656,17 @@
       ]
     },
     "Enviar template de follow-up": {
+      "main": [
+        [
+          {
+            "node": "Marcar follow-up enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar follow-up enviado": {
       "main": [
         [
           {
@@ -2867,6 +3733,17 @@
         [
           {
             "node": "Enviar digest da fila",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar digest da fila": {
+      "main": [
+        [
+          {
+            "node": "Marcar como notificadas",
             "type": "main",
             "index": 0
           }

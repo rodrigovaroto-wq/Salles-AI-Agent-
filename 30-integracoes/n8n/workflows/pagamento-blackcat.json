@@ -25,7 +25,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        220,
+        660,
         -160
       ],
       "parameters": {
@@ -55,7 +55,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        440,
+        880,
         0
       ],
       "parameters": {
@@ -85,7 +85,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        660,
+        1100,
         160
       ],
       "parameters": {
@@ -115,24 +115,24 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        880,
+        1320,
         320
       ],
       "parameters": {}
     },
     {
       "id": "n3",
-      "name": "Marcar cliente",
+      "name": "Registrar compra",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        440,
+        880,
         -160
       ],
-      "notes": "transaction.paid: marca status=cliente e grava o(s) produto(s) comprados.",
+      "notes": "#6 O PATCH antigo SOBRESCREVIA produtos_comprados: quem comprava o principal e depois a Comunidade perdia o registro do primeiro. A funcao concatena, e ainda avanca etapa_funil para comprou_upsell na segunda compra.",
       "parameters": {
-        "method": "PATCH",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalReference}}",
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/rpc/registrar_compra",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -144,7 +144,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { status: 'cliente', etapa_funil: 'comprou_principal', produtos_comprados: $json.body.items } }}",
+        "jsonBody": "={{ { p_lead_id: $node[\"BlackCat IN\"].json.body.externalReference, p_items: $node[\"BlackCat IN\"].json.body.items } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -162,7 +162,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1100,
+        1540,
         -160
       ],
       "parameters": {
@@ -197,7 +197,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        660,
+        1100,
         0
       ],
       "notes": "transaction.created sem paid ainda: arma o estado para o timer de recuperacao de 2h.",
@@ -233,7 +233,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        880,
+        1320,
         0
       ],
       "notes": "n8n persiste a execucao e retoma sozinho apos 2h, mesmo que o pod reinicie.",
@@ -248,7 +248,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1100,
+        1540,
         0
       ],
       "parameters": {
@@ -271,7 +271,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1320,
+        1760,
         0
       ],
       "notes": "So recupera se ainda nao pagou nesse meio-tempo (transaction.paid teria mudado o status para cliente).",
@@ -302,7 +302,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1540,
+        1980,
         80
       ],
       "parameters": {}
@@ -313,7 +313,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        880,
+        1320,
         160
       ],
       "notes": "transaction.failed: expirou ou falhou. Volta para follow-up padrao (Gatilho 4).",
@@ -349,7 +349,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        660,
+        1100,
         -160
       ],
       "notes": "",
@@ -363,7 +363,7 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        880,
+        1320,
         -160
       ],
       "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
@@ -383,7 +383,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1540,
+        1980,
         -80
       ],
       "notes": "Dentro da janela de 24h (o lead iniciou a conversa) -> texto livre, sem template.",
@@ -397,7 +397,7 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        1760,
+        2200,
         -80
       ],
       "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
@@ -417,7 +417,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1320,
+        1760,
         -160
       ],
       "notes": "Le entrega_texto do catalogo. O conteudo mora no banco e nao no workflow: quando o padre trocar um audio ou o link do grupo mudar, e um UPDATE, sem republicar workflow.",
@@ -441,7 +441,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1540,
+        1980,
         -160
       ],
       "notes": "Casa o que foi comprado (items do BlackCat, que trazem 'title') com o catalogo. Produto sem entrega_texto NAO vira silencio: a cliente recebe aviso de que o acesso chega em seguida e o Rodrigo e alertado para entregar na mao.",
@@ -455,7 +455,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1760,
+        2200,
         -160
       ],
       "parameters": {
@@ -468,7 +468,7 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        1980,
+        2420,
         -160
       ],
       "notes": "Chama sub-enviar-whatsapp. Dentro da janela de 24h -- a lead iniciou a conversa comprando.",
@@ -488,7 +488,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2200,
+        2640,
         -160
       ],
       "notes": "Rastro de que a entrega saiu, e o que foi enviado. Sem isso, 'nao recebi' vira palavra contra palavra.",
@@ -524,7 +524,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        2420,
+        2860,
         -160
       ],
       "parameters": {
@@ -554,7 +554,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2640,
+        3080,
         -220
       ],
       "notes": "A cliente pagou por algo que o sistema nao sabe entregar. Precisa de acao humana AGORA, nao de um relatorio no fim do dia.",
@@ -568,7 +568,7 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        2860,
+        3300,
         -220
       ],
       "parameters": {
@@ -587,8 +587,90 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        2640,
+        3080,
         -100
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "pd1",
+      "name": "Marcar webhook processado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ],
+      "notes": "#5 O BlackCat reenvia o postback se nao receber 200 em 10s. Sem esta trava, um reenvio de transaction.paid entrega o produto DUAS vezes e grava a venda duas vezes.",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/eventos_processados",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=ignore-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { chave: 'bc:' + $json.body.transactionId + ':' + $json.body.event } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "pd2",
+      "name": "Webhook inedito?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "notes": "Array vazio = reenvio do mesmo evento. Encerra sem reprocessar.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "pd3",
+      "name": "Reenvio ignorado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        660,
+        320
       ],
       "parameters": {}
     }
@@ -598,7 +680,7 @@
       "main": [
         [
           {
-            "node": "event = paid?",
+            "node": "Marcar webhook processado",
             "type": "main",
             "index": 0
           }
@@ -609,7 +691,7 @@
       "main": [
         [
           {
-            "node": "Marcar cliente",
+            "node": "Registrar compra",
             "type": "main",
             "index": 0
           }
@@ -653,17 +735,6 @@
         [
           {
             "node": "Evento desconhecido",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Marcar cliente": {
-      "main": [
-        [
-          {
-            "node": "Preparar confirmacao de pagamento",
             "type": "main",
             "index": 0
           }
@@ -843,6 +914,46 @@
         [
           {
             "node": "Enviar alerta de entrega",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar webhook processado": {
+      "main": [
+        [
+          {
+            "node": "Webhook inedito?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook inedito?": {
+      "main": [
+        [
+          {
+            "node": "event = paid?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reenvio ignorado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar compra": {
+      "main": [
+        [
+          {
+            "node": "Preparar confirmacao de pagamento",
             "type": "main",
             "index": 0
           }

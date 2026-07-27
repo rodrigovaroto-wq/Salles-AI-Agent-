@@ -32,10 +32,10 @@
         220,
         0
       ],
-      "notes": "order alfabetico de risco_conformidade coloca 'alto' antes de 'baixo' e 'medio' naturalmente (a < b < m).",
+      "notes": "#12 Sem o filtro de notificado_em, o digest reenviava as mesmas sugestoes todo dia ate voce decidir.",
       "parameters": {
         "method": "GET",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?status=eq.pendente&order=risco_conformidade.asc,criado_em.desc",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?status=eq.pendente&notificado_em=is.null&order=risco_conformidade.asc,criado_em.desc",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -135,6 +135,42 @@
         },
         "options": {}
       }
+    },
+    {
+      "id": "n7",
+      "name": "Marcar como notificadas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        0
+      ],
+      "notes": "Marca so o que entrou neste digest. Sugestao nova criada depois continua pendente para o proximo.",
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?status=eq.pendente&notificado_em=is.null",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { notificado_em: new Date().toISOString() } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
     }
   ],
   "connections": {
@@ -194,6 +230,17 @@
         [
           {
             "node": "Enviar digest da fila",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar digest da fila": {
+      "main": [
+        [
+          {
+            "node": "Marcar como notificadas",
             "type": "main",
             "index": 0
           }

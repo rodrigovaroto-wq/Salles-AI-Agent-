@@ -21,7 +21,16 @@ create table if not exists leads (
   produtos_comprados    jsonb  default '[]',
   consentimento_contato boolean not null default false,   -- opt-in (LGPD / janela 24h)
   status                text not null default 'ativo' check (status in ('ativo','abandonou','cliente','opt_out','aguardando_humano')),
-  ultima_interacao      timestamptz
+  ultima_interacao      timestamptz,
+  -- controle de follow-up (evita reenvio de hora em hora ao mesmo lead)
+  ultimo_followup_em    timestamptz,
+  followups_enviados    integer not null default 0,
+  -- debounce de mensagens em rajada
+  buffer_mensagens      text[] not null default '{}',
+  ultima_msg_id         text,
+  -- reaproveitamento de link de pagamento ainda válido
+  ultimo_link_url       text,
+  ultimo_link_em        timestamptz
 );
 create index if not exists idx_leads_status on leads(status);
 create index if not exists idx_leads_ultima  on leads(ultima_interacao);
@@ -71,7 +80,8 @@ create table if not exists fila_sugestoes (
   decidido_por       text,          -- sempre humano
   decidido_em        timestamptz,
   motivo_rejeicao    text,
-  aplicado_em        timestamptz
+  aplicado_em        timestamptz,
+  notificado_em      timestamptz    -- digest do Hermes já avisou sobre esta sugestão
 );
 create index if not exists idx_fila_status on fila_sugestoes(status);
 create index if not exists idx_fila_risco  on fila_sugestoes(risco_conformidade);
@@ -131,6 +141,21 @@ create table if not exists metricas_periodo (
   criado_em            timestamptz not null default now()
 );
 
+-- ========== IDEMPOTÊNCIA DE WEBHOOK ==========
+-- WhatsApp e BlackCat reenviam o webhook quando não recebem 200 a tempo.
+-- Sem esta trava, o reenvio gera resposta duplicada e entrega duplicada.
+create table if not exists eventos_processados (
+  chave      text primary key,   -- 'wa:<message_id>' | 'bc:<transactionId>:<event>'
+  criado_em  timestamptz not null default now()
+);
+create index if not exists idx_eventos_criado on eventos_processados(criado_em);
+
+-- ========== FUNÇÕES ==========
+-- As funções (registrar_lead, bufferizar_mensagem, consumir_buffer,
+-- registrar_compra, carregar_contexto) NÃO estão neste arquivo: vivem em
+-- `migracao-robustez.sql`, que precisa ser rodado logo depois deste.
+-- Sem elas os workflows chamam RPC inexistente e o agente não responde.
+
 -- ========== SEGURANÇA (LGPD) ==========
 -- RLS ligado, sem policies públicas: só o service_role (n8n / Hermes) acessa.
 -- Isso protege o PII dos leads. Use a service_role key no backend, nunca a anon key.
@@ -140,3 +165,4 @@ alter table fila_sugestoes   enable row level security;
 alter table prompt_ativo     enable row level security;
 alter table metricas_periodo enable row level security;
 alter table produtos         enable row level security;
+alter table eventos_processados enable row level security;
