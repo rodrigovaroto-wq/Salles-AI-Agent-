@@ -71,8 +71,8 @@ from produtos where ativo order by ordem;
 -- ---------------------------------------------------------------------------
 -- 4. Textos de entrega aprovados em 27/07
 -- ---------------------------------------------------------------------------
--- {LINK_COMUNIDADE} é substituído em runtime pelo link individual consumido de
--- links_comunidade (ver migracao-links-comunidade.sql).
+-- {LINK_COMUNIDADE} é substituído em runtime pelo valor da chave
+-- 'link_comunidade' em configuracoes (ver migracao-config.sql).
 
 update produtos set entrega_texto =
 'Aqui está a sua Oração Sagrada de São Bento 🙏
@@ -88,9 +88,7 @@ where produto_id = 'oracao_audio';
 update produtos set entrega_texto =
 'Seja bem-vinda à Comunidade do Padre Frei 🙏
 Toque aqui para entrar: {LINK_COMUNIDADE}
-Lá você recebe áudios e mensagens diárias do padre, além de conteúdos exclusivos antes de todo mundo. Seus primeiros 30 dias são um presente; depois são só R$ 9,78 por mês, e você cancela quando quiser.
-
-Este link é só seu e dá direito a um acesso.'
+Lá você recebe áudios e mensagens diárias do padre, além de conteúdos exclusivos antes de todo mundo. Seus primeiros 30 dias são um presente; depois são só R$ 9,78 por mês, e você cancela quando quiser.'
 where produto_id = 'comunidade';
 
 update produtos set entrega_texto =

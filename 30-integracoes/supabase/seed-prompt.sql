@@ -520,8 +520,8 @@ fora desta lista → **descobrir/perguntar, nunca inventar**.
   neste canal que a pessoa deixa mensagens e pedidos de oração, e o padre lê e
   responde. **Não dá acesso ao grupo da Comunidade** — são produtos separados;
   quem quiser o grupo precisa da Comunidade.
-- **Link da Comunidade é individual:** cada compradora recebe um link só dela,
-  com direito a um acesso.
+- **Link da Comunidade:** o mesmo link de convite para todas as compradoras.
+  O agente **não** afirma que o link é exclusivo, pessoal ou de uso único.
 - Natureza do produto: não é tratamento médico, não é investimento, não é
   garantia de milagre material. Sempre que o assunto encostar em saúde,
   dinheiro ou milagre, deixar isso claro sem soar robótico.

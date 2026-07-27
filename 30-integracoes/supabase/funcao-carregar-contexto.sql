@@ -55,6 +55,16 @@ as $$
         where ativo
         order by ordem
       ) pr
+    ), '[]'::json),
+
+    -- Audios que o agente pode enviar durante a conversa (antes da compra).
+    'audios', coalesce((
+      select json_agg(a) from (
+        select chave, url, descricao, quando_usar
+        from audios_agente
+        where ativo
+        order by ordem
+      ) a
     ), '[]'::json)
   );
 $$;

@@ -13,8 +13,8 @@ R$ 9,78/mês, com os primeiros 30 dias grátis**. A mensalidade começa no dia 3
 | Divulgação obrigatória da mensalidade pelo agente | node "Montar mensagens OpenAI" (catálogo + tabela de desconto) e FATOS do `objecoes.md` | pronto |
 | Entrega com mídia (PDF/áudio no chat) | `sub-enviar-whatsapp.json` (tipos `documento`/`audio`) + `pagamento-blackcat.json` | pronto |
 | Textos de entrega dos 4 produtos | `migracao-comunidade-assinatura.sql` §4 | pronto, falta rodar |
-| Link individual por compradora (fila atômica) | `migracao-links-comunidade.sql` + nó "Consumir link da comunidade" | pronto, falta rodar e abastecer |
-| Cobrança mensal (link renovável) | **não construída** — ver seção abaixo | aguarda decisão de gateway |
+| Link do grupo (único, universal) | `migracao-config.sql` + nó "Buscar link da comunidade" | pronto, falta rodar e preencher |
+| Cobrança mensal automática (Pagar.me) | `pagarme/README.md` | especificada; workflow aguarda doc do BravoPay |
 
 ## Linha do tempo de uma venda da Comunidade
 
@@ -30,49 +30,31 @@ depois  uma mensalidade a cada 30 dias
 O valor é **congelado na adesão** (`assinaturas.valor_centavos`): um reajuste
 futuro não muda quem já entrou.
 
-## Cobrança da mensalidade — pesquisado em 27/07 ⚠️
+## Cobrança da mensalidade — resolvida com Pagar.me (27/07)
 
-**O BlackCat não suporta assinatura.** Conferido na documentação oficial
-(https://docs.blackcatoficial.com/): os únicos endpoints são
-`POST /sales/create-sale`, `GET /sales/{id}/status`, `GET /sales/seller` e
-`POST /sales/create-withdrawal`. Não há endpoint de assinatura, plano,
-recorrência **nem tokenização de cartão**. O `create-sale` recebe os dados do
-cartão em texto puro (`card.number`, `card.cvv`) a cada transação.
+**Decisão:** BlackCat sai, entram **BravoPay** (Pix/avulso) e **Pagar.me**
+(cartão e assinatura).
 
-Isso tem uma consequência dura: **não existe caminho para "cadastrar o cartão e
-cobrar todo mês automaticamente" no BlackCat.** Para repetir a cobrança seria
-preciso guardar número e CVV do cartão e reenviá-los mensalmente — e armazenar
-CVV é proibido pelo PCI-DSS sem exceção, além de exigir que o agente peça
-número de cartão dentro do WhatsApp, deixando dado de cartão no histórico da
-conversa, no Supabase e no contexto da OpenAI. **Não construí isso e não
-recomendo construir.**
+O BlackCat não tinha como fazer isso: sem tokenização e sem recorrência,
+cobrar todo mês exigiria guardar número e CVV do cartão — proibido pelo
+PCI-DSS — e pedir cartão dentro do WhatsApp. O Pagar.me resolve pelo caminho
+certo: **checkout hospedado**. A cliente recebe um link, preenche o cartão na
+página do Pagar.me, e a cobrança mensal roda sozinha a partir do dia 31. O
+cartão nunca passa pelo nosso lado.
 
-### O que dá para fazer com o BlackCat (implementado)
+Detalhes de integração em [`pagarme/README.md`](pagarme/README.md).
 
-**Link mensal renovável.** Um workflow diário lê `assinaturas` com
-`proxima_cobranca <= hoje`, gera um `create-sale` de R$ 9,78 com
-`metadata.tipo='mensalidade'` e manda o link pelo WhatsApp. A cliente toca e
-paga (Pix ou cartão, como preferir).
+```
+dia 0   entrada R$ 44,90 + cadastro do cartão (checkout Pagar.me)
+        └─ subscription.created → assinaturas: trial até o dia 30
+        └─ order.paid           → entrega
+dia 31  Pagar.me cobra R$ 9,78 no cartão, sozinho
+        charge.paid           → proxima_cobranca += 30d, status='ativa'
+        charge.payment_failed → status='inadimplente' + alerta
+```
 
-- Pago → `ultimo_pagamento = now()`, `proxima_cobranca += 30 dias`, `status='ativa'`
-- 3 dias sem pagar → lembrete
-- 7 dias sem pagar → `status='inadimplente'` + alerta ao Rodrigo para remover do grupo
-
-É honesto, funciona hoje e serve para os testes. O custo é churn: cobrança que
-exige ação mensal da cliente perde gente que simplesmente esqueceu.
-
-### Para a assinatura de verdade (na migração de gateway)
-
-Como vocês já planejam trocar de gateway, este é o requisito a levar na escolha:
-**tokenização de cartão + cobrança recorrente nativa**. Gateways brasileiros que
-têm isso: Pagar.me, Asaas, Iugu, Vindi, Stripe. Com qualquer um deles a cliente
-cadastra o cartão uma vez numa página segura do gateway (o cartão nunca passa
-pelo nosso lado), e a cobrança mensal roda sozinha — que é exatamente o
-"precisa adicionar um cartão de crédito para assinar" que você pediu.
-
-Quando migrarem, o que já está construído aqui continua valendo: a tabela
-`assinaturas`, o registro no webhook `paid`, a divulgação obrigatória da
-mensalidade e o controle de trial. Só o node que gera a cobrança muda.
+**Ainda não construído**: o workflow `pagamento-pagarme.json` aguarda a
+documentação do BravoPay, para não construir o mesmo webhook duas vezes.
 
 ## Regras de transparência (não negociáveis para funcionar)
 
@@ -97,30 +79,33 @@ Os áudios chegam em seguida.
 |---|---|---|
 | `oracao_sagrada` | o PDF | "Aqui está a sua Oração Sagrada de São Bento 🙏 …" |
 | `oracao_audio` | os áudios | "Estes são os áudios da Oração, gravados pelo próprio Padre Frei…" |
-| `comunidade` | — | boas-vindas + `{LINK_COMUNIDADE}` + mensalidade + "este link é só seu" |
+| `comunidade` | — | boas-vindas + `{LINK_COMUNIDADE}` + mensalidade |
 | `contato_padre` | — | "Ele acontece aqui pelo WhatsApp…" |
 
-`{LINK_COMUNIDADE}` é substituído em runtime pelo link individual consumido da
-fila. Não use `{nome}` nos textos de entrega: o webhook do BlackCat não carrega
-o nome da lead nesse ponto do fluxo.
+`{LINK_COMUNIDADE}` é substituído em runtime pelo valor de
+`configuracoes.link_comunidade`. Não use `{nome}` nos textos de entrega: o
+webhook não carrega o nome da lead nesse ponto do fluxo.
 
 ## Decisões de 27/07
 
 | Questão | Decisão |
 |---|---|
-| Recorrência nativa no BlackCat | **Não existe** — link mensal renovável por enquanto; requisito para a migração de gateway |
+| Gateway de cartão/assinatura | **Pagar.me** (checkout hospedado). BlackCat sai; BravoPay assume Pix/avulso |
 | `contato_padre` sem `comunidade` | Contato acontece **pelo WhatsApp**, no canal da conversa. **Não** dá acesso ao grupo — produtos separados |
-| Link do grupo | **Individual**, 1 acesso por compradora. Fila em `links_comunidade`, consumida atomicamente na entrega |
+| Link do grupo | **Único e universal**, o mesmo para todas. Guardado em `configuracoes.link_comunidade` |
 | Remoção de inadimplente | Manual, pelo admin, a partir do alerta |
 
-### Fila de links — operação
+### Link do grupo — operação
 
-Não existe API do WhatsApp para gerar convite de grupo, então os links são
-criados em lote no app e cadastrados em `links_comunidade`. A entrega consome
-um por compradora via `consumir_link_comunidade()`, que é atômica (`for update
-skip locked`) — duas compradoras simultâneas nunca recebem o mesmo link. Reenvio
-do webhook devolve o mesmo link que já foi entregue àquela lead.
+Link único e universal, guardado em `configuracoes.link_comunidade` e
+substituído em runtime no lugar de `{LINK_COMUNIDADE}`. Trocar o link é um
+`UPDATE` numa linha — não mexe no texto de entrega nem republica workflow.
 
-**Se a fila esvaziar**, a cliente recebe "seu link chega em seguida" e o alerta
-de entrega dispara para o Rodrigo — nunca um link quebrado ou o placeholder cru.
-Conferir estoque: `select * from estoque_links_comunidade;`
+Se a chave ainda estiver com o placeholder `<<COLE_AQUI_O_LINK_DO_GRUPO>>`, a
+entrega **não** manda o placeholder cru: a cliente recebe "seu link chega em
+seguida" e o alerta dispara para o Rodrigo.
+
+O texto de entrega **não** afirma que o link é pessoal ou de uso único — com um
+link universal isso seria falso, e é o tipo de frase que vira reclamação quando
+a cliente descobre. Ela recebe o link e a mensagem de boas-vindas, sem promessa
+de exclusividade.
