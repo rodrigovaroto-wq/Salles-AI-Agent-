@@ -9,32 +9,74 @@ Estimativa: ~1h30 de trabalho seu, fora o tempo de aprovação da Meta.
 
 ## 1️⃣ Supabase Storage — hospedar os arquivos (15 min)
 
-O WhatsApp precisa de URL pública. Os arquivos estão no repo, mas o repo não
-serve como hospedagem.
+O WhatsApp precisa baixar o arquivo de uma **URL pública**. O GitHub não serve
+para isso (ele entrega uma página HTML, não o áudio). Por isso o Storage.
 
-1. Painel do Supabase → **Storage** → **New bucket**
-   - Nome: `entrega`
-   - **Marque "Public bucket"** ← sem isso o WhatsApp não consegue baixar
-2. Dentro do bucket, crie a pasta `audios-conversao`
-3. Faça upload:
-   - `oracao-sagrada-de-sao-bento.pdf` → na raiz do bucket
-   - os **15 arquivos** `audio-XX-*.mp3` → dentro de `audios-conversao/`
-     *(baixe de `30-integracoes/entrega/` no GitHub)*
-4. Teste um: abra
-   `https://rmvmqmcfcjmcjtonewgi.supabase.co/storage/v1/object/public/entrega/audios-conversao/audio-01-saudacao.mp3`
-   numa aba anônima. Tem que tocar. Se pedir login, o bucket não está público.
+### 1.1 — Baixar os arquivos do GitHub
 
-> **Opcional, mas recomendado:** converta os áudios para `.ogg/opus` antes de
-> subir. Em `.mp3` o WhatsApp entrega como **arquivo anexado**; em `.ogg` chega
-> como **mensagem de voz**, com forma de onda. Se converter, me avise que eu
-> troco as URLs no SQL de `.mp3` para `.ogg`.
-> ```bash
-> for f in *.mp3; do ffmpeg -i "$f" -c:a libopus -b:a 32k "${f%.mp3}.ogg"; done
-> ```
+Os áudios **já estão convertidos** para `.ogg` (formato de mensagem de voz do
+WhatsApp) e normalizados. Você só precisa baixá-los:
+
+1. Abra https://github.com/rodrigovaroto-wq/Salles-AI-Agent-
+2. Botão verde **`Code`** → **`Download ZIP`**
+3. Descompacte. Os arquivos que interessam:
+   - `30-integracoes/entrega/oracao-sagrada-de-sao-bento.pdf`
+   - `30-integracoes/entrega/audios-conversao/` → os 15 `.ogg`
+
+### 1.2 — Criar o bucket
+
+1. Abra o [Storage do Supabase](https://supabase.com/dashboard/project/rmvmqmcfcjmcjtonewgi/storage/buckets)
+2. Botão **`New bucket`**
+3. Name: **`entrega`** ← exatamente assim, minúsculo
+4. Ligue a chave **`Public bucket`** ⚠️ **este é o passo que mais falha.**
+   Sem ele o WhatsApp recebe "acesso negado" e nenhum áudio toca
+5. **`Save`**
+
+### 1.3 — Subir o PDF
+
+1. Entre no bucket `entrega`
+2. **`Upload files`** → escolha `oracao-sagrada-de-sao-bento.pdf`
+3. Ele fica na raiz do bucket
+
+### 1.4 — Subir os áudios
+
+1. Ainda dentro de `entrega`, clique em **`Create folder`**
+2. Nome: **`audios-conversao`** ← exatamente assim, com hífen
+3. Entre na pasta
+4. **`Upload files`** → selecione **os 15 `.ogg` de uma vez**
+   *(no seletor: clique no primeiro, segure Shift, clique no último)*
+5. Espere terminar. São 1,2 MB no total, é rápido
+
+### 1.5 — Testar (não pule)
+
+Abra esta URL numa **janela anônima** (Ctrl+Shift+N):
+
+```
+https://rmvmqmcfcjmcjtonewgi.supabase.co/storage/v1/object/public/entrega/audios-conversao/audio-01-saudacao.ogg
+```
+
+| O que acontece | Significa |
+|---|---|
+| Toca o áudio, ou baixa o arquivo | ✅ pronto |
+| `{"error":"Bucket not found"}` | nome do bucket errado — tem que ser `entrega` |
+| `{"statusCode":"404"}` | nome do arquivo ou da pasta diferente |
+| Pede login / `Unauthorized` | o bucket **não** está público — volte ao 1.2 |
+
+Teste também o PDF:
+```
+https://rmvmqmcfcjmcjtonewgi.supabase.co/storage/v1/object/public/entrega/oracao-sagrada-de-sao-bento.pdf
+```
+
+> Se algum nome de arquivo sair diferente do que está no repo, o áudio some
+> silenciosamente na conversa — o agente pede o áudio, o envio falha e a lead
+> só recebe o texto. Confira que os 15 nomes batem exatamente.
 
 ---
 
 ## 2️⃣ Supabase SQL — rodar 5 arquivos, nesta ordem (15 min)
+
+> Você já rodou esta etapa. **Rode o 2.3 de novo**: os áudios foram convertidos
+> para `.ogg` e as URLs no SQL mudaram. É idempotente, não quebra nada.
 
 Todos em [SQL Editor](https://supabase.com/dashboard/project/rmvmqmcfcjmcjtonewgi/sql/new).
 Todos são idempotentes — rodar de novo não quebra nada.
@@ -43,7 +85,7 @@ Todos são idempotentes — rodar de novo não quebra nada.
 |---|---|---|
 | 2.1 | `supabase/migracao-comunidade-assinatura.sql` | assinaturas, mensalidades, textos de entrega |
 | 2.2 | `supabase/migracao-config.sql` | tabela de configurações (link do grupo) |
-| 2.3 | `supabase/migracao-audios-conversao.sql` | cadastra os 15 áudios |
+| 2.3 | `supabase/migracao-audios-conversao.sql` | cadastra os 15 áudios ⚠️ **rode de novo** — as URLs mudaram de `.mp3` para `.ogg` |
 | 2.4 | `supabase/funcao-carregar-contexto.sql` | **não esqueça** — é o que leva áudios e mensalidades até o agente |
 | 2.5 | `supabase/seed-prompt.sql` | o prompt novo (P1/P2, duas assinaturas, link universal) |
 
