@@ -22,8 +22,15 @@ novo o `insert ... on conflict` do `schema.sql`).
 |---|---|---|---|---|
 | `oracao_sagrada` | Oração Sagrada | `principal` | 22,90 | title: "Oração Sagrada", unitPrice: 2290 |
 | `oracao_audio` | Oração em Áudio | `order_bump` | 13,90 | title: "Oração em Áudio", unitPrice: 1390 |
-| `comunidade` | Comunidade | `order_bump` | 44,90 | title: "Comunidade", unitPrice: 4490 |
+| `comunidade` | Comunidade | `order_bump` | 44,90 (entrada) + 9,78/mês¹ | title: "Comunidade", unitPrice: 4490 |
 | `contato_padre` | Contato Direto com o Padre | `order_bump` | 19,90 | title: "Contato Direto com o Padre", unitPrice: 1990 |
+
+¹ **Comunidade é assinatura** (definido 27/07): R$ 44,90 de entrada única +
+R$ 9,78/mês com 30 dias grátis — a mensalidade começa no dia 31. O carrinho e a
+tabela de desconto usam só a **entrada**; a mensalidade é registrada em
+`assinaturas` no webhook `paid` e cobrada pelo fluxo de mensalidade (ver
+`comunidade-assinatura.md`). O agente **sempre** divulga a mensalidade junto do
+preço de entrada — nunca vende como pagamento único.
 
 Tipos possíveis: `principal` (o produto-alvo da conversa) · `order_bump`
 (complemento oferecido em stack após aceite do principal) · `alternativo`

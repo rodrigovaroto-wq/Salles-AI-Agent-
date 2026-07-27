@@ -15,7 +15,7 @@ const PROMPTS = [
 const PRODUTOS = [
   { produto_id:'oracao_sagrada', nome:'Oração Sagrada',            tipo:'principal',  preco_centavos:2290, ordem:0, resolve_objecao:[], arquetipos:[] },
   { produto_id:'oracao_audio',   nome:'Oração em Áudio',           tipo:'order_bump', preco_centavos:1390, ordem:1, resolve_objecao:['preco','sem_interesse_principal','vou_pensar'], arquetipos:['guerreira_fe'] },
-  { produto_id:'comunidade',     nome:'Comunidade',                tipo:'order_bump', preco_centavos:4490, ordem:2, resolve_objecao:[], arquetipos:['mae_protetora','mulher_pertence'] },
+  { produto_id:'comunidade',     nome:'Comunidade',                tipo:'order_bump', preco_centavos:4490, ordem:2, resolve_objecao:[], arquetipos:['mae_protetora','mulher_pertence'], mensalidade_centavos:978, trial_dias:30 },
   { produto_id:'contato_padre',  nome:'Contato Direto com o Padre',tipo:'order_bump', preco_centavos:1990, ordem:3, resolve_objecao:[], arquetipos:['devota_busca'] },
 ];
 
@@ -85,6 +85,8 @@ const checks = [
   ['P1 manda parar de vender',     s => /pare de vender, nao ofereca produto, nao cite preco/i.test(s)],
   ['schema JSON de resposta',      s => /"mensagens": string\[\]/.test(s)],
   ['nunca inventar produto/preco', s => /nunca invente produto ou preco/.test(s)],
+  ['mensalidade divulgada no catalogo', s => /ASSINATURA: entrada unica acima \+ R\$ 9,78\/mes apos 30 dias gratis/.test(s) || /JA COMPROU/.test(s) && !/comunidade \(order_bump\)/.test(s)],
+  ['mensalidade na tabela de desconto', s => !/Total: R\$/.test(s) || /30 dias gratis para conhecer; depois R\$ 9,78\/mes/.test(s)],
 ];
 let falhas = 0;
 for (const c of CENARIOS) {
