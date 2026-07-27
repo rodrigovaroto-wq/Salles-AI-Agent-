@@ -19,8 +19,17 @@ const PRODUTOS = [
   { produto_id:'contato_padre',  nome:'Contato Direto com o Padre',tipo:'order_bump', preco_centavos:1990, ordem:3, resolve_objecao:[], arquetipos:['devota_busca'] },
 ];
 
+const AUDIOS = [
+  { chave:'boas_vindas', url:'https://exemplo/boas-vindas.ogg',
+    descricao:'Padre Frei se apresenta e acolhe quem chegou pelo anuncio',
+    quando_usar:'Na primeira ou segunda mensagem, quando a lead demonstra interesse real.' },
+  { chave:'bencao', url:'https://exemplo/bencao.ogg',
+    descricao:'Bencao curta do Padre Frei',
+    quando_usar:'Quando a lead compartilha uma dor (P2) ou pede oracao.' },
+];
+
 function montar({ texto, historico = [], lead = {}, origem = 'lp' }) {
-  const ctx = { prompts: PROMPTS, produtos: PRODUTOS, lead, historico: historico.slice().reverse() };
+  const ctx = { prompts: PROMPTS, produtos: PRODUTOS, audios: AUDIOS, lead, historico: historico.slice().reverse() };
   const nodes = {
     'Carregar contexto': { json: ctx },
     'Extrair mensagem e origem': { json: { origem } },
@@ -85,6 +94,9 @@ const checks = [
   ['P1 manda parar de vender',     s => /pare de vender, nao ofereca produto, nao cite preco/i.test(s)],
   ['schema JSON de resposta',      s => /"mensagens": string\[\]/.test(s)],
   ['nunca inventar produto/preco', s => /nunca invente produto ou preco/.test(s)],
+  ['catalogo de audios no prompt', s => /AUDIOS DISPONIVEIS/.test(s) && /boas_vindas/.test(s)],
+  ['audio proibido em P1',         s => /NUNCA envie audio em P1/.test(s)],
+  ['campo audio no schema JSON',   s => /"audio": string\|null/.test(s)],
   ['mensalidade divulgada no catalogo', s => /ASSINATURA: entrada unica acima \+ R\$ 9,78\/mes apos 30 dias gratis/.test(s) || /JA COMPROU/.test(s) && !/comunidade \(order_bump\)/.test(s)],
   ['mensalidade na tabela de desconto', s => !/Total: R\$/.test(s) || /30 dias gratis para conhecer; depois R\$ 9,78\/mes/.test(s)],
 ];
