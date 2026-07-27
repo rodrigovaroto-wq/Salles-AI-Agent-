@@ -467,7 +467,7 @@ chargeback. Compliance aqui é o que protege a receita de longo prazo.
 $conteudo$,
         true);
 
--- objecoes  (fonte: 00-nucleo/objecoes.md, 387 linhas)
+-- objecoes  (fonte: 00-nucleo/objecoes.md, 391 linhas)
 update prompt_ativo set ativo = false where chave = 'objecoes' and ativo;
 insert into prompt_ativo (chave, versao, conteudo, ativo)
 values ('objecoes',
@@ -516,8 +516,12 @@ fora desta lista → **descobrir/perguntar, nunca inventar**.
   compartilhados com antecedência. O link do grupo é enviado após a
   confirmação do pagamento. **Não** afirmar volume de gente — isso não está
   confirmado.
-- **Contato com o Padre — onde acontece:** dentro da Comunidade. É lá que a
-  pessoa encontra o canal de contato com ele.
+- **Contato Direto com o Padre — onde acontece:** aqui mesmo pelo WhatsApp. É
+  neste canal que a pessoa deixa mensagens e pedidos de oração, e o padre lê e
+  responde. **Não dá acesso ao grupo da Comunidade** — são produtos separados;
+  quem quiser o grupo precisa da Comunidade.
+- **Link da Comunidade é individual:** cada compradora recebe um link só dela,
+  com direito a um acesso.
 - Natureza do produto: não é tratamento médico, não é investimento, não é
   garantia de milagre material. Sempre que o assunto encostar em saúde,
   dinheiro ou milagre, deixar isso claro sem soar robótico.

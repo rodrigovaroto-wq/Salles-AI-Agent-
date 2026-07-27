@@ -67,3 +67,33 @@ select produto_id, nome, preco_centavos as entrada_centavos,
        jsonb_array_length(entrega_midia) as partes_midia,
        case when entrega_texto is null then '❌ FALTA' else '✅ ok' end as entrega_texto
 from produtos where ativo order by ordem;
+
+-- ---------------------------------------------------------------------------
+-- 4. Textos de entrega aprovados em 27/07
+-- ---------------------------------------------------------------------------
+-- {LINK_COMUNIDADE} é substituído em runtime pelo link individual consumido de
+-- links_comunidade (ver migracao-links-comunidade.sql).
+
+update produtos set entrega_texto =
+'Aqui está a sua Oração Sagrada de São Bento 🙏
+Ela é sua para sempre — salve este arquivo com carinho.
+O Padre Frei recomenda começar hoje mesmo, num momento de silêncio.'
+where produto_id = 'oracao_sagrada';
+
+update produtos set entrega_texto =
+'Estes são os áudios da Oração, gravados pelo próprio Padre Frei.
+Pode ouvir onde estiver — em casa, no ônibus, antes de dormir.'
+where produto_id = 'oracao_audio';
+
+update produtos set entrega_texto =
+'Seja bem-vinda à Comunidade do Padre Frei 🙏
+Toque aqui para entrar: {LINK_COMUNIDADE}
+Lá você recebe áudios e mensagens diárias do padre, além de conteúdos exclusivos antes de todo mundo. Seus primeiros 30 dias são um presente; depois são só R$ 9,78 por mês, e você cancela quando quiser.
+
+Este link é só seu e dá direito a um acesso.'
+where produto_id = 'comunidade';
+
+update produtos set entrega_texto =
+'Seu Contato Direto com o Padre está ativo.
+Ele acontece aqui pelo WhatsApp: é neste canal que você deixa sua mensagem e seus pedidos de oração, e o Padre Frei lê e responde.'
+where produto_id = 'contato_padre';

@@ -446,7 +446,7 @@
       ],
       "notes": "Le entrega_texto e entrega_midia do catalogo. Midia (PDF, audios) e enviada antes do texto, no proprio chat. Produto sem entrega alguma NAO vira silencio: aviso + alerta ao Rodrigo. Se a venda inclui produto com mensalidade, devolve `assinatura` para registro.",
       "parameters": {
-        "jsCode": "const comprados = $node[\"BlackCat IN\"].json.body.items || [];\nconst catalogo = $node[\"Buscar conteudo de entrega\"].json || [];\n\nconst partes = [];   // mensagens de texto\nconst midias = [];   // documentos/audios enviados ANTES do texto\nconst faltando = [];\nlet assinatura = null; // produto recorrente comprado nesta venda, se houver\n\nfor (const item of comprados) {\n  const p = catalogo.find(c => c.produto_id === item.produto_id || c.nome === item.title);\n  const nome = (p && p.nome) || item.title || 'seu item';\n\n  if (p && Array.isArray(p.entrega_midia)) {\n    for (const mid of p.entrega_midia) {\n      if (mid && mid.url) midias.push(mid);\n    }\n  }\n\n  if (p && p.mensalidade_centavos) {\n    assinatura = {\n      produto_id: p.produto_id,\n      valor_centavos: p.mensalidade_centavos,\n      trial_dias: p.trial_dias || 0\n    };\n  }\n\n  if (p && p.entrega_texto) {\n    partes.push(p.entrega_texto);\n  } else if (!(p && Array.isArray(p.entrega_midia) && p.entrega_midia.length)) {\n    // so conta como faltando se nao tiver NEM texto NEM midia\n    faltando.push(nome);\n    partes.push('Sobre *' + nome + '*: seu acesso chega em seguida, aqui mesmo por este WhatsApp.');\n  }\n}\n\n// Nunca deixar a cliente sem mensagem alguma depois de pagar.\nconst texto = partes.length\n  ? partes.join('\\n\\n')\n  : 'Seu acesso chega em seguida, aqui mesmo por este WhatsApp.';\n\nreturn [{ json: { texto, midias, assinatura, faltando, tem_falta: faltando.length > 0 } }];"
+        "jsCode": "const comprados = $node[\"BlackCat IN\"].json.body.items || [];\nconst catalogo = $node[\"Buscar conteudo de entrega\"].json || [];\n\nconst partes = [];   // mensagens de texto\nconst midias = [];   // documentos/audios enviados ANTES do texto\nconst faltando = [];\nlet assinatura = null; // produto recorrente comprado nesta venda, se houver\n\nfor (const item of comprados) {\n  const p = catalogo.find(c => c.produto_id === item.produto_id || c.nome === item.title);\n  const nome = (p && p.nome) || item.title || 'seu item';\n\n  if (p && Array.isArray(p.entrega_midia)) {\n    for (const mid of p.entrega_midia) {\n      if (mid && mid.url) midias.push(mid);\n    }\n  }\n\n  if (p && p.mensalidade_centavos) {\n    assinatura = {\n      produto_id: p.produto_id,\n      valor_centavos: p.mensalidade_centavos,\n      trial_dias: p.trial_dias || 0\n    };\n  }\n\n  if (p && p.entrega_texto) {\n    let txt = p.entrega_texto;\n\n    // Link individual da Comunidade: 1 acesso por compradora. Se a fila de\n    // links acabou, NAO manda placeholder cru nem link quebrado -- avisa que\n    // chega em seguida e cai no alerta para o Rodrigo repor a fila.\n    if (txt.includes('{LINK_COMUNIDADE}')) {\n      const link = $node[\"Consumir link da comunidade\"].json;\n      const url = typeof link === 'string' ? link : (link && link.url) || null;\n      if (url) {\n        txt = txt.split('{LINK_COMUNIDADE}').join(url);\n      } else {\n        txt = 'Seja bem-vinda a Comunidade do Padre Frei! Seu link de acesso chega em seguida, aqui mesmo por este WhatsApp.';\n        faltando.push(nome + ' (fila de links vazia)');\n      }\n    }\n\n    partes.push(txt);\n  } else if (!(p && Array.isArray(p.entrega_midia) && p.entrega_midia.length)) {\n    // so conta como faltando se nao tiver NEM texto NEM midia\n    faltando.push(nome);\n    partes.push('Sobre *' + nome + '*: seu acesso chega em seguida, aqui mesmo por este WhatsApp.');\n  }\n}\n\n// Nunca deixar a cliente sem mensagem alguma depois de pagar.\nconst texto = partes.length\n  ? partes.join('\\n\\n')\n  : 'Seu acesso chega em seguida, aqui mesmo por este WhatsApp.';\n\nreturn [{ json: { texto, midias, assinatura, faltando, tem_falta: faltando.length > 0 } }];"
       }
     },
     {
@@ -746,6 +746,43 @@
           "name": "SUPABASE"
         }
       }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/rpc/consumir_link_comunidade",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { p_lead_id: $node[\"BlackCat IN\"].json.body.externalReference } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "id": "consumir-link-0001",
+      "name": "Consumir link da comunidade",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        60
+      ],
+      "notes": "RPC atomica: marca um link disponivel como entregue e devolve a url. Reenvio do webhook devolve o MESMO link (idempotente). Devolve null se a fila acabou -- nesse caso Montar entrega troca o texto e o alerta de entrega dispara.",
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
     }
   ],
   "connections": {
@@ -913,7 +950,7 @@
       "main": [
         [
           {
-            "node": "Montar entrega",
+            "node": "Consumir link da comunidade",
             "type": "main",
             "index": 0
           }
@@ -1048,6 +1085,17 @@
           }
         ],
         []
+      ]
+    },
+    "Consumir link da comunidade": {
+      "main": [
+        [
+          {
+            "node": "Montar entrega",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   }
