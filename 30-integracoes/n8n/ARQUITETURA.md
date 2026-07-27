@@ -10,7 +10,7 @@ várias* delas vira sub-workflow.
 Concretamente, o que a divisão compra:
 
 - Desativar o follow-up por uma semana sem parar a venda.
-- Ver no histórico de execuções **qual** gatilho falhou, sem filtrar 93 nós.
+- Ver no histórico de execuções **qual** gatilho falhou, sem filtrar 116 nós.
 - Editar o fluxo de venda sem risco de derrubar a inscrição do webhook da Meta.
 - Trocar o `phone_number_id` **num lugar**, não em nove.
 
@@ -115,7 +115,7 @@ silêncio** — cruzando o histórico de um lead com o prompt de outra posição
 |---|---|---|
 | `00-meta-handshake.json` | verificação do webhook da Meta | ✅ sim |
 | `agente-vendas.json` | recebe mensagem, vende, gera link | ✅ sim |
-| `pagamento-blackcat.json` | pagamento, recuperação, upsell | ✅ sim |
+| `pagamento-blackcat.json` | pagamento, entrega, recuperação | ✅ sim |
 | `followup-24h.json` | template pós-24h | ✅ sim |
 | `fila-notificar.json` | digest diário do Hermes | ✅ sim |
 | `fila-decidir.json` | aplica sua decisão | ✅ sim |
@@ -129,10 +129,20 @@ Serve para **olhar** a operação inteira de uma vez. Não serve para rodar:
 1. **Colisão de webhook.** Se ele e os individuais estiverem ativos juntos, dois
    workflows disputam o path `whatsapp-in`.
 2. **Perde a ativação independente** — o motivo de toda esta divisão.
-3. **Log misturado** — 93 nós de 6 gatilhos no mesmo histórico.
+3. **Log misturado** — 116 nós de 6 gatilhos no mesmo histórico.
 
 Continua sendo gerado (`gerar-workflow-completo.py`) para não divergir, mas o
 que vai para produção são os 7 arquivos individuais.
+
+## Verificação
+
+Além da checagem estrutural (órfãos, colisões, referências, sintaxe), os
+workflows são executados de verdade pelo
+[`simulador/`](simulador/README.md) — grafo percorrido fora do n8n contra um
+Postgres real. São 34 verificações cobrindo o funil completo e o ciclo Hermes.
+Foi o simulador que encontrou os ramos invertidos no IF de opt-out e o
+`$json.body` quebrado no pagamento; nenhum dos dois aparece em validação
+estática.
 
 ---
 

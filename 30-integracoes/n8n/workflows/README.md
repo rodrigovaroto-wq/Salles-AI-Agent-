@@ -1,33 +1,32 @@
 # Workflows do n8n — Esqueleto Pronto para Importar
 
-## `workflow-completo.json` — a operação inteira num arquivo só
+## Os 8 arquivos
 
-Os 5 gatilhos consolidados numa única importação: **5 triggers de entrada**
-(2 webhooks de mensagem, 1 webhook de decisão, 2 crons) coexistindo no mesmo
-workflow, cada um puxando sua própria cadeia de nós — 59 nós ao todo,
-validado (sem nó órfão, sem ID/nome duplicado).
+**7 workflows individuais** (6 gatilhos + 1 sub-workflow) e um consolidado que
+só serve para olhar. Desenho e justificativa em [`../ARQUITETURA.md`](../ARQUITETURA.md).
 
-**Por que os 5 "ramos" não têm conexão entre si dentro do arquivo:** eles não
-se conectam por *nó do n8n* porque, no sistema real, eles não deveriam — quem
-liga um gatilho ao outro é uma chamada HTTP **externa** que já existe no
-desenho:
-- `agente-vendas` → `pagamento-blackcat`: liga via `postbackUrl` do BlackCat
-  (uma chamada de fora pra dentro do n8n, não uma aresta interna).
-- `fila-notificar` → `fila-decidir`: liga via o link que você clica no
-  WhatsApp (mesma lógica — é o BlackCat/WhatsApp quem "conecta", não o n8n).
+| Arquivo | Nós | Ativar? |
+|---|---|---|
+| `00-meta-handshake.json` | 3 | ✅ |
+| `agente-vendas.json` | 56 | ✅ |
+| `pagamento-blackcat.json` | 29 | ✅ |
+| `fila-decidir.json` | 13 | ✅ |
+| `fila-notificar.json` | 8 | ✅ |
+| `followup-24h.json` | 7 | ✅ |
+| `sub-enviar-whatsapp.json` | 4 | ⚠️ **não** — sub-workflow roda quando chamado |
+| `workflow-completo.json` | 116 | ❌ **nunca** — disputa os mesmos paths de webhook |
 
-Ou seja: já estão conectados onde deveriam estar — a ausência de aresta
-interna entre os ramos é o desenho correto, não uma lacuna.
-
-Os 5 arquivos individuais (abaixo) continuam existindo — úteis para importar/
-testar um gatilho isolado sem carregar o resto. O `workflow-completo.json` é
-a soma exata deles (mesmos nós, mesmas conexões, só com IDs prefixados para
-não colidir e posições deslocadas para não sobrepor no canvas).
+**Por que os ramos não se conectam entre si dentro do consolidado:** no sistema
+real eles não deveriam. Quem liga `agente-vendas` a `pagamento-blackcat` é o
+`postbackUrl` do BlackCat; quem liga `fila-notificar` a `fila-decidir` é o link
+que você clica. São chamadas HTTP externas, não arestas internas — acoplar por
+aresta juntaria ciclos de vida que são independentes de fato.
 
 ## Como importar
-No n8n: `Workflows` → `Import from File` → selecione o `.json` (o completo, ou
-um dos 5 individuais). Chegam **inativos** (`active: false`) de propósito —
-ative só depois de configurar as credenciais (abaixo) e revisar a lógica.
+
+`Workflows` → `Import from File`. **A ordem importa:** o `sub-enviar-whatsapp`
+primeiro, porque os outros o referenciam por ID. Chegam inativos de propósito.
+Passo a passo em [`../../APLICAR-AO-VIVO.md`](../../APLICAR-AO-VIVO.md).
 
 ## ⚠️ Mudança de arquitetura: o PikaPods não aceita env var customizada
 
@@ -45,22 +44,22 @@ Segredos de verdade (chaves de API) agora usam o sistema de **Credentials**
 do n8n (`Settings` → `Credentials` → `Add Credential`), criptografado pelo
 próprio `N8N_ENCRYPTION_KEY` do pod — não aparecem no JSON exportado.
 
-| Credencial a criar | Tipo | Nome exato (usado nos nodes) | Campos |
+| Credencial | Tipo | Nome **nesta instância** | Campos |
 |---|---|---|---|
-| Supabase | **Custom Auth** | `Supabase (apikey+auth)` | JSON: `{"header": {"apikey": "<service_role key>", "Authorization": "Bearer <service_role key>"}}` |
-| OpenAI | **Header Auth** | `OpenAI` | Name: `Authorization` · Value: `Bearer <sua OPENAI_API_KEY>` |
-| WhatsApp Cloud API | **Header Auth** | `WhatsApp Cloud API` | Name: `Authorization` · Value: `Bearer <token permanente>` |
-| BlackCat | **Header Auth** | `BlackCat` | Name: `X-API-Key` · Value: `<BLACKCAT_API_KEY>` (sem `Bearer`, confirmado na doc oficial) |
+| Supabase | **Custom Auth** | `SUPABASE` | JSON: `{"header": {"apikey": "<service_role key>", "Authorization": "Bearer <service_role key>"}}` |
+| OpenAI | **Header Auth** | `Open IA API` | Name: `Authorization` · Value: `Bearer <sua OPENAI_API_KEY>` |
+| WhatsApp Cloud API | **Header Auth** | `WhatsApp Cloud API` | Name: `Authorization` · Value: `Bearer <token permanente>` — **ainda não criada** |
+| BlackCat | **Header Auth** | `BlackCat API` | Name: `X-API-Key` · Value: `<BLACKCAT_API_KEY>` (sem `Bearer`, confirmado na doc oficial) |
 | GitHub API | **Header Auth** | `GitHub API` | Name: `Authorization` · Value: `Bearer <PAT>` — Fine-grained Personal Access Token limitado a este repositório (`rodrigovaroto-wq/Salles-AI-Agent-`), permissão **Contents: Read and write**. Usado só em `fila-decidir.json` (nodes "Buscar SHA do arquivo no GitHub" / "Commitar mudanca no GitHub"), para espelhar sugestões aprovadas do Hermes de volta pro git (ver `../../hermes/configuracao.md`). |
 
-**O nome da credencial precisa bater exatamente** com a coluna acima — é por
-esse nome que cada node te pede pra selecionar a credencial certa depois do
-import (o `id` não viaja entre instâncias de n8n, isso é esperado; só o nome
-ajuda a achar a certa no dropdown).
+Os nomes acima são os que existem **nesta instância** — não batem com os nomes
+genéricos que os JSONs traziam antes (`OpenAI`, `Supabase (apikey+auth)`,
+`BlackCat`). Em vez de renomear 4 credenciais no n8n, os JSONs passaram a
+gravar os **IDs reais**, que é o que o n8n de fato usa para religar.
 
-Depois de criar as 5 credenciais, abra cada node que usa HTTP Request neste
-workflow e confirme no campo **Authentication** se a credencial certa está
-selecionada (o import geralmente já reconhece pelo nome, mas vale conferir).
+Os IDs reais das credenciais desta instância já estão gravados nos JSONs, então
+o import religa sozinho. Só a `WhatsApp Cloud API` fica pendente até a
+verificação da Meta sair.
 
 ### Config não-secreta → valores literais no texto
 
@@ -87,19 +86,19 @@ chat sem problema; o que **não** deve vir aqui é a `service_role key` ou
 qualquer chave/token) e eu troco em todos os arquivos de uma vez, mantendo a
 validação de integridade.
 
-## Os 5 gatilhos (arquivos individuais == ramos do `workflow-completo.json`)
+## O que cada gatilho faz
 
 | Arquivo | Gatilho | O que faz |
 |---|---|---|
-| `agente-vendas.json` | 1 | Recebe mensagem → **se for áudio, baixa e transcreve via Whisper antes de seguir** (ver nota abaixo) → busca lead/histórico/prompt ativo/**catálogo de produtos** (2 Merges) → chama OpenAI já informado dos produtos, preços e tags de **pivô por objeção/arquétipo** (saída em JSON estruturado: `resposta` + `intent` + `arquetipo`) → envia WhatsApp → grava evento → **detecta e grava o arquétipo do lead** (se houver sinal real) → se `intent=gerar_link`, monta carrinho com preço **real do Supabase** e desconto **efetivamente aplicado**, cria venda no BlackCat, e grava o desconto/link de volta no evento → **se `intent=sofrimento`, notifica o Rodrigo no WhatsApp e marca `status=aguardando_humano`** (handoff, ver nota abaixo) |
+| `agente-vendas.json` | 1 | Recebe mensagem → **descarta reenvio** (dedup por `message id`) → **se for áudio, transcreve via Whisper** → registra o lead **sem sobrescrever estado** → **barra quem pediu opt-out** → junta a rajada num buffer e espera 8s (só a última responde) → carrega todo o contexto **numa chamada** → chama OpenAI já informada do catálogo, do que a lead **já comprou** e do estado dela → responde em **1–3 mensagens curtas** → grava evento → grava arquétipo (se houver sinal) → se `intent=gerar_link`, monta carrinho com preço real e desconto aplicado, cria a venda e guarda o link para reaproveitar → se `intent=sofrimento`, alerta o Rodrigo e marca `aguardando_humano` → se `intent=opt_out`, respeita na hora |
 | `pagamento-blackcat.json` | 2 e 3 | Recebe webhook do BlackCat → roteia por `event` (cadeia de IFs) → `paid`: marca cliente, confirma e **entrega o produto pelo WhatsApp** (lendo `produtos.entrega_texto`) → `created`: marca abandonado, **espera 2h** (node `Wait`, sobrevive a reinício do pod) e reabre se ainda abandonado → `failed`: libera para follow-up |
-| `followup-24h.json` | 4 | A cada hora, busca leads sem compra há >24h, separa em itens e envia o template aprovado |
-| `fila-notificar.json` | ciclo Hermes | Todo dia às 8h, busca sugestões pendentes (risco alto primeiro) e manda um resumo com links de aprovar/rejeitar para você no WhatsApp |
+| `followup-24h.json` | 4 | A cada hora, busca leads sem compra há >24h **que deram consentimento, ainda não bateram o teto de 2 follow-ups e não receberam um nos últimos 2 dias**, e envia o template aprovado |
+| `fila-notificar.json` | ciclo Hermes | Todo dia às 8h, busca sugestões pendentes **ainda não notificadas** (risco alto primeiro), manda o resumo com links de decisão e marca as que entraram |
 | `fila-decidir.json` | ciclo Hermes | Recebe o clique do link → registra a decisão → se aprovada, **aplica sozinho**: desativa a versão antiga em `prompt_ativo`, insere a nova (rollback fica preservado, nada é apagado) e **espelha a mudança no git** (commit direto no arquivo `.md` correspondente via API do GitHub) |
 
 ## O que ainda depende de confirmação (marcado `TODO` no código)
 
-- **Credencial "Supabase (apikey+auth)" (Custom Auth):** o tipo de credencial
+- **Credencial Supabase (Custom Auth):** o tipo de credencial
   e a existência do formato "múltiplos headers num JSON" foram confirmados
   via documentação/comunidade oficial do n8n (Custom Auth é feito exatamente
   para o caso apikey+Authorization do Supabase), mas **não testei contra uma
@@ -187,7 +186,7 @@ usa `externalReference` (não `externalRef`) e `transactionId` (não `id`).
   "É áudio?" desvia para baixar o binário (`Buscar URL do audio` →
   `Baixar audio binario`, ambos autenticados com a credencial do WhatsApp
   Cloud API) e transcrever com Whisper (`Transcrever audio (Whisper)`,
-  reaproveita a credencial `OpenAI`). O node `Merge apos audio/texto`
+  reaproveita a credencial de OpenAI). O node `Merge apos audio/texto`
   (`mode: append`) reconverge os dois ramos — daí em diante, **todo node que
   precisa do texto da mensagem lê de `Merge apos audio/texto`, não mais de
   `Extrair mensagem e origem`** (que continua sendo a fonte de `wa_id`,
@@ -240,7 +239,7 @@ usa `externalReference` (não `externalRef`) e `transactionId` (não `id`).
 python3 30-integracoes/n8n/workflows/gerar-workflow-completo.py
 ```
 
-**Rode isso sempre que editar um dos 5 arquivos individuais.** O consolidado
+**Rode isso sempre que editar um dos 7 arquivos individuais.** O consolidado
 precisa ser a soma exata deles; mantido à mão ele diverge — foi exatamente o
 que aconteceu antes (três nós ficaram sem prefixo de ramo e os mecanismos
 novos nunca chegaram nele). O gerador prefixa os `id` por ramo, desloca cada
