@@ -24,6 +24,10 @@ Custo zero, roda em menos de um segundo.
   prompt resultante.
 - **Modo sem venda**: que `status = 'aguardando_humano'` suprime a venda.
 - **Cliente que já comprou**: que a tabela de desconto some.
+- **Faixas P1/P2**: que as duas estão no prompt, com a regra de desempate
+  ("na dúvida, P2") e a proibição de emendar oferta na dor. Os cenários 11–13
+  são de dor real **sem** risco à vida — luto, dívida, doença na família — e
+  existem para flagrar se o gatilho de crise voltar a pegar conversa normal.
 
 ## O que ele NÃO verifica
 
