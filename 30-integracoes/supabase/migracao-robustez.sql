@@ -129,15 +129,29 @@ as $$
 declare
   v_texto text;
 begin
-  -- Só quem ainda é a última mensagem tem direito de responder.
-  -- Se outra chegou durante a espera, esta execução sai de mãos vazias.
-  update leads
-     set buffer_mensagens = '{}'
+  -- Lê ANTES de limpar. Um `update ... returning buffer_mensagens` devolveria o
+  -- valor JÁ limpo (RETURNING enxerga a linha depois da alteração) -- isso fazia
+  -- a função sempre devolver string vazia, e o agente nunca respondia a ninguém.
+  --
+  -- FOR UPDATE trava a linha: se outra mensagem chegar entre o select e o
+  -- update, ela espera, em vez de ter o proprio buffer apagado por engano.
+  select array_to_string(buffer_mensagens, E'\n')
+    into v_texto
+    from leads
    where lead_id = p_lead_id
      and ultima_msg_id = p_msg_id
-  returning array_to_string(buffer_mensagens, E'\n') into v_texto;
+     for update;
 
-  return v_texto;   -- NULL = superada por mensagem mais nova
+  -- Sem linha = outra mensagem assumiu a vez durante a espera.
+  if not found then
+    return null;
+  end if;
+
+  update leads set buffer_mensagens = '{}' where lead_id = p_lead_id;
+
+  -- Buffer vazio com msg_id casando nao deveria acontecer, mas se acontecer
+  -- devolver '' faria o chamador tratar como "superada" e ficar mudo.
+  return nullif(v_texto, '');
 end;
 $$;
 

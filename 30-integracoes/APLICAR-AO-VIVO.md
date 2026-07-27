@@ -105,8 +105,14 @@ O `agente-vendas` deixou de fazer três buscas separadas e passou a chamar uma
 função no banco. **Sem ela, o agente não responde nada** — a chamada retorna
 404 e o fluxo morre ali.
 
-Rode [`supabase/funcao-carregar-contexto.sql`](supabase/funcao-carregar-contexto.sql)
-no SQL Editor. Confira com:
+Rode [`supabase/migracao-robustez.sql`](supabase/migracao-robustez.sql) no SQL
+Editor — é ele que define `carregar_contexto` e as outras 4 funções.
+
+> ⚠️ **Não rode `funcao-carregar-contexto.sql`.** Ele criou a primeira versão da
+> função e foi esvaziado: rodá-lo depois rebaixaria a função **sem erro nenhum**,
+> derrubando o modo sem-venda e o filtro de já-comprados.
+
+Confira com:
 
 ```sql
 select carregar_contexto('lead_inexistente');
@@ -116,6 +122,23 @@ Tem que devolver as três chaves (`historico`, `prompts`, `produtos`).
 `historico` vazio é o esperado para um lead que não existe; **`prompts` ou
 `produtos` vazios** significam que o seed não rodou — o agente responderia sem
 playbook e sem catálogo.
+
+
+### Ordem das migrações (importa)
+
+| # | Arquivo | O que traz |
+|---|---|---|
+| 1 | `schema.sql` | tabelas, catálogo semeado |
+| 2 | `migracao-aguardando-humano.sql` | libera o status do handoff |
+| 3 | `migracao-entrega.sql` | `entrega_texto` e a etapa `entrega` |
+| 4 | `migracao-robustez.sql` | **as 5 funções** + colunas de dedup, debounce e follow-up |
+| 5 | `seed-prompt-objecoes.sql` | o prompt que o agente lê em runtime |
+
+Todos são idempotentes — rodar de novo é seguro. **Verificado executando os
+quatro primeiros duas vezes seguidas contra um Postgres 16 real, sem erro.**
+
+O passo 4 não é opcional: sem ele os workflows chamam RPC inexistente e o
+agente não responde nada.
 
 ---
 

@@ -95,7 +95,7 @@ O caminho quente fazia 3 GETs em paralelo (histórico, prompt ativo, catálogo) 
 precisava de **dois nós `Merge`** só para esperar os três — sem essa barreira o
 nó seguinte rodava mais de uma vez e duplicava a chamada à OpenAI e o envio.
 
-Virou uma função no Postgres ([`funcao-carregar-contexto.sql`](../supabase/funcao-carregar-contexto.sql)):
+Virou uma função no Postgres ([`migracao-robustez.sql`](../supabase/migracao-robustez.sql)):
 
 | | Antes | Agora |
 |---|---|---|
