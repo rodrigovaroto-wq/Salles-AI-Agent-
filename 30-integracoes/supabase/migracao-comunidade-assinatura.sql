@@ -31,6 +31,13 @@ update produtos
        trial_dias           = 30
  where produto_id = 'comunidade';
 
+-- Contato Direto com o Padre: entrada R$ 19,90 + R$ 5,47/mes, tambem com 30
+-- dias gratis (decidido 27/07).
+update produtos
+   set mensalidade_centavos = 547,
+       trial_dias           = 30
+ where produto_id = 'contato_padre';
+
 -- ---------------------------------------------------------------------------
 -- 2. assinaturas: uma linha por lead que entrou num produto recorrente
 -- ---------------------------------------------------------------------------
@@ -93,5 +100,6 @@ where produto_id = 'comunidade';
 
 update produtos set entrega_texto =
 'Seu Contato Direto com o Padre está ativo.
-Ele acontece aqui pelo WhatsApp: é neste canal que você deixa sua mensagem e seus pedidos de oração, e o Padre Frei lê e responde.'
+Ele acontece aqui pelo WhatsApp: é neste canal que você deixa sua mensagem e seus pedidos de oração, e o Padre Frei lê e responde.
+Seus primeiros 30 dias são um presente; depois são R$ 5,47 por mês, e você cancela quando quiser.'
 where produto_id = 'contato_padre';

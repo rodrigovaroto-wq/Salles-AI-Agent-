@@ -16,16 +16,16 @@ const PRODUTOS = [
   { produto_id:'oracao_sagrada', nome:'Oração Sagrada',            tipo:'principal',  preco_centavos:2290, ordem:0, resolve_objecao:[], arquetipos:[] },
   { produto_id:'oracao_audio',   nome:'Oração em Áudio',           tipo:'order_bump', preco_centavos:1390, ordem:1, resolve_objecao:['preco','sem_interesse_principal','vou_pensar'], arquetipos:['guerreira_fe'] },
   { produto_id:'comunidade',     nome:'Comunidade',                tipo:'order_bump', preco_centavos:4490, ordem:2, resolve_objecao:[], arquetipos:['mae_protetora','mulher_pertence'], mensalidade_centavos:978, trial_dias:30 },
-  { produto_id:'contato_padre',  nome:'Contato Direto com o Padre',tipo:'order_bump', preco_centavos:1990, ordem:3, resolve_objecao:[], arquetipos:['devota_busca'] },
+  { produto_id:'contato_padre',  nome:'Contato Direto com o Padre',tipo:'order_bump', preco_centavos:1990, ordem:3, resolve_objecao:[], arquetipos:['devota_busca'], mensalidade_centavos:547, trial_dias:30 },
 ];
 
 const AUDIOS = [
-  { chave:'boas_vindas', url:'https://exemplo/boas-vindas.ogg',
-    descricao:'Padre Frei se apresenta e acolhe quem chegou pelo anuncio',
-    quando_usar:'Na primeira ou segunda mensagem, quando a lead demonstra interesse real.' },
-  { chave:'bencao', url:'https://exemplo/bencao.ogg',
-    descricao:'Bencao curta do Padre Frei',
-    quando_usar:'Quando a lead compartilha uma dor (P2) ou pede oracao.' },
+  { chave:'saudacao', url:'https://ex/01.mp3', descricao:'Padre Frei cumprimenta quem chegou',
+    quando_usar:'Logo na abertura, na primeira resposta.' },
+  { chave:'acolhimento_dor', url:'https://ex/04.mp3', descricao:'Padre Frei acolhe quem sofre',
+    quando_usar:'Dor real sem risco a vida (P2). NUNCA em P1.' },
+  { chave:'acolhimento_preco', url:'https://ex/11.mp3', descricao:'Padre Frei acolhe quem esta apertado',
+    quando_usar:'Quando a lead diz que esta caro ou sem condicoes.' },
 ];
 
 function montar({ texto, historico = [], lead = {}, origem = 'lp' }) {
@@ -94,7 +94,9 @@ const checks = [
   ['P1 manda parar de vender',     s => /pare de vender, nao ofereca produto, nao cite preco/i.test(s)],
   ['schema JSON de resposta',      s => /"mensagens": string\[\]/.test(s)],
   ['nunca inventar produto/preco', s => /nunca invente produto ou preco/.test(s)],
-  ['catalogo de audios no prompt', s => /AUDIOS DISPONIVEIS/.test(s) && /boas_vindas/.test(s)],
+  ['catalogo de audios no prompt', s => /AUDIOS DISPONIVEIS/.test(s) && /acolhimento_dor/.test(s)],
+  ['audio nao se repete',          s => /NUNCA repita um audio ja enviado/.test(s)],
+  ['mensalidade do contato_padre', s => /R\$ 5,47\/mes apos 30 dias gratis/.test(s) || /JA COMPROU/.test(s) && !/contato_padre \(order_bump\)/.test(s)],
   ['audio proibido em P1',         s => /NUNCA envie audio em P1/.test(s)],
   ['campo audio no schema JSON',   s => /"audio": string\|null/.test(s)],
   ['mensalidade divulgada no catalogo', s => /ASSINATURA: entrada unica acima \+ R\$ 9,78\/mes apos 30 dias gratis/.test(s) || /JA COMPROU/.test(s) && !/comunidade \(order_bump\)/.test(s)],

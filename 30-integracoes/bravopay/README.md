@@ -1,8 +1,18 @@
 # BravoPay — Pix e cobranças avulsas
 
-Gateway que substitui o BlackCat nas cobranças pontuais (produto principal e
-order bumps). A **assinatura da Comunidade fica no Pagar.me** — o porquê está
-na seção de taxas, mais abaixo.
+Gateway que substitui o BlackCat nas cobranças pontuais. **Divisão definida em
+27/07:**
+
+- **BravoPay** → produto principal e order bumps (as cobranças de entrada)
+- **Pagar.me** → todas as assinaturas
+
+São **duas** assinaturas hoje, ambas com 30 dias grátis:
+| Produto | Entrada (BravoPay) | Mensalidade (Pagar.me) |
+|---|---|---|
+| Comunidade | R$ 44,90 | R$ 9,78/mês |
+| Contato Direto com o Padre | R$ 19,90 | R$ 5,47/mês |
+
+O porquê da divisão está na seção de taxas, mais abaixo.
 
 - Painel: https://bravopay.club/dashboard
 - Docs: https://bravopay.club/docs
@@ -111,19 +121,25 @@ A parte fixa é o problema. Em valores baixos ela domina:
 | Oração Sagrada (Pix) | 22,90 | 3,60 | 19,30 | 15,7% |
 | Oração Sagrada (cartão) | 22,90 | 5,87 | 17,03 | 25,6% |
 | Stack completo (Pix) | 71,12 | 6,97 | 64,15 | 9,8% |
-| **Mensalidade 9,78 (Pix)** | 9,78 | 2,68 | 7,10 | **27,4%** |
 | **Mensalidade 9,78 (cartão)** | 9,78 | 4,57 | 5,21 | **46,7%** |
+| **Mensalidade 5,47 (cartão)** | 5,47 | 4,14 | 1,33 | **75,7%** |
 
-A mensalidade de R$ 9,78 no cartão do BravoPay entregaria **R$ 5,21 líquidos** —
-quase metade some em taxa. No Pagar.me, com recorrência (~3,79% e sem taxa
-fixa por transação), a mesma mensalidade rende **R$ 9,41**.
+A de R$ 9,78 entregaria R$ 5,21 líquidos. A de **R$ 5,47 entregaria R$ 1,33** —
+**76% some em taxa**, porque a parte fixa de R$ 3,60 sozinha já é 66% do valor
+cobrado. No Pagar.me, com recorrência (~3,79% e sem fixa por transação), as
+mesmas mensalidades rendem R$ 9,41 e R$ 5,26.
 
-**Diferença: R$ 4,20 por assinante por mês.** Em 1.000 assinantes, R$ 4.200/mês.
+| Mensalidade | BravoPay | Pagar.me | Diferença/mês |
+|---|---|---|---|
+| R$ 9,78 (Comunidade) | 5,21 | 9,41 | **+4,20** |
+| R$ 5,47 (Contato) | 1,33 | 5,26 | **+3,93** |
 
-Por isso a divisão:
-- **BravoPay** → produto principal, order bumps, downsell (valores de R$ 13,90 a
-  R$ 71,12, onde a taxa fixa dilui)
-- **Pagar.me** → assinatura da Comunidade (ver [`../pagarme/README.md`](../pagarme/README.md))
+Uma cliente com as duas assinaturas rende **R$ 8,13 a mais por mês** no
+Pagar.me. Em 1.000 clientes, R$ 8.130/mês.
+
+Por isso a divisão: **BravoPay** fica com as entradas (R$ 13,90 a R$ 71,12,
+onde a taxa fixa dilui), **Pagar.me** com as assinaturas (ver
+[`../pagarme/README.md`](../pagarme/README.md)).
 
 Vale confirmar as taxas no seu painel: elas variam por conta e volume, e a doc
 pública pode não refletir o que foi negociado com você.

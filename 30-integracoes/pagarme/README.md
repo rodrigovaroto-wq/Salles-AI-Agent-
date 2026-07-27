@@ -1,7 +1,7 @@
-# Pagar.me — assinatura da Comunidade
+# Pagar.me — assinaturas (Comunidade e Contato com o Padre)
 
-Gateway escolhido para **cartão e assinatura recorrente**, substituindo o
-BlackCat nesse papel (o BlackCat não tem tokenização nem recorrência — ver
+Gateway escolhido para **todas as assinaturas**, substituindo o BlackCat nesse
+papel (o BlackCat não tem tokenização nem recorrência — ver
 `../comunidade-assinatura.md`).
 
 Base da API: `https://api.pagar.me/core/v5`
@@ -93,33 +93,30 @@ confiar no payload (ver `webhooks.md` quando for implementado).
 
 ## Valores (centavos, como o BlackCat)
 
-| Item | Valor |
-|---|---|
-| Entrada da Comunidade | `4490` |
-| Mensalidade | `978` |
-| Trial | 30 dias |
+| Produto | Entrada (BravoPay) | Mensalidade (Pagar.me) | Trial |
+|---|---|---|---|
+| Comunidade | `4490` | `978` | 30 dias |
+| Contato Direto com o Padre | `1990` | `547` | 30 dias |
+
+São duas assinaturas independentes: a cliente pode ter uma, outra ou as duas.
+Com as duas, são R$ 15,25/mês a partir do dia 31. A tabela `assinaturas` já tem
+`unique (lead_id, produto_id)`, então cada uma vira uma linha própria.
 
 ## O que falta
 
 - [ ] `secret_key` de produção como Credential `Pagar.me API` no n8n
       (Header Auth, `Authorization: Basic base64(sk_xxx:)`)
 - [ ] Webhook cadastrado no painel apontando para `/webhook/pagarme`
-- [ ] Workflow `pagamento-pagarme.json` — **ainda não construído**, aguarda a
-      definição do BravoPay (ver abaixo) para não construir duas vezes
+- [ ] Workflow `pagamento-pagarme.json` — **ainda não construído**. Agora
+      desbloqueado: a doc do BravoPay chegou e a divisão está fechada
 
-## BravoPay — pendente de documentação ⚠️
+## BravoPay — documentado, divisão fechada
 
-Pesquisei e **não encontrei** um gateway brasileiro chamado BravoPay para
-infoprodutos. Os resultados foram: um processador americano (Bravo Payment
-Systems), uma carteira de câmbio (bravopaywallet.com) e uma plataforma de
-gorjetas no GitHub — nenhum compatível com o uso aqui.
+A doc está em https://bravopay.club/docs e foi mapeada em
+[`../bravopay/README.md`](../bravopay/README.md). Divisão final:
 
-**Preciso da URL da documentação** antes de integrar. Construir contra uma API
-adivinhada geraria um workflow que falha no primeiro teste real.
+- **BravoPay** → entradas (principal + order bumps)
+- **Pagar.me** → as duas assinaturas
 
-Com a doc em mãos, o desenho previsto é:
-- **BravoPay**: Pix e cobranças avulsas (papel que o BlackCat tem hoje)
-- **Pagar.me**: cartão e assinatura da Comunidade
-
-O `pagamento-blackcat.json` atual serve de molde: a estrutura de webhook,
-idempotência, entrega e alertas é a mesma; muda o formato do payload.
+O motivo é econômico: a taxa fixa do BravoPay (R$ 3,60 no cartão) consome 66%
+de uma mensalidade de R$ 5,47. Números completos na seção de taxas do doc deles.
