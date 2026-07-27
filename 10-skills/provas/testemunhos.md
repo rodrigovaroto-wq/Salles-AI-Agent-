@@ -3,16 +3,26 @@
 Arquivo de testemunhos e numeros para uso nos workflows do n8n + Claude.
 Atualizar sempre que chegar novo testemunho real ou numero atualizado.
 
-## Numeros oficiais de prova social
+## Numeros de prova social
 
-Use exatamente esses numeros nas copies. Nao inventar outros.
+Usar **apenas** os numeros registrados aqui, na formulacao exata abaixo. Nao
+criar outros, nao arredondar para cima, nao combinar numeros de linhas
+diferentes.
 
-- 97 mil pessoas sairam das dividas em 24 horas
-- 64 mil brasileiros zeraram dividas em 48 horas
-- 69 mil pessoas sairam da pobreza em menos de 3 dias
-- 22 mil pessoas tiveram curas e restauracoes
-- 5 mil relatos de milagres em uma unica live
-- 4 mil pessoas tiveram vidas mudadas em menos de 24 horas
+> **[fonte: confirmar o que foi contado]** — a leitura correta destes numeros,
+> conforme o Padre Frei, e que as pessoas alcancadas conseguiram resolver suas
+> questoes **nas 24 horas seguintes**, por estarem mais organizadas, com a mente
+> no lugar e inspiradas a agir — nao que tenham saido das dividas todas juntas
+> no mesmo intervalo. Antes de usar ao vivo, registrar aqui **o que foi
+> efetivamente contado** (participantes de live? pedidos de oracao? membros do
+> canal?), porque a frase publicavel depende disso: "97 mil pessoas
+> participaram" e verificavel, "97 mil pessoas sairam das dividas" precisa de
+> uma contagem de saidas de divida.
+
+- 97 mil pessoas alcancadas [fonte pendente]
+- 64 mil brasileiros alcancados [fonte pendente]
+- 69 mil pessoas alcancadas [fonte pendente]
+- 5 mil relatos recebidos em uma unica live [fonte pendente]
 
 ## Modelos de testemunho para usar nas copies
 
@@ -29,11 +39,16 @@ Filho envolvido com drogas ha 2 anos. Casamento destruido. Dividas acumulando.
 Aprendeu o metodo correto da oracao. Fez por 7 dias seguidos.
 O filho voltou pra casa no setimo dia. O marido pediu perdao na mesma semana.
 
-### Testemunho 3 - Saude e financas
+### Testemunho 3 - Financeiro
 Ana Paula, 38 anos, interior de SP.
-Diagnostico medico preocupante. Sem dinheiro para o tratamento.
+Passando por um momento dificil de saude na familia, sem dinheiro para as contas.
 Fez a oracao de Sao Bento do jeito certo por 3 dias.
-O exame seguinte voltou limpo. Uma heranca inesperada cobriu todas as contas.
+Encontrou forca para atravessar o periodo e uma heranca inesperada cobriu as contas.
+
+> Removida a frase "o exame seguinte voltou limpo" a pedido: mesmo sendo relato
+> verdadeiro, usar cura de doenca como material de venda e claim de saude —
+> risco de sancao e de alguem adiar tratamento. O testemunho segue valendo pelo
+> lado financeiro, que e o que a oferta realmente enderece.
 
 ### Testemunho 4 - Emprego
 Rosangela, 47 anos, Recife.
@@ -56,17 +71,34 @@ Numero de pessoas. Prazo. Resultado. O metodo e esse.
 
 ## Frases de prova social para encaixar na copy
 
-- Isso ja mudou a vida de 69 mil familias brasileiras
-- Mais de 97 mil pessoas fizeram e nunca mais voltaram para o mesmo lugar
-- Em 48 horas a vida dela nao era mais a mesma
-- 5 mil relatos de milagre em uma unica live. Isso nao e coincidencia.
-- Quem fez do jeito certo viu resultado. Quem nao viu, estava fazendo errado.
+Liberar assim que a fonte dos numeros estiver preenchida. A formulacao segue a
+leitura do Padre Frei: o alcance e o numero contado, e o resultado veio de
+pessoas que se organizaram e agiram — nao de um evento simultaneo.
+
+- **"Mais de duzentos relatos por semana, sem falhar. Duzentas familias que
+  estavam onde voce esta e hoje nao estao mais."**
+  Aprovada 27/07. O Padre Frei sustenta o volume de relatos que recebe por
+  semana; a frase afirma os relatos, que e o que existe contado.
+- Mais de 97 mil pessoas ja participaram deste trabalho [ajustar ao que foi contado]
+- Sao 5 mil relatos recebidos numa unica live [ajustar ao que foi contado]
+
+> Retirada: *"Quem fez do jeito certo viu resultado. Quem nao viu, estava
+> fazendo errado."* A frase e infalsificavel — transforma qualquer ausencia de
+> resultado em culpa da lead, e trava o reembolso ("nao adiantou porque voce
+> rezou errado"). Com publico endividado e o CDC art. 49 valendo 7 dias, e o
+> tipo de frase que vira reclamacao formal.
 
 ## Notas de operacao
 
-- Sempre usar numeros da lista oficial
-- Testemunhos devem ter nome, idade e cidade para parecer real
-- Prazo maximo nos testemunhos: 7 dias
+- Usar **somente** os depoimentos registrados acima, na integra e sem alterar
+  nome, idade, cidade, prazo ou resultado. **Nao criar novos testemunhos** —
+  nem inspirados nos existentes, nem combinando pedacos de dois. Os quatro
+  acima sao relatos reais recebidos pelo Padre Frei; um quinto gerado pelo
+  agente seria invencao, ainda que soe igual aos verdadeiros.
+- Se a lead pedir mais casos e nao houver outro registrado, dizer que sao os
+  relatos que temos — nao preencher a lacuna.
+- Usar somente os numeros da secao acima, e so depois que a fonte estiver
+  preenchida.
 - Produto: Oracao Sagrada de Sao Bento
 - Ultima atualizacao: abril 2026
 

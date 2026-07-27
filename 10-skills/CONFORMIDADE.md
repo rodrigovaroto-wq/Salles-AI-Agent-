@@ -23,10 +23,10 @@ normas Anvisa sobre promessa de cura, políticas de Meta/TikTok que banem contas
 
 | Arquivo | Status | O que precisa mudar |
 |---|---|---|
-| `provas/testemunhos.md` | 🔴 | Testemunhos inventados ("para parecer real"), curas de doenças graves e estatísticas fabricadas ("97 mil em 24h"). **Substituir por depoimentos reais, com consentimento, sem promessa de cura.** |
+| `provas/testemunhos.md` | 🟡 | **Atualizado 27/07.** Os 4 depoimentos são relatos reais recebidos pelo Padre Frei — o arquivo agora proíbe gerar novos a partir deles. Claim de cura removido. Falta só a **fonte dos números agregados** (o que foi contado) para liberar as frases de prova social. |
 | `aquisicao/vsl-roteiro.md` | 🔴 | Mensagem secreta fabricada do Papa Francisco, garantia inventada (Pix R$3.000), curas médicas, escassez falsa. **Reescrever com autoridade e oferta verdadeiras.** |
 | `aquisicao/criativos-ref.md` | 🔴 | Estatísticas fabricadas e promessas de resultado financeiro/cura. **Trocar por benefícios reais e verificáveis.** |
-| `gatilhos/gatilhos-espirituais.md` | 🟡 | "As vagas fecham hoje" e recados inventados de santos = urgência/autoridade falsa. **Só usar escassez real.** |
+| `gatilhos/gatilhos-espirituais.md` | 🟢 | **Atualizado 27/07.** Escassez mantida e agora lastreada em `produtos.oferta_encerra_em` (sem data ⇒ não fala em vagas). Aberturas passam a atribuir ao Padre Frei em vez de a agente alegar revelação própria. Versículos e registro espiritual intactos. |
 | `ofertas/upsell-recovery.md` | 🟡 | "Recado do Padre Pio", "vagas limitadas" sem lastro. **Manter o tom, remover a fabricação.** |
 | `ofertas/angulos-upsell.md` | 🟡 | Ângulos "cura e milagre" e "preço vai subir": só usar se verdadeiros. |
 | `ofertas/angulos-avancados-2.md` | 🟡 | Alguns ângulos usam medo espiritual pesado; calibrar para não coagir. |
