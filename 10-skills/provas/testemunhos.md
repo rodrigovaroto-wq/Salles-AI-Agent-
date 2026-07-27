@@ -75,9 +75,11 @@ Liberar assim que a fonte dos numeros estiver preenchida. A formulacao segue a
 leitura do Padre Frei: o alcance e o numero contado, e o resultado veio de
 pessoas que se organizaram e agiram — nao de um evento simultaneo.
 
+- **"Mais de duzentos relatos por semana, sem falhar. Duzentas familias que
+  estavam onde voce esta e hoje nao estao mais."**
+  Aprovada 27/07. O Padre Frei sustenta o volume de relatos que recebe por
+  semana; a frase afirma os relatos, que e o que existe contado.
 - Mais de 97 mil pessoas ja participaram deste trabalho [ajustar ao que foi contado]
-- Muitas delas contam que, dali em diante, conseguiram por a cabeca no lugar e
-  resolver o que estava parado
 - Sao 5 mil relatos recebidos numa unica live [ajustar ao que foi contado]
 
 > Retirada: *"Quem fez do jeito certo viu resultado. Quem nao viu, estava
