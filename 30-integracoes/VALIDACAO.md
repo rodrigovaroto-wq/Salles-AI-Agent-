@@ -201,10 +201,14 @@ curl -s "$SUPABASE_URL/rest/v1/leads?lead_id=eq.5511999999999&select=status,etap
 > deles, e os workflows já usam cada um no seu lugar. Se o lead não for
 > encontrado, é o primeiro suspeito.
 
-Esse teste também arma o upsell: 10 minutos depois, o fluxo deve tentar
-oferecer o próximo produto. Como o WhatsApp ainda está bloqueado, o envio
-falha — mas dá para ver a execução no histórico do n8n e conferir se
-`Selecionar proximo produto` escolheu o item certo.
+Esse teste também dispara a **entrega**: o fluxo lê `produtos.entrega_texto` e
+manda o acesso. Como o WhatsApp ainda está bloqueado, o envio falha — mas dá
+para conferir no histórico do n8n se `Montar entrega` casou o item comprado
+com o catálogo, e se caiu no ramo de alerta caso `entrega_texto` esteja vazio.
+
+**Reenvie o mesmo `curl`**: a segunda chamada tem que parar em `Reenvio
+ignorado`. Sem essa trava, um reenvio do BlackCat entregaria o produto duas
+vezes.
 
 ---
 
