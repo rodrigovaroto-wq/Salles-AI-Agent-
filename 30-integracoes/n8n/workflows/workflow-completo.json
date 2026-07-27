@@ -10,7 +10,7 @@
       "typeVersion": 2,
       "position": [
         0,
-        0
+        160
       ],
       "parameters": {
         "httpMethod": "POST",
@@ -26,33 +26,29 @@
       "typeVersion": 2,
       "position": [
         220,
-        0
+        160
       ],
-      "notes": "Fallback seguro: sem marcador [ref:lp]/[ref:tiktok] => trata como tiktok (nunca assume compra sem confirmar). Ver ../../whatsapp/README.md secao 8.",
+      "notes": "Fallback seguro: sem marcador [ref:lp]/[ref:tiktok] => trata como tiktok (nunca assume compra sem confirmar). Ver ../../whatsapp/README.md secao 8. Tipo 'audio' e roteado para transcricao via Whisper antes de seguir (ver 'E audio?' / 'Transcrever audio').",
       "parameters": {
-        "jsCode": "const body = $input.first().json.body;\nconst entry = body.entry?.[0]?.changes?.[0]?.value;\nconst msg = entry?.messages?.[0];\nconst contato = entry?.contacts?.[0];\n\nconst wa_id = msg?.from;\nconst nome = contato?.profile?.name || null;\nconst texto = msg?.text?.body || '';\n\nlet origem = 'tiktok';\nif (/\\[ref:lp\\]/i.test(texto)) origem = 'lp';\nelse if (/\\[ref:tiktok\\]/i.test(texto)) origem = 'tiktok';\n\nreturn [{ json: { wa_id, nome, texto_recebido: texto, origem } }];"
+        "jsCode": "const body = $input.first().json.body;\nconst entry = body.entry?.[0]?.changes?.[0]?.value;\nconst msg = entry?.messages?.[0];\nconst contato = entry?.contacts?.[0];\n\nconst wa_id = msg?.from;\nconst nome = contato?.profile?.name || null;\nconst tipo_mensagem = msg?.type || 'unknown';\nconst msg_id = msg?.id || null;\nconst audio_media_id = msg?.audio?.id || null;\nconst texto = msg?.text?.body || '';\n\nlet origem = 'tiktok';\nif (/\\[ref:lp\\]/i.test(texto)) origem = 'lp';\nelse if (/\\[ref:tiktok\\]/i.test(texto)) origem = 'tiktok';\n\nreturn [{ json: { wa_id, nome, texto_recebido: texto, tipo_mensagem, audio_media_id, msg_id, origem } }];"
       }
     },
     {
       "id": "av-n3",
-      "name": "Upsert lead",
+      "name": "Registrar lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        440,
-        0
+        2420,
+        160
       ],
-      "notes": "Upsert evita branch IF de 'lead existe?': Prefer=resolution=merge-duplicates atualiza se ja existir.",
+      "notes": "#2 O upsert antigo mandava status='ativo' em toda mensagem, apagando opt_out, aguardando_humano e cliente -- e sobrescrevia a origem. A funcao preserva os tres e so grava origem se ainda nao houver uma.",
       "parameters": {
         "method": "POST",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?on_conflict=lead_id",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/rpc/registrar_lead",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Prefer",
-              "value": "resolution=merge-duplicates,return=representation"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -61,117 +57,16 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, nome: $node[\"Extrair mensagem e origem\"].json.nome, origem_canal: $node[\"Extrair mensagem e origem\"].json.origem === 'lp' ? 'meta_ads' : 'tiktok_ads', ultima_interacao: new Date().toISOString(), status: 'ativo' } }}",
+        "jsonBody": "={{ { p_lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, p_nome: $node[\"Extrair mensagem e origem\"].json.nome, p_origem: $node[\"Extrair mensagem e origem\"].json.origem === 'lp' ? 'meta_ads' : 'tiktok_ads' } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
-      }
-    },
-    {
-      "id": "av-n4",
-      "name": "Buscar historico",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        660,
-        -80
-      ],
-      "parameters": {
-        "method": "GET",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/conversas?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}&order=ocorrido_em.desc&limit=10",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpCustomAuth"
-      },
-      "credentials": {
-        "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
-        }
-      }
-    },
-    {
-      "id": "av-n5",
-      "name": "Buscar prompt ativo",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        660,
-        80
-      ],
-      "notes": "chave=objetivo e chave=compliance devem ter sido inseridas em prompt_ativo a partir de 00-nucleo/objetivo.md e compliance-e-etica.md.",
-      "parameters": {
-        "method": "GET",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/prompt_ativo?chave=in.(objetivo,compliance,objecoes)&ativo=eq.true",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpCustomAuth"
-      },
-      "credentials": {
-        "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
-        }
-      }
-    },
-    {
-      "id": "av-n5c",
-      "name": "Buscar produtos",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        660,
-        160
-      ],
-      "notes": "Catalogo real (ver ../../catalogo-produtos.md). Fonte de verdade em runtime -- nunca hardcode preco no codigo do workflow.",
-      "parameters": {
-        "method": "GET",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/produtos?ativo=eq.true&order=ordem.asc",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpCustomAuth"
-      },
-      "credentials": {
-        "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
-        }
-      }
-    },
-    {
-      "id": "av-n5b",
-      "name": "Merge contexto",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 3,
-      "position": [
-        880,
-        0
-      ],
-      "notes": "Barreira de sincronizacao: garante que Buscar historico E Buscar prompt ativo terminaram antes de montar o prompt. Sem isso, o proximo node roda 2x (duplica chamada OpenAI/envio).",
-      "parameters": {
-        "mode": "combine",
-        "combinationMode": "mergeByPosition"
-      }
-    },
-    {
-      "id": "av-n5d",
-      "name": "Merge contexto 2",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 3,
-      "position": [
-        940,
-        80
-      ],
-      "notes": "Segunda barreira: junta o resultado do Merge contexto com Buscar produtos, mesma razao da primeira (evita disparo duplicado).",
-      "parameters": {
-        "mode": "combine",
-        "combinationMode": "mergeByPosition"
       }
     },
     {
@@ -180,12 +75,12 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1000,
-        0
+        4180,
+        160
       ],
-      "notes": "Pede saida em JSON estruturado (resposta + intent + arquetipo + pivo_downsell). Calcula a tabela de desconto real em codigo. Inclui as tags resolve_objecao/arquetipos para o pivo (secao 3) e destaque por perfil (secao 4) funcionarem em runtime. Instrui o modelo a oferecer o desconto de recuperacao (20%, aplicado de verdade em 'Montar items do carrinho') com moldura honesta -- nunca 'so hoje' ou datado.",
+      "notes": "Monta o system prompt. Novidades: exclui do catalogo o que a lead ja comprou (#11), entra em modo sem-venda se ela estiver aguardando_humano (#3), reaproveita link aberto (#13), pede resposta em 1-3 mensagens curtas (#9) e reconhece pedido de opt-out (#4). O texto da lead vem do buffer, ja consolidado (#8).",
       "parameters": {
-        "jsCode": "const promptRows = $node[\"Buscar prompt ativo\"].json;\nconst objetivo = promptRows.find(r => r.chave === 'objetivo')?.conteudo || '';\nconst compliance = promptRows.find(r => r.chave === 'compliance')?.conteudo || '';\nconst objecoes = promptRows.find(r => r.chave === 'objecoes')?.conteudo || '';\nconst historico = ($node[\"Buscar historico\"].json || []).reverse();\nconst extra = $node[\"Extrair mensagem e origem\"].json;\nconst produtos = $node[\"Buscar produtos\"].json || [];\n\nconst catalogoTexto = produtos.map(p => {\n  let linha = '- ' + p.produto_id + ' (' + p.tipo + '): ' + p.nome + ' - R$ ' + (p.preco_centavos/100).toFixed(2);\n  if (p.resolve_objecao && p.resolve_objecao.length) linha += ' [resolve objecao: ' + p.resolve_objecao.join(', ') + ']';\n  if (p.arquetipos && p.arquetipos.length) linha += ' [arquetipo: ' + p.arquetipos.join(', ') + ']';\n  return linha;\n}).join('\\n');\n\n// Tabela de desconto REAL, calculada com a MESMA formula usada em \"Montar items do carrinho\".\n// O modelo nunca deve inventar ou recalcular estes numeros -- precisam bater exatamente\n// com o valor que sera de fato cobrado no BlackCat.\nfunction calcularTotal(itens) {\n  const fator = 1 - (Math.max(0, itens.length - 1) * 10) / 100;\n  return itens.reduce((soma, p) => soma + Math.round(p.preco_centavos * fator), 0);\n}\nfunction fmt(centavos) {\n  return (centavos / 100).toFixed(2).replace('.', ',');\n}\n\nconst principal = produtos.find(p => p.tipo === 'principal');\nconst bumps = produtos.filter(p => p.tipo === 'order_bump').sort((a, b) => a.ordem - b.ordem);\n\nlet tabelaDesconto = '';\nif (principal && bumps.length) {\n  let acumulado = [principal];\n  const linhas = [];\n  for (const bump of bumps) {\n    const semDesconto = acumulado.reduce((s, p) => s + p.preco_centavos, 0) + bump.preco_centavos;\n    acumulado = [...acumulado, bump];\n    const comDesconto = calcularTotal(acumulado);\n    const descontoPct = Math.max(0, acumulado.length - 1) * 10;\n    const economia = semDesconto - comDesconto;\n    linhas.push('*+ ' + bump.nome + '* (R$ ' + fmt(bump.preco_centavos) + ')\\n   Total: R$ ' + fmt(comDesconto) + ' - voce economiza *R$ ' + fmt(economia) + '* (' + descontoPct + '% OFF)');\n  }\n  tabelaDesconto = '*Sua ' + principal.nome + ' - R$ ' + fmt(principal.preco_centavos) + '*\\n\\nVeja como o valor final cai conforme voce completa sua protecao:\\n\\n' + linhas.join('\\n\\n') + '\\n\\nEscolha quantos quiser -- quanto mais completa, maior o desconto';\n}\n\nconst systemPrompt = objetivo + '\\n\\n' + compliance\n  + (objecoes ? '\\n\\nGUIA DE OBJECOES (referencia para responder recusas e duvidas, sempre dentro do compliance acima):\\n' + objecoes : '')\n  + '\\n\\nOrigem do lead nesta conversa: ' + extra.origem + '.'\n  + '\\n\\nCatalogo de produtos disponiveis (use exatamente estes produto_id em produtos_aceitos, nunca invente produto ou preco fora desta lista):\\n' + catalogoTexto\n  + '\\n\\nQuando o lead aceitar o produto principal, apresente TODOS os order_bump de uma vez (nao um a um). Use EXATAMENTE este texto para mostrar a economia (os numeros ja estao calculados e batem com o valor real cobrado -- nunca invente ou recalcule):\\n\\n' + tabelaDesconto\n  + '\\n\\nVoce pode ajustar saudacao/tom ao redor deste texto, mas NUNCA altere os valores em R$ ou os percentuais.'\n  + '\\n\\nPIVO POR OBJECAO: se o lead recusar o principal ou repetir uma objecao forte (ex: \"esta caro\", \"nao tenho interesse\", \"vou pensar\") DEPOIS de voce ja ter tentado tratar a objecao uma vez, ofereca o produto do catalogo cuja tag [resolve objecao] bate com o sinal. Nao insista mais de uma vez na mesma linha de recusa.'\n  + '\\n\\nARQUETIPO: identifique ao longo da conversa qual arquetipo da lead mais se encaixa (mae_protetora: fala de filhos/familia/protecao; guerreira_fe: fala de batalha/forca/nao desistir; devota_busca: fala de milagre/graca/resposta/sinal; mulher_pertence: fala de comunidade/nao estar sozinha). Quando apresentar o stack, priorize o produto cujo [arquetipo] bate com o perfil identificado. Se nao houver sinal claro ainda na conversa, retorne arquetipo como null -- nunca invente um arquetipo sem evidencia real.\\n\\nDESCONTO DE RECUPERACAO (pivo por objecao): quando oferecer o produto alternativo da secao de pivo (aquele cuja tag [resolve objecao] bate com o sinal do lead), voce pode mencionar que consegue liberar 20% de desconto para ela fechar agora, nesse momento da conversa. Diga algo como \"consigo liberar 20% pra voce fechar agora\" -- NUNCA diga que essa condicao e \"so hoje\", \"exclusiva desta semana\", \"ultima chance\" ou qualquer coisa datada/limitada no tempo. E uma concessao real e sempre disponivel para quem chega a esse ponto da conversa, nunca uma urgencia fabricada. Quando gerar o link de pagamento para esse cenario (produto alternativo com o desconto de recuperacao), defina pivo_downsell=true na resposta. Em qualquer outro caso de gerar_link, pivo_downsell=false.'\n  + '\\n\\nDADOS DE PAGAMENTO (email e CPF): a API do BlackCat exige e-mail e CPF do comprador no proprio pedido de criacao da venda -- o link so e gerado se os dois ja estiverem preenchidos, nao da pra completar depois na pagina de checkout. Por isso, assim que o lead aceitar o stack (intent=aceitou_stack) e antes de gerar o link, peca e-mail e CPF numa unica mensagem objetiva (ex.: \\\"Perfeito! Pra gerar seu link de pagamento, me confirma seu e-mail e CPF?\\\"). So retorne intent=\\\"gerar_link\\\" quando voce ja tiver tanto o e-mail quanto o CPF do lead em algum ponto da conversa (mensagem atual ou historico) -- enquanto faltar qualquer um dos dois, continue com intent=\\\"aceitou_stack\\\" pedindo soh o que falta, sem repetir produtos ja aceitos. Extraia e retorne SEMPRE os campos \\\"email\\\" e \\\"cpf\\\" com o valor mais recente que o lead informou na conversa (atual ou historico), ou null se ainda nao informado. Nunca invente ou deduza email/CPF -- so preencha se o lead escreveu explicitamente.\\n\\nResponda SEMPRE em JSON no formato: {\"resposta\": string, \"intent\": \"qualificando\"|\"objecao\"|\"aceitou_stack\"|\"gerar_link\"|\"recusou\", \"produtos_aceitos\": string[], \"arquetipo\": \"mae_protetora\"|\"guerreira_fe\"|\"devota_busca\"|\"mulher_pertence\"|null, \"pivo_downsell\": boolean, \"email\": string|null, \"cpf\": string|null}';\n\nconst messages = [{ role: 'system', content: systemPrompt }];\nfor (const h of historico) {\n  if (h.mensagem_lead) messages.push({ role: 'user', content: h.mensagem_lead });\n  if (h.mensagem_agente) messages.push({ role: 'assistant', content: h.mensagem_agente });\n}\nmessages.push({ role: 'user', content: extra.texto_recebido });\n\nreturn [{ json: { model: 'gpt-4.1', response_format: { type: 'json_object' }, messages } }];"
+        "jsCode": "const ctx = $node[\"Carregar contexto\"].json;\nconst promptRows = ctx.prompts || [];\nconst produtos = ctx.produtos || [];\nconst lead = ctx.lead || {};\nconst extra = $node[\"Extrair mensagem e origem\"].json;\n\n// Texto ja consolidado pelo debounce: se ela mandou 3 mensagens seguidas,\n// chega tudo junto aqui e o agente responde uma vez, considerando as tres.\nconst textoFinal = $node[\"Consumir buffer\"].json;\n\nconst objetivo   = promptRows.find(r => r.chave === 'objetivo')?.conteudo || '';\nconst compliance = promptRows.find(r => r.chave === 'compliance')?.conteudo || '';\nconst objecoes   = promptRows.find(r => r.chave === 'objecoes')?.conteudo || '';\n\n// vem em ordem decrescente da funcao; inverte para cronologica\nconst historico = (ctx.historico || []).slice().reverse();\n\nconst catalogoTexto = produtos.map(p => {\n  let linha = '- ' + p.produto_id + ' (' + p.tipo + '): ' + p.nome + ' - R$ ' + (p.preco_centavos/100).toFixed(2);\n  if (p.resolve_objecao && p.resolve_objecao.length) linha += ' [resolve objecao: ' + p.resolve_objecao.join(', ') + ']';\n  if (p.arquetipos && p.arquetipos.length) linha += ' [arquetipo: ' + p.arquetipos.join(', ') + ']';\n  return linha;\n}).join('\\n');\n\n// Tabela de desconto REAL, com a MESMA formula usada em \"Montar items do carrinho\".\nfunction calcularTotal(itens) {\n  const fator = 1 - (Math.max(0, itens.length - 1) * 10) / 100;\n  return itens.reduce((soma, p) => soma + Math.round(p.preco_centavos * fator), 0);\n}\nfunction fmt(centavos) { return (centavos / 100).toFixed(2).replace('.', ','); }\n\n// #11 O agente precisa saber o que ela JA TEM, senao tenta vender de novo.\nconst jaComprados = new Set((lead.produtos_comprados || []).map(i => i.produto_id || i.title));\nconst disponiveis = produtos.filter(p => !jaComprados.has(p.produto_id) && !jaComprados.has(p.nome));\n\nconst principal = disponiveis.find(p => p.tipo === 'principal');\nconst bumps = disponiveis.filter(p => p.tipo === 'order_bump').sort((a, b) => a.ordem - b.ordem);\n\nlet tabelaDesconto = '';\nif (principal && bumps.length) {\n  let acumulado = [principal];\n  const linhas = [];\n  for (const bump of bumps) {\n    const semDesconto = acumulado.reduce((s, p) => s + p.preco_centavos, 0) + bump.preco_centavos;\n    acumulado = [...acumulado, bump];\n    const comDesconto = calcularTotal(acumulado);\n    const descontoPct = Math.max(0, acumulado.length - 1) * 10;\n    linhas.push('*+ ' + bump.nome + '* (R$ ' + fmt(bump.preco_centavos) + ')\\n   Total: R$ ' + fmt(comDesconto) + ' - voce economiza *R$ ' + fmt(semDesconto - comDesconto) + '* (' + descontoPct + '% OFF)');\n  }\n  tabelaDesconto = '*Sua ' + principal.nome + ' - R$ ' + fmt(principal.preco_centavos) + '*\\n\\nVeja como o valor final cai conforme voce completa sua protecao:\\n\\n' + linhas.join('\\n\\n') + '\\n\\nEscolha quantos quiser -- quanto mais completa, maior o desconto';\n}\n\nlet systemPrompt = objetivo + '\\n\\n' + compliance\n  + (objecoes ? '\\n\\nGUIA DE OBJECOES (referencia para responder recusas e duvidas, sempre dentro do compliance acima):\\n' + objecoes : '')\n  + '\\n\\nOrigem do lead nesta conversa: ' + extra.origem + '.';\n\n// #3 Estado da lead manda em tudo que vem depois.\nif (lead.status === 'aguardando_humano') {\n  systemPrompt += '\\n\\n*** MODO SEM VENDA (prioridade maxima) ***\\nEsta lead foi sinalizada por sofrimento real e esta aguardando atendimento humano. NAO ofereca produto, NAO cite preco, NAO tente retomar a venda em nenhuma hipotese, mesmo que ela pergunte sobre produto. Acolha com humanidade, diga que uma pessoa de verdade vai falar com ela, e se houver risco a vida oriente ajuda imediata (CVV 188). Retorne intent=\"sofrimento\".';\n}\n\nif (jaComprados.size) {\n  systemPrompt += '\\n\\nPRODUTOS QUE ESTA LEAD JA COMPROU (nunca ofereca de novo, nunca inclua em produtos_aceitos): '\n    + [...jaComprados].join(', ') + '. Se ela perguntar sobre um deles, trate como cliente: ajude com acesso e uso, nao venda.';\n}\n\nsystemPrompt += '\\n\\nCatalogo disponivel para ESTA lead (ja excluidos os que ela possui; use exatamente estes produto_id, nunca invente produto ou preco fora desta lista):\\n' + (catalogoTexto || '(nenhum produto novo a oferecer)');\n\nif (tabelaDesconto) {\n  systemPrompt += '\\n\\nQuando o lead aceitar o produto principal, apresente TODOS os order_bump de uma vez (nao um a um). Use EXATAMENTE estes valores (ja calculados, batem com o que sera cobrado -- nunca invente ou recalcule):\\n\\n' + tabelaDesconto\n    + '\\n\\nVoce pode ajustar saudacao/tom ao redor, mas NUNCA altere os valores em R$ ou os percentuais.';\n}\n\n// #13 link ainda valido: reenviar em vez de criar outra cobranca\nif (lead.link_recente && lead.ultimo_link_url) {\n  systemPrompt += '\\n\\nJA EXISTE UM LINK DE PAGAMENTO ABERTO para esta lead, gerado ha menos de 30 minutos: ' + lead.ultimo_link_url\n    + '\\nSe ela pedir o link de novo, disser que perdeu ou que nao chegou, REENVIE ESTE MESMO LINK no texto da sua resposta e retorne intent=\"qualificando\". NAO retorne gerar_link -- criar outra cobranca deixaria duas em aberto no nome dela.';\n}\n\nsystemPrompt += '\\n\\nPIVO POR OBJECAO: se o lead recusar o principal ou repetir uma objecao forte (ex: \"esta caro\", \"nao tenho interesse\", \"vou pensar\") DEPOIS de voce ja ter tentado tratar a objecao uma vez, ofereca o produto do catalogo cuja tag [resolve objecao] bate com o sinal. Nao insista mais de uma vez na mesma linha de recusa.'\n  + '\\n\\nARQUETIPO: identifique ao longo da conversa qual arquetipo da lead mais se encaixa (mae_protetora: fala de filhos/familia/protecao; guerreira_fe: fala de batalha/forca/nao desistir; devota_busca: fala de milagre/graca/resposta/sinal; mulher_pertence: fala de comunidade/nao estar sozinha). Priorize o produto cujo [arquetipo] bate com o perfil. Sem sinal claro, retorne null -- nunca invente arquetipo sem evidencia.'\n  + '\\n\\nDESCONTO DE RECUPERACAO: ao oferecer o produto alternativo do pivo, voce pode liberar 20% para ela fechar agora. Diga algo como \"consigo liberar 20% pra voce fechar agora\" -- NUNCA diga que e \"so hoje\", \"ultima chance\" ou qualquer coisa datada. E concessao real e sempre disponivel. Nesse caso defina pivo_downsell=true; em qualquer outro gerar_link, false.'\n  + '\\n\\nDADOS DE PAGAMENTO: o BlackCat exige email e CPF no proprio pedido -- o link so e gerado com os dois. Assim que ela aceitar o stack, peca ambos numa unica mensagem objetiva. So retorne intent=\"gerar_link\" quando tiver os dois; enquanto faltar, use intent=\"aceitou_stack\" pedindo so o que falta. Retorne SEMPRE os campos email e cpf com o valor mais recente informado, ou null. Nunca invente nem deduza.'\n  + '\\n\\nDADOS JA CONHECIDOS DESTE LEAD: email=' + (lead.email || 'nao informado') + ', cpf=' + (lead.cpf || 'nao informado') + '. Se algum ja constar, trate como JA INFORMADO: nao peca de novo, reutilize e devolva no campo correspondente.'\n  + '\\n\\nSINAL DE SOFRIMENTO REAL (objecoes.md, secao P): se a lead demonstrar angustia genuina -- perda, doenca grave, desesperanca, qualquer mencao a se ferir -- isso sobrepoe qualquer objetivo de venda. Pare de vender, acolha, nao ofereca produto, e retorne intent=\"sofrimento\". Havendo risco a vida, oriente ajuda imediata (CVV 188).'\n  + '\\n\\nPEDIDO DE PARAR: se ela pedir para nao receber mais mensagens (\"nao me manda mais\", \"para\", \"sai\", \"me tira daqui\"), retorne intent=\"opt_out\" e uma unica mensagem curta de despedida respeitosa, sem tentar reverter e sem perguntar o motivo. Respeitar isso na hora e obrigacao legal.'\n  // #9 uma parede de texto nao se le no celular, ainda menos neste publico\n  + '\\n\\nFORMATO DA RESPOSTA: responda como uma pessoa digitando no WhatsApp -- de 1 a 3 mensagens curtas, na ordem em que seriam enviadas, cada uma com 1 a 3 linhas. Quebre pensamentos diferentes em mensagens diferentes em vez de mandar um bloco unico. A tabela de precos, quando usada, vai numa mensagem propria e inteira (nunca partida no meio).'\n  + '\\n\\nResponda SEMPRE em JSON: {\"mensagens\": string[], \"intent\": \"qualificando\"|\"objecao\"|\"aceitou_stack\"|\"gerar_link\"|\"recusou\"|\"sofrimento\"|\"opt_out\", \"produtos_aceitos\": string[], \"arquetipo\": \"mae_protetora\"|\"guerreira_fe\"|\"devota_busca\"|\"mulher_pertence\"|null, \"pivo_downsell\": boolean, \"email\": string|null, \"cpf\": string|null}';\n\nconst messages = [{ role: 'system', content: systemPrompt }];\nfor (const h of historico) {\n  if (h.mensagem_lead) messages.push({ role: 'user', content: h.mensagem_lead });\n  if (h.mensagem_agente) messages.push({ role: 'assistant', content: h.mensagem_agente });\n}\nmessages.push({ role: 'user', content: textoFinal });\n\nreturn [{ json: { model: 'gpt-4.1', response_format: { type: 'json_object' }, messages } }];"
       }
     },
     {
@@ -194,8 +89,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1100,
-        0
+        4400,
+        160
       ],
       "parameters": {
         "method": "POST",
@@ -218,10 +113,12 @@
       },
       "credentials": {
         "httpHeaderAuth": {
-          "id": "",
-          "name": "OpenAI"
+          "id": "LVlwWDwzHmIujoAI",
+          "name": "Open IA API"
         }
-      }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "#7 Antes abortava a execucao: a lead mandava mensagem e recebia silencio, sem registro nenhum. Agora a falha segue para o caminho de erro honesto."
     },
     {
       "id": "av-n8",
@@ -229,47 +126,13 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1320,
-        0
+        4840,
+        160
       ],
       "parameters": {
-        "jsCode": "const content = $input.first().json.choices[0].message.content;\nconst parsed = JSON.parse(content);\nreturn [{ json: parsed }];"
-      }
-    },
-    {
-      "id": "av-n9",
-      "name": "Enviar WhatsApp",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1540,
-        0
-      ],
-      "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"Extrair mensagem e origem\"].json.wa_id, type: 'text', text: { body: $json.resposta } } }}",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth"
+        "jsCode": "const parsed = JSON.parse($input.first().json.choices[0].message.content);\n\n// Tolerante ao modelo devolver 'resposta' (string) em vez de 'mensagens' (array).\nlet mensagens = parsed.mensagens;\nif (!Array.isArray(mensagens) || !mensagens.length) {\n  mensagens = parsed.resposta ? [parsed.resposta] : [];\n}\nmensagens = mensagens.map(m => String(m).trim()).filter(Boolean);\n\n// Nunca deixar a lead sem resposta por formato inesperado.\nif (!mensagens.length) mensagens = ['Me conta um pouco mais pra eu te ajudar direito.'];\n\nreturn [{ json: { ...parsed, mensagens, resposta: mensagens.join('\\n\\n') } }];"
       },
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "",
-          "name": "WhatsApp Cloud API"
-        }
-      }
+      "notes": "Normaliza a saida: garante array de mensagens e mantem 'resposta' concatenada para o registro em conversas."
     },
     {
       "id": "av-n10",
@@ -277,8 +140,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1760,
-        0
+        5500,
+        160
       ],
       "parameters": {
         "method": "POST",
@@ -298,15 +161,15 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, mensagem_agente: $node[\"Extrair resposta e intent\"].json.resposta, mensagem_lead: $node[\"Extrair mensagem e origem\"].json.texto_recebido, produtos_aceitos: $node[\"Extrair resposta e intent\"].json.produtos_aceitos || [] } }}",
+        "jsonBody": "={{ { lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, mensagem_agente: $node[\"Extrair resposta e intent\"].json.resposta, mensagem_lead: $node[\"Consumir buffer\"].json, produtos_aceitos: $node[\"Extrair resposta e intent\"].json.produtos_aceitos || [] } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -316,8 +179,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1980,
-        0
+        5720,
+        160
       ],
       "parameters": {
         "conditions": {
@@ -346,12 +209,12 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2200,
-        -80
+        5940,
+        80
       ],
       "notes": "Dois mecanismos de desconto distintos, nunca misturados: pivo_downsell=true aplica 20% fixo (recuperacao por objecao); caso contrario, 10% por item adicional no stack normal. Le o catalogo real de Buscar produtos e aplica o desconto DE VERDADE no unitPrice -- o total cobrado precisa refletir exatamente o que foi dito na conversa (compliance-e-etica.md, secao 2/3). amount = soma dos unitPrice (a API do BlackCat exige o total em centavos separado do array de items).",
       "parameters": {
-        "jsCode": "const idsAceitos = $node[\"Extrair resposta e intent\"].json.produtos_aceitos || [];\nconst pivoDownsell = $node[\"Extrair resposta e intent\"].json.pivo_downsell === true;\nconst catalogo = $node[\"Buscar produtos\"].json || [];\n\nconst selecionados = idsAceitos.map(id => catalogo.find(p => p.produto_id === id)).filter(Boolean);\n\nlet descontoPct;\nif (pivoDownsell) {\n  // Desconto FIXO de recuperacao para o pivo por objecao (catalogo-produtos.md, secao 3).\n  // E uma concessao real, sempre disponivel -- nunca rotulada como \"so hoje\" ou datada\n  // (compliance-e-etica.md, secao 2). Constante intencional, nao depende do tamanho do carrinho.\n  descontoPct = 20;\n} else {\n  // Desconto por tamanho do stack (principal + order bumps), 10% por item adicional.\n  descontoPct = Math.max(0, selecionados.length - 1) * 10;\n}\nconst fator = 1 - (descontoPct / 100);\n\nconst items = selecionados.map(p => ({\n  title: p.nome,\n  quantity: 1,\n  unitPrice: Math.round(p.preco_centavos * fator)\n}));\nconst amount = items.reduce((soma, item) => soma + item.unitPrice * item.quantity, 0);\n\nreturn [{ json: { items, amount, descontoPct } }];"
+        "jsCode": "const idsAceitos = $node[\"Extrair resposta e intent\"].json.produtos_aceitos || [];\nconst pivoDownsell = $node[\"Extrair resposta e intent\"].json.pivo_downsell === true;\nconst catalogo = $node[\"Carregar contexto\"].json.produtos || [];\n\nconst selecionados = idsAceitos.map(id => catalogo.find(p => p.produto_id === id)).filter(Boolean);\n\nlet descontoPct;\nif (pivoDownsell) {\n  // Desconto FIXO de recuperacao para o pivo por objecao (catalogo-produtos.md, secao 3).\n  // E uma concessao real, sempre disponivel -- nunca rotulada como \"so hoje\" ou datada\n  // (compliance-e-etica.md, secao 2). Constante intencional, nao depende do tamanho do carrinho.\n  descontoPct = 20;\n} else {\n  // Desconto por tamanho do stack (principal + order bumps), 10% por item adicional.\n  descontoPct = Math.max(0, selecionados.length - 1) * 10;\n}\nconst fator = 1 - (descontoPct / 100);\n\nconst items = selecionados.map(p => ({\n  title: p.nome,\n  quantity: 1,\n  unitPrice: Math.round(p.preco_centavos * fator)\n}));\nconst amount = items.reduce((soma, item) => soma + item.unitPrice * item.quantity, 0);\n\nreturn [{ json: { items, amount, descontoPct } }];"
       }
     },
     {
@@ -360,10 +223,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2420,
-        -80
+        6160,
+        80
       ],
-      "notes": "Confirmado na doc oficial (docs.blackcatoficial.com) em 2026-07-21: endpoint e api.blackcatoficial.com (nao blackcathub.com), body exige 'amount' (centavos, total) e 'paymentMethod' alem de 'items', e 'customer' e OBRIGATORIO (name, email, phone, document{number,type}, type='cpf'|'cnpj' em minusculo). Email e CPF sao coletados na propria conversa (ver 'Montar mensagens OpenAI') antes do intent=gerar_link disparar esse node -- nao da pra completar depois na pagina de checkout, o link so e gerado se o customer ja vier completo. Autenticacao real e header 'X-API-Key: <chave>', nao Bearer.",
+      "notes": "Confirmado na doc oficial (docs.blackcatoficial.com) em 2026-07-21: endpoint e api.blackcatoficial.com (nao blackcathub.com), body exige 'amount' (centavos, total) e 'paymentMethod' alem de 'items', e 'customer' e OBRIGATORIO (name, email, phone, document{number,type}, type='cpf'|'cnpj' em minusculo). Email e CPF sao coletados na propria conversa (ver 'Montar mensagens OpenAI') antes do intent=gerar_link disparar esse node -- nao da pra completar depois na pagina de checkout, o link so e gerado se o customer ja vier completo. Autenticacao real e header 'X-API-Key: <chave>', nao Bearer. Fallback para o email/cpf ja gravados no lead, caso o modelo nao repita na resposta um dado que ja estava no banco. #7 Falha nao aborta mais: ela pediu o link, precisa saber que houve problema em vez de ficar esperando.",
       "parameters": {
         "method": "POST",
         "url": "https://api.blackcatoficial.com/api/sales/create-sale",
@@ -378,17 +241,18 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { amount: $json.amount, paymentMethod: 'pix', items: $json.items, customer: { name: $node[\"Extrair mensagem e origem\"].json.nome, email: $node[\"Extrair resposta e intent\"].json.email, phone: $node[\"Extrair mensagem e origem\"].json.wa_id, document: { number: ($node[\"Extrair resposta e intent\"].json.cpf || '').replace(/\\D/g, ''), type: 'cpf' } }, externalRef: $node[\"Extrair mensagem e origem\"].json.wa_id, postbackUrl: 'https://salles-ai-agent.pikapod.net' + '/webhook/blackcat', metadata: 'origem:' + $node[\"Extrair mensagem e origem\"].json.origem } }}",
+        "jsonBody": "={{ { amount: $json.amount, paymentMethod: 'pix', items: $json.items, customer: { name: $node[\"Extrair mensagem e origem\"].json.nome, email: $node[\"Extrair resposta e intent\"].json.email || ($node[\"Carregar contexto\"].json.lead || {}).email, phone: $node[\"Extrair mensagem e origem\"].json.wa_id, document: { number: ($node[\"Extrair resposta e intent\"].json.cpf || ($node[\"Carregar contexto\"].json.lead || {}).cpf || '').replace(/\\D/g, ''), type: 'cpf' } }, externalRef: $node[\"Extrair mensagem e origem\"].json.wa_id, postbackUrl: 'https://salles-ai-agent.pikapod.net' + '/webhook/blackcat', metadata: 'origem:' + $node[\"Extrair mensagem e origem\"].json.origem } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth"
       },
       "credentials": {
         "httpHeaderAuth": {
-          "id": "",
-          "name": "BlackCat"
+          "id": "coOc51uEorNtsZmG",
+          "name": "BlackCat API"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "id": "av-n13b",
@@ -396,8 +260,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2420,
-        80
+        6600,
+        240
       ],
       "notes": "Fecha o loop de auditoria do desconto: grava desconto_aplicado_pct e link_blackcat_id no evento inserido em 'Gravar evento conversa' (exige Prefer:return=representation la para termos o evento_id). Campo de retorno confirmado na doc oficial: data.transactionId (resposta vem aninhada em 'data').",
       "parameters": {
@@ -421,44 +285,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
-        }
-      }
-    },
-    {
-      "id": "av-n14",
-      "name": "Enviar link WhatsApp",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        2640,
-        -80
-      ],
-      "notes": "Campo de retorno confirmado na doc oficial: data.invoiceUrl (resposta vem aninhada em 'data').",
-      "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"Extrair mensagem e origem\"].json.wa_id, type: 'text', text: { body: 'Aqui esta o seu link: ' + $node[\"Criar venda BlackCat\"].json.data.invoiceUrl } } }}",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth"
-      },
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "",
-          "name": "WhatsApp Cloud API"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -468,8 +296,8 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        2200,
-        80
+        5940,
+        320
       ],
       "parameters": {}
     },
@@ -479,8 +307,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1540,
-        160
+        5060,
+        320
       ],
       "notes": "So grava se o modelo realmente identificou sinal na conversa (nunca sobrescreve com null e perde um arquetipo ja detectado antes).",
       "parameters": {
@@ -510,8 +338,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1760,
-        160
+        5280,
+        320
       ],
       "parameters": {
         "method": "PATCH",
@@ -534,8 +362,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -545,10 +373,1009 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1760,
-        240
+        5280,
+        400
       ],
       "parameters": {}
+    },
+    {
+      "id": "av-n19",
+      "name": "Salvar dados de pagamento do lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5940,
+        240
+      ],
+      "notes": "Persiste email/cpf assim que o modelo confirma os dois (gerar_link so dispara com ambos presentes, ver 'Montar mensagens OpenAI'). cpf gravado com digits-only, igual ao enviado ao BlackCat. Nunca sobrescreve com vazio um email/cpf ja gravado antes.",
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { email: $node[\"Extrair resposta e intent\"].json.email || ($node[\"Carregar contexto\"].json.lead || {}).email, cpf: ($node[\"Extrair resposta e intent\"].json.cpf || ($node[\"Carregar contexto\"].json.lead || {}).cpf || \"\").replace(/\\D/g, \"\") } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "av-n20",
+      "name": "Intent = sofrimento?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        5060,
+        480
+      ],
+      "notes": "Handoff humano (objecoes.md, secao P). O agente ja parou de vender e acolheu na resposta em si (n6/n8); este ramo so cobre o encaminhamento para uma pessoa real.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$node[\"Extrair resposta e intent\"].json.intent}}",
+              "rightValue": "sofrimento",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "av-n22",
+      "name": "Marcar sofrimento na conversa",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5720,
+        480
+      ],
+      "notes": "Registra o gatilho mesmo se a notificacao ao Rodrigo falhar ou o numero ainda nao existir -- garante rastreabilidade do handoff.",
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { status: 'aguardando_humano' } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "av-n23",
+      "name": "Sem sofrimento detectado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        5280,
+        560
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "av-n2a",
+      "name": "E audio?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        880,
+        160
+      ],
+      "notes": "Hoje o sistema so lia texto; audio de voz (muito comum nesse publico) chegava vazio pro agente (objecoes.md, secao O). Este ramo baixa e transcreve antes de seguir.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$node[\"Extrair mensagem e origem\"].json.tipo_mensagem}}",
+              "rightValue": "audio",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "av-n2b1",
+      "name": "Buscar URL do audio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        0
+      ],
+      "notes": "Media id vem no payload do webhook; a URL de download real e obtida num segundo request (expira rapido, por isso nunca se cacheia).",
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v20.0/{{$node[\"Extrair mensagem e origem\"].json.audio_media_id}}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Cloud API"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "av-n2b2",
+      "name": "Baixar audio binario",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        0
+      ],
+      "notes": "A URL exige o mesmo token do WhatsApp Cloud API para baixar o binario (nao e publica).",
+      "parameters": {
+        "method": "GET",
+        "url": "={{$json.url}}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Cloud API"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "av-n2b3",
+      "name": "Transcrever audio (Whisper)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        0
+      ],
+      "notes": "OpenAI Whisper (whisper-1). Custo por minuto de audio -- volume esperado e baixo (mensagens de voz curtas), mas monitorar se subir muito.",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": []
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "parameterType": "formData",
+              "name": "model",
+              "value": "whisper-1"
+            },
+            {
+              "parameterType": "formData",
+              "name": "language",
+              "value": "pt"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "LVlwWDwzHmIujoAI",
+          "name": "Open IA API"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "av-n2b4",
+      "name": "Usar transcricao como texto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        0
+      ],
+      "notes": "Substitui texto_recebido pela transcricao, mantendo wa_id/nome/origem intactos. Transcricao vazia (falha ou audio ininteligivel) segue vazia de proposito.",
+      "parameters": {
+        "jsCode": "const base = $node[\"Extrair mensagem e origem\"].json;\nlet transcricao = \"\";\ntry { transcricao = ($input.first().json.text || \"\").trim(); } catch (e) { transcricao = \"\"; }\n// Transcricao vazia = audio nao compreendido. Nao inventa fala: devolve vazio e deixa\n// o IF \"Tem texto para responder?\" acionar a resposta honesta da secao O do objecoes.md.\nreturn [{ json: { ...base, texto_recebido: transcricao } }];"
+      }
+    },
+    {
+      "id": "av-n2c1",
+      "name": "Normalizar texto (sem audio)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        240
+      ],
+      "notes": "Apara espacos para o IF 'Tem texto para responder?' nao tratar ' ' como mensagem valida.",
+      "parameters": {
+        "jsCode": "const base = $node[\"Extrair mensagem e origem\"].json;\nreturn [{ json: { ...base, texto_recebido: (base.texto_recebido || '').trim() } }];"
+      }
+    },
+    {
+      "id": "av-n2d1",
+      "name": "Merge apos audio/texto",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        2200,
+        160
+      ],
+      "notes": "So um dos dois ramos produz item por execucao (IF so segue por um caminho); mode 'append' converge sem exigir que ambos disparem.",
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "av-n2b0",
+      "name": "Nomear arquivo de audio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ],
+      "notes": "A URL de midia do Graph nao carrega extensao no nome, e a API da OpenAI decide o formato pelo nome do arquivo -- sem isso o upload e recusado. WhatsApp entrega voz em OGG/Opus.",
+      "parameters": {
+        "jsCode": "const item = $input.first();\nif (!item.binary || !item.binary.data) {\n  // Download falhou (o node anterior segue em erro de proposito): devolve sem binario\n  // para o Whisper falhar rapido e o fluxo cair no caminho de 'nao consegui ler'.\n  return [{ json: {} }];\n}\nitem.binary.data.fileName = 'audio.ogg';\nitem.binary.data.mimeType = item.binary.data.mimeType || 'audio/ogg';\nreturn [item];"
+      }
+    },
+    {
+      "id": "av-n24",
+      "name": "Tem texto para responder?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        160
+      ],
+      "notes": "Cobre de uma vez: audio cuja transcricao falhou/veio vazia, imagem, figurinha e mensagem vazia. Sem isso o agente responderia no vacuo (objecoes.md, secao O). Tambem evita gastar uma chamada de OpenAI a toa.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$node[\"Merge apos audio/texto\"].json.texto_recebido}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "av-n4r",
+      "name": "Carregar contexto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3960,
+        160
+      ],
+      "notes": "Uma chamada no lugar de tres GETs paralelos + dois Merges. Ver ../../supabase/funcao-carregar-contexto.sql. Devolve { historico, prompts, produtos }.",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/rpc/carregar_contexto",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { p_lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "av-n9p",
+      "name": "Preparar resposta ao lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5060,
+        160
+      ],
+      "notes": "#9 Devolve N itens -- o sub-workflow envia um a um, na ordem, com intervalo. Parede de texto nao se le no celular.",
+      "parameters": {
+        "jsCode": "const wa = $node[\"Extrair mensagem e origem\"].json.wa_id;\n// Um item por mensagem: o sub-workflow envia em sequencia, com pausa entre elas.\nreturn $node[\"Extrair resposta e intent\"].json.mensagens.map(texto => ({ json: { to: wa, tipo: 'text', texto } }));"
+      }
+    },
+    {
+      "id": "av-n9x",
+      "name": "Enviar resposta ao lead",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5280,
+        160
+      ],
+      "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G1sbNfyXXIwL3Cmh",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "av-n14p",
+      "name": "Preparar link de pagamento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6820,
+        80
+      ],
+      "notes": "Campo de retorno confirmado na doc oficial: data.invoiceUrl (resposta vem aninhada em 'data').",
+      "parameters": {
+        "jsCode": "return [{ json: { to: $node[\"Extrair mensagem e origem\"].json.wa_id, tipo: 'text', texto: 'Aqui esta o seu link: ' + $node[\"Criar venda BlackCat\"].json.data.invoiceUrl } }];"
+      }
+    },
+    {
+      "id": "av-n14x",
+      "name": "Enviar link de pagamento",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        7040,
+        80
+      ],
+      "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G1sbNfyXXIwL3Cmh",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "av-n21p",
+      "name": "Preparar alerta de sofrimento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5280,
+        480
+      ],
+      "notes": "Handoff automatico: avisa o humano imediatamente quando o gatilho de sofrimento real disparar. RODRIGO_WA_NUMBER so existe depois da verificacao Meta (ver ../../whatsapp/README.md); enquanto isso o node fica inativo/sem efeito real, mas o registro em conversas (n22) ja preserva o sinal.",
+      "parameters": {
+        "jsCode": "const e = $node[\"Extrair mensagem e origem\"].json;\nconst texto = $node[\"Consumir buffer\"].json;\nreturn [{ json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: '\\u26a0\\ufe0f Sinal de sofrimento real detectado.\\nLead: ' + (e.nome || e.wa_id) + ' (' + e.wa_id + ')\\nMensagem: \"' + texto + '\"\\nO agente ja parou de vender e acolheu. Preciso que voce (ou alguem de confianca) assuma esta conversa agora.' } }];"
+      }
+    },
+    {
+      "id": "av-n21x",
+      "name": "Enviar alerta de sofrimento",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5500,
+        480
+      ],
+      "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G1sbNfyXXIwL3Cmh",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "av-n25p",
+      "name": "Preparar pedido de texto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        400
+      ],
+      "notes": "Texto verbatim da secao O do objecoes.md. Pede para reescrever em texto em vez de adivinhar o que a pessoa disse.",
+      "parameters": {
+        "jsCode": "return [{ json: { to: $node[\"Extrair mensagem e origem\"].json.wa_id, tipo: 'text', texto: 'Recebi sua mensagem, mas nao consegui ouvir/abrir aqui do meu lado. Voce pode me escrever em texto o que quis dizer? Assim eu te respondo certinho. \\ud83d\\ude4f' } }];"
+      }
+    },
+    {
+      "id": "av-n25x",
+      "name": "Enviar pedido de texto",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3300,
+        400
+      ],
+      "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G1sbNfyXXIwL3Cmh",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "av-d1",
+      "name": "Marcar evento processado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/eventos_processados",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=ignore-duplicates,return=representation"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { chave: 'wa:' + $node[\"Extrair mensagem e origem\"].json.msg_id } }}"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      },
+      "notes": "#5 idempotencia. A Meta reenvia o webhook se nao receber 200 a tempo. Prefer=ignore-duplicates faz o reenvio devolver array VAZIO -- e isso que o IF seguinte detecta. Atomico: nao ha janela entre checar e inserir."
+    },
+    {
+      "id": "av-d2",
+      "name": "Mensagem inedita?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        160
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "notes": "Array vazio = a Meta ja tinha entregue esta mensagem antes. Encerra sem responder de novo."
+    },
+    {
+      "id": "av-d3",
+      "name": "Duplicata ignorada",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        880,
+        320
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "av-g1",
+      "name": "Lead pediu para parar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        160
+      ],
+      "notes": "#3/#4 Compliance secao 5: respeitar imediatamente quem pediu para parar. Barra ANTES da OpenAI -- nao responde, nao gasta token, nao registra conversa.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node[\"Registrar lead\"].json.status }}",
+              "rightValue": "opt_out",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "av-g2",
+      "name": "Opt-out respeitado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2860,
+        400
+      ],
+      "notes": "Fim silencioso de proposito: responder aqui ja seria desrespeitar o pedido.",
+      "parameters": {}
+    },
+    {
+      "id": "av-b1",
+      "name": "Bufferizar mensagem",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3080,
+        160
+      ],
+      "notes": "#8 Quem manda 3 mensagens seguidas disparava 3 execucoes paralelas, cada uma lendo o historico sem as outras. Agora cada mensagem entra num buffer.",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/rpc/bufferizar_mensagem",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { p_lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, p_msg_id: $node[\"Extrair mensagem e origem\"].json.msg_id, p_texto: $node[\"Merge apos audio/texto\"].json.texto_recebido } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "av-b2",
+      "name": "Aguardar rajada (8s)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3300,
+        160
+      ],
+      "notes": "Janela curta o bastante para nao parecer lentidao e longa o bastante para juntar a rajada tipica de quem escreve em pedacos.",
+      "parameters": {
+        "unit": "seconds",
+        "amount": 8
+      }
+    },
+    {
+      "id": "av-b3",
+      "name": "Consumir buffer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3520,
+        160
+      ],
+      "notes": "Devolve o texto acumulado APENAS se esta ainda for a ultima mensagem. Se outra chegou durante a espera, devolve null e esta execucao encerra -- quem responde e a mais recente, ja com tudo.",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/rpc/consumir_buffer",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { p_lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, p_msg_id: $node[\"Extrair mensagem e origem\"].json.msg_id } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "av-b4",
+      "name": "Ainda sou a ultima?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        160
+      ],
+      "notes": "null = superada por mensagem mais nova. Encerrar aqui e o que evita as respostas desencontradas.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "av-b5",
+      "name": "Superada por mensagem nova",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        3960,
+        400
+      ],
+      "notes": "",
+      "parameters": {}
+    },
+    {
+      "id": "av-f1",
+      "name": "OpenAI respondeu?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        160
+      ],
+      "notes": "Sem 'choices' a chamada falhou (cota, timeout, 5xx). Silencio seria o pior desfecho.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.choices }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "av-f2",
+      "name": "Preparar aviso de falha",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4840,
+        400
+      ],
+      "notes": "Duas mensagens: a lead nao fica no vacuo, e voce sabe na hora. Sem isto, uma cota estourada derruba o funil em silencio.",
+      "parameters": {
+        "jsCode": "const wa = $node[\"Extrair mensagem e origem\"].json.wa_id;\nreturn [\n  { json: { to: wa, tipo: 'text', texto: 'Deu um probleminha aqui do meu lado agora. Ja ja te respondo, ta bom? Nao vou te deixar sem resposta.' } },\n  { json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: '\\u26a0\\ufe0f OpenAI falhou para o lead ' + wa + '. Ela foi avisada e esta esperando. Verifique credito/limite da conta.' } }\n];"
+      }
+    },
+    {
+      "id": "av-f3",
+      "name": "Enviar aviso de falha",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5060,
+        400
+      ],
+      "notes": "",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G1sbNfyXXIwL3Cmh",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "av-f4",
+      "name": "Venda criada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        6380,
+        0
+      ],
+      "notes": "#7 create-sale pode falhar (chave, indisponibilidade, dado recusado). Ela pediu o link -- precisa saber.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.data }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "av-f5",
+      "name": "Preparar falha do link",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6600,
+        80
+      ],
+      "notes": "",
+      "parameters": {
+        "jsCode": "const wa = $node[\"Extrair mensagem e origem\"].json.wa_id;\nreturn [\n  { json: { to: wa, tipo: 'text', texto: 'Nao consegui gerar seu link agora, foi um problema tecnico aqui. Ja estou resolvendo e te mando em seguida.' } },\n  { json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: '\\u26a0\\ufe0f BlackCat recusou o create-sale do lead ' + wa + '. Ela pediu o link e esta esperando.' } }\n];"
+      }
+    },
+    {
+      "id": "av-f6",
+      "name": "Enviar falha do link",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        6820,
+        160
+      ],
+      "notes": "",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G1sbNfyXXIwL3Cmh",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "av-o1",
+      "name": "Intent = opt_out?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        5060,
+        640
+      ],
+      "notes": "#4 Nao existia caminho para a lead sair. O compliance (secao 5) exige respeitar na hora.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node[\"Extrair resposta e intent\"].json.intent }}",
+              "rightValue": "opt_out",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "av-o2",
+      "name": "Registrar opt-out",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5280,
+        640
+      ],
+      "notes": "Derruba tambem o consentimento: o follow-up filtra por ele, entao ela sai das duas frentes de uma vez.",
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { status: 'opt_out', consentimento_contato: false } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "av-l1",
+      "name": "Guardar link gerado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7260,
+        80
+      ],
+      "notes": "#13 Permite reenviar o MESMO link se ela pedir de novo em ate 30 min, em vez de abrir outra cobranca no nome dela.",
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { ultimo_link_url: $node[\"Criar venda BlackCat\"].json.data.invoiceUrl, ultimo_link_em: new Date().toISOString() } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
     },
     {
       "id": "pb-n1",
@@ -557,7 +1384,7 @@
       "typeVersion": 2,
       "position": [
         0,
-        700
+        1180
       ],
       "parameters": {
         "httpMethod": "POST",
@@ -572,8 +1399,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        220,
-        540
+        660,
+        1020
       ],
       "parameters": {
         "conditions": {
@@ -602,8 +1429,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        220,
-        700
+        880,
+        1180
       ],
       "parameters": {
         "conditions": {
@@ -632,8 +1459,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        220,
-        860
+        1100,
+        1340
       ],
       "parameters": {
         "conditions": {
@@ -662,24 +1489,24 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        440,
-        1020
+        1320,
+        1500
       ],
       "parameters": {}
     },
     {
       "id": "pb-n3",
-      "name": "Marcar cliente",
+      "name": "Registrar compra",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        440,
-        540
+        880,
+        1020
       ],
-      "notes": "transaction.paid: marca status=cliente e grava o(s) produto(s) comprados.",
+      "notes": "#6 O PATCH antigo SOBRESCREVIA produtos_comprados: quem comprava o principal e depois a Comunidade perdia o registro do primeiro. A funcao concatena, e ainda avanca etapa_funil para comprou_upsell na segunda compra.",
       "parameters": {
-        "method": "PATCH",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalReference}}",
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/rpc/registrar_compra",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -691,50 +1518,15 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { status: 'cliente', etapa_funil: 'comprou_principal', produtos_comprados: $json.body.items } }}",
+        "jsonBody": "={{ { p_lead_id: $node[\"BlackCat IN\"].json.body.externalReference, p_items: $node[\"BlackCat IN\"].json.body.items } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
-        }
-      }
-    },
-    {
-      "id": "pb-n4",
-      "name": "Confirmar no WhatsApp",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        660,
-        540
-      ],
-      "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"BlackCat IN\"].json.body.externalReference, type: 'text', text: { body: 'Pagamento confirmado! Em instantes voce recebe os detalhes de acesso. 🙏' } } }}",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth"
-      },
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "",
-          "name": "WhatsApp Cloud API"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -744,8 +1536,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        880,
-        540
+        1540,
+        1020
       ],
       "parameters": {
         "method": "POST",
@@ -768,8 +1560,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -779,8 +1571,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        440,
-        700
+        1100,
+        1180
       ],
       "notes": "transaction.created sem paid ainda: arma o estado para o timer de recuperacao de 2h.",
       "parameters": {
@@ -804,8 +1596,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -815,8 +1607,8 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        660,
-        700
+        1320,
+        1180
       ],
       "notes": "n8n persiste a execucao e retoma sozinho apos 2h, mesmo que o pod reinicie.",
       "parameters": {
@@ -830,8 +1622,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        880,
-        700
+        1540,
+        1180
       ],
       "parameters": {
         "method": "GET",
@@ -842,8 +1634,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -853,8 +1645,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1100,
-        700
+        1760,
+        1180
       ],
       "notes": "So recupera se ainda nao pagou nesse meio-tempo (transaction.paid teria mudado o status para cliente).",
       "parameters": {
@@ -879,49 +1671,13 @@
       }
     },
     {
-      "id": "pb-n10",
-      "name": "Recuperacao texto livre",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1320,
-        620
-      ],
-      "notes": "Dentro da janela de 24h (o lead iniciou a conversa) -> texto livre, sem template.",
-      "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $node[\"BlackCat IN\"].json.body.externalReference, type: 'text', text: { body: 'Vi que voce nao concluiu ainda. Ficou alguma duvida que eu possa te ajudar a resolver?' } } }}",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth"
-      },
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "",
-          "name": "WhatsApp Cloud API"
-        }
-      }
-    },
-    {
       "id": "pb-n11",
       "name": "Sem acao (ja resolveu)",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1320,
-        780
+        1980,
+        1260
       ],
       "parameters": {}
     },
@@ -931,8 +1687,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        440,
-        860
+        1320,
+        1340
       ],
       "notes": "transaction.failed: expirou ou falhou. Volta para follow-up padrao (Gatilho 4).",
       "parameters": {
@@ -956,10 +1712,341 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
+    },
+    {
+      "id": "pb-n4p",
+      "name": "Preparar confirmacao de pagamento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        1020
+      ],
+      "notes": "",
+      "parameters": {
+        "jsCode": "return [{ json: { to: $node[\"BlackCat IN\"].json.body.externalReference, tipo: 'text', texto: 'Pagamento confirmado! Em instantes voce recebe os detalhes de acesso. \\ud83d\\ude4f' } }];"
+      }
+    },
+    {
+      "id": "pb-n4x",
+      "name": "Enviar confirmacao de pagamento",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        1020
+      ],
+      "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G1sbNfyXXIwL3Cmh",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "pb-n10p",
+      "name": "Preparar recuperacao de carrinho",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        1100
+      ],
+      "notes": "Dentro da janela de 24h (o lead iniciou a conversa) -> texto livre, sem template.",
+      "parameters": {
+        "jsCode": "return [{ json: { to: $node[\"BlackCat IN\"].json.body.externalReference, tipo: 'text', texto: 'Vi que voce nao concluiu ainda. Ficou alguma duvida que eu possa te ajudar a resolver?' } }];"
+      }
+    },
+    {
+      "id": "pb-n10x",
+      "name": "Enviar recuperacao de carrinho",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        1100
+      ],
+      "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G1sbNfyXXIwL3Cmh",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "pb-e1",
+      "name": "Buscar conteudo de entrega",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        1020
+      ],
+      "notes": "Le entrega_texto do catalogo. O conteudo mora no banco e nao no workflow: quando o padre trocar um audio ou o link do grupo mudar, e um UPDATE, sem republicar workflow.",
+      "parameters": {
+        "method": "GET",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/produtos?select=produto_id,nome,entrega_texto",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "pb-e2",
+      "name": "Montar entrega",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        1020
+      ],
+      "notes": "Casa o que foi comprado (items do BlackCat, que trazem 'title') com o catalogo. Produto sem entrega_texto NAO vira silencio: a cliente recebe aviso de que o acesso chega em seguida e o Rodrigo e alertado para entregar na mao.",
+      "parameters": {
+        "jsCode": "const comprados = $node[\"BlackCat IN\"].json.body.items || [];\nconst catalogo = $node[\"Buscar conteudo de entrega\"].json || [];\n\nconst partes = [];\nconst faltando = [];\n\nfor (const item of comprados) {\n  const p = catalogo.find(c => c.produto_id === item.produto_id || c.nome === item.title);\n  const nome = (p && p.nome) || item.title || 'seu item';\n  if (p && p.entrega_texto) {\n    partes.push(p.entrega_texto);\n  } else {\n    faltando.push(nome);\n    partes.push('Sobre *' + nome + '*: seu acesso chega em seguida, aqui mesmo por este WhatsApp.');\n  }\n}\n\n// Nunca deixar a cliente sem mensagem alguma depois de pagar.\nconst texto = partes.length\n  ? partes.join('\\n\\n')\n  : 'Seu acesso chega em seguida, aqui mesmo por este WhatsApp.';\n\nreturn [{ json: { texto, faltando, tem_falta: faltando.length > 0 } }];"
+      }
+    },
+    {
+      "id": "pb-e3",
+      "name": "Preparar entrega",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        1020
+      ],
+      "parameters": {
+        "jsCode": "return [{ json: { to: $node[\"BlackCat IN\"].json.body.externalReference, tipo: 'text', texto: $node[\"Montar entrega\"].json.texto } }];"
+      }
+    },
+    {
+      "id": "pb-e4",
+      "name": "Enviar entrega",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2420,
+        1020
+      ],
+      "notes": "Chama sub-enviar-whatsapp. Dentro da janela de 24h -- a lead iniciou a conversa comprando.",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G1sbNfyXXIwL3Cmh",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "pb-e5",
+      "name": "Gravar entrega",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        1020
+      ],
+      "notes": "Rastro de que a entrega saiu, e o que foi enviado. Sem isso, 'nao recebi' vira palavra contra palavra.",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/conversas",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { lead_id: $node[\"BlackCat IN\"].json.body.externalReference, etapa_processo: 'entrega', mensagem_agente: $node[\"Montar entrega\"].json.texto } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "pb-e6",
+      "name": "Falta conteudo de entrega?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        1020
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$node[\"Montar entrega\"].json.tem_falta}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "pb-e7",
+      "name": "Preparar alerta de entrega",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        960
+      ],
+      "notes": "A cliente pagou por algo que o sistema nao sabe entregar. Precisa de acao humana AGORA, nao de um relatorio no fim do dia.",
+      "parameters": {
+        "jsCode": "const m = $node[\"Montar entrega\"].json;\nconst wa = $node[\"BlackCat IN\"].json.body.externalReference;\nreturn [{ json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: '\\u26a0\\ufe0f Entrega pendente.\\nCliente: ' + wa + '\\nSem conteudo cadastrado para: ' + m.faltando.join(', ') + '\\nEla ja pagou e foi avisada de que o acesso chega em seguida. Entregue na mao e preencha entrega_texto em produtos.' } }];"
+      }
+    },
+    {
+      "id": "pb-e8",
+      "name": "Enviar alerta de entrega",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3300,
+        960
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G1sbNfyXXIwL3Cmh",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "pb-e9",
+      "name": "Entrega completa",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        3080,
+        1080
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "pb-pd1",
+      "name": "Marcar webhook processado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        1180
+      ],
+      "notes": "#5 O BlackCat reenvia o postback se nao receber 200 em 10s. Sem esta trava, um reenvio de transaction.paid entrega o produto DUAS vezes e grava a venda duas vezes.",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/eventos_processados",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=ignore-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { chave: 'bc:' + $json.body.transactionId + ':' + $json.body.event } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "pb-pd2",
+      "name": "Webhook inedito?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        1180
+      ],
+      "notes": "Array vazio = reenvio do mesmo evento. Encerra sem reprocessar.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "pb-pd3",
+      "name": "Reenvio ignorado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        660,
+        1500
+      ],
+      "parameters": {}
     },
     {
       "id": "f24-n1",
@@ -968,7 +2055,7 @@
       "typeVersion": 1.2,
       "position": [
         0,
-        1400
+        1820
       ],
       "parameters": {
         "rule": {
@@ -988,20 +2075,20 @@
       "typeVersion": 4.2,
       "position": [
         220,
-        1400
+        1820
       ],
-      "notes": "HTTP Request mantem o array inteiro como 1 item por padrao (nao explode sozinho) -- por isso o node seguinte separa explicitamente.",
+      "notes": "#1 Antes so filtrava por ultima_interacao, e nada marcava o envio: o mesmo lead recebia template TODA HORA, para sempre -- 24/dia, o suficiente para derrubar a qualidade da conta e levar a banimento. Agora exige consentimento (#4, compliance secao 5), teto de 2 follow-ups por lead, e intervalo minimo de 48h entre eles. O 'or' com is.null cobre quem nunca recebeu (#13: 'lt' nao casa NULL).",
       "parameters": {
         "method": "GET",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?status=in.(ativo,abandonou)&ultima_interacao=lt.{{new Date(Date.now()-24*60*60*1000).toISOString()}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?status=in.(ativo,abandonou)&consentimento_contato=eq.true&followups_enviados=lt.2&ultima_interacao=lt.{{new Date(Date.now()-24*60*60*1000).toISOString()}}&or=(ultimo_followup_em.is.null,ultimo_followup_em.lt.{{new Date(Date.now()-48*60*60*1000).toISOString()}})",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1011,48 +2098,12 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        330,
-        1400
+        440,
+        1820
       ],
       "notes": "Transforma o array unico em N itens n8n, um por lead, para os proximos nodes rodarem por item automaticamente.",
       "parameters": {
         "jsCode": "const leads = $input.first().json || [];\nreturn leads.map(l => ({ json: l }));"
-      }
-    },
-    {
-      "id": "f24-n3",
-      "name": "Enviar template",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        440,
-        1400
-      ],
-      "notes": "WHATSAPP_TEMPLATE_NAME = nome do template aprovado pela Meta (ver ../../whatsapp/README.md secao 9). Fora da janela 24h so template serve.",
-      "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $json.lead_id, type: 'template', template: { name: '<<WHATSAPP_TEMPLATE_NAME>>', language: { code: 'pt_BR' }, components: [{ type: 'body', parameters: [{ type: 'text', text: $json.nome || '' }] }] } } }}",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth"
-      },
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "",
-          "name": "WhatsApp Cloud API"
-        }
       }
     },
     {
@@ -1061,8 +2112,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        660,
-        1400
+        1320,
+        1900
       ],
       "parameters": {
         "method": "POST",
@@ -1085,8 +2136,78 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "f24-n3p",
+      "name": "Preparar template de follow-up",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1820
+      ],
+      "notes": "Fora da janela de 24h so um template aprovado reabre a conversa. O template precisa ter EXATAMENTE uma variavel no corpo (o nome) e existir em pt_BR -- ver ../../whatsapp/README.md secao 9.",
+      "parameters": {
+        "jsCode": "return [{ json: { to: $json.lead_id, tipo: 'template', template_nome: '<<WHATSAPP_TEMPLATE_NAME>>', template_idioma: 'pt_BR', template_params: [$json.nome || ''] } }];"
+      }
+    },
+    {
+      "id": "f24-n3x",
+      "name": "Enviar template de follow-up",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        1820
+      ],
+      "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G1sbNfyXXIwL3Cmh",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f24-n5",
+      "name": "Marcar follow-up enviado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        1820
+      ],
+      "notes": "#1 Sem este passo o lead volta a casar na query na hora seguinte. Incrementa via RPC-livre: le o valor atual do proprio item.",
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.lead_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { ultimo_followup_em: new Date().toISOString(), followups_enviados: ($json.followups_enviados || 0) + 1 } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1097,7 +2218,7 @@
       "typeVersion": 1.2,
       "position": [
         0,
-        1700
+        2300
       ],
       "parameters": {
         "rule": {
@@ -1117,20 +2238,20 @@
       "typeVersion": 4.2,
       "position": [
         220,
-        1700
+        2300
       ],
-      "notes": "order alfabetico de risco_conformidade coloca 'alto' antes de 'baixo' e 'medio' naturalmente (a < b < m).",
+      "notes": "#12 Sem o filtro de notificado_em, o digest reenviava as mesmas sugestoes todo dia ate voce decidir.",
       "parameters": {
         "method": "GET",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?status=eq.pendente&order=risco_conformidade.asc,criado_em.desc",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?status=eq.pendente&notificado_em=is.null&order=risco_conformidade.asc,criado_em.desc",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1141,7 +2262,7 @@
       "typeVersion": 2,
       "position": [
         440,
-        1700
+        2300
       ],
       "parameters": {
         "conditions": {
@@ -1171,7 +2292,7 @@
       "typeVersion": 2,
       "position": [
         660,
-        1620
+        2220
       ],
       "notes": "Link de decisao aponta para o workflow fila-decidir.json. N8N_BASE_URL = URL publica do pod PikaPods.",
       "parameters": {
@@ -1179,17 +2300,63 @@
       }
     },
     {
-      "id": "fn-n5",
-      "name": "Enviar digest WhatsApp",
+      "id": "fn-n6",
+      "name": "Nada pendente",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        660,
+        2380
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "fn-n5p",
+      "name": "Preparar digest da fila",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        2220
+      ],
+      "notes": "",
+      "parameters": {
+        "jsCode": "return [{ json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: $json.texto } }];"
+      }
+    },
+    {
+      "id": "fn-n5x",
+      "name": "Enviar digest da fila",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        2220
+      ],
+      "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G1sbNfyXXIwL3Cmh",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "fn-n7",
+      "name": "Marcar como notificadas",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        880,
-        1620
+        1320,
+        2300
       ],
+      "notes": "Marca so o que entrou neste digest. Sugestao nova criada depois continua pendente para o proximo.",
       "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
+        "method": "PATCH",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?status=eq.pendente&notificado_em=is.null",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -1201,28 +2368,17 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { messaging_product: 'whatsapp', to: '<<RODRIGO_WA_NUMBER>>', type: 'text', text: { body: $json.texto } } }}",
+        "jsonBody": "={{ { notificado_em: new Date().toISOString() } }}",
         "options": {},
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth"
+        "genericAuthType": "httpCustomAuth"
       },
       "credentials": {
-        "httpHeaderAuth": {
-          "id": "",
-          "name": "WhatsApp Cloud API"
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
-    },
-    {
-      "id": "fn-n6",
-      "name": "Nada pendente",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [
-        660,
-        1780
-      ],
-      "parameters": {}
     },
     {
       "id": "fd-n1",
@@ -1231,7 +2387,7 @@
       "typeVersion": 2,
       "position": [
         0,
-        2000
+        2920
       ],
       "notes": "Recebe o clique nos links do digest (fila-notificar.json): ?id=<sugestao_id>&decisao=aprovada|rejeitada",
       "parameters": {
@@ -1248,7 +2404,7 @@
       "typeVersion": 2,
       "position": [
         220,
-        2000
+        2920
       ],
       "parameters": {
         "jsCode": "const q = $input.first().json.query;\nreturn [{ json: { sugestao_id: q.id, decisao: q.decisao } }];"
@@ -1261,7 +2417,7 @@
       "typeVersion": 4.2,
       "position": [
         440,
-        2000
+        2920
       ],
       "parameters": {
         "method": "PATCH",
@@ -1284,8 +2440,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1296,7 +2452,7 @@
       "typeVersion": 2,
       "position": [
         660,
-        2000
+        2920
       ],
       "parameters": {
         "conditions": {
@@ -1326,7 +2482,7 @@
       "typeVersion": 4.2,
       "position": [
         880,
-        1920
+        2840
       ],
       "parameters": {
         "method": "GET",
@@ -1337,8 +2493,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1349,7 +2505,7 @@
       "typeVersion": 2,
       "position": [
         1100,
-        1920
+        2840
       ],
       "notes": "TODO: heuristica simples por nome de arquivo. Ajustar se o mapeamento arquivo->chave crescer (ex.: por skill individual).",
       "parameters": {
@@ -1363,7 +2519,7 @@
       "typeVersion": 4.2,
       "position": [
         1320,
-        1920
+        2840
       ],
       "parameters": {
         "method": "GET",
@@ -1374,8 +2530,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1386,7 +2542,7 @@
       "typeVersion": 4.2,
       "position": [
         1540,
-        1920
+        2840
       ],
       "notes": "Nao apaga: so marca ativo=false. E o que permite reverter com 1 toque (reativar a linha antiga manualmente se preciso).",
       "parameters": {
@@ -1410,8 +2566,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1422,7 +2578,7 @@
       "typeVersion": 4.2,
       "position": [
         1760,
-        1920
+        2840
       ],
       "parameters": {
         "method": "POST",
@@ -1445,8 +2601,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1457,7 +2613,7 @@
       "typeVersion": 4.2,
       "position": [
         1980,
-        1920
+        2840
       ],
       "parameters": {
         "method": "PATCH",
@@ -1480,8 +2636,8 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -1492,54 +2648,18 @@
       "typeVersion": 1,
       "position": [
         880,
-        2080
+        3000
       ],
       "parameters": {}
     },
     {
-      "id": "n19",
-      "name": "Salvar dados de pagamento do lead",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        2200,
-        80
-      ],
-      "notes": "Persiste email/cpf assim que o modelo confirma os dois (gerar_link so dispara com ambos presentes, ver 'Montar mensagens OpenAI'). cpf gravado com digits-only, igual ao enviado ao BlackCat.",
-      "parameters": {
-        "method": "PATCH",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"Extrair mensagem e origem\"].json.wa_id}}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ { email: $node[\"Extrair resposta e intent\"].json.email, cpf: ($node[\"Extrair resposta e intent\"].json.cpf || '').replace(/\\D/g, '') } }}",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpCustomAuth"
-      },
-      "credentials": {
-        "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
-        }
-      }
-    },
-    {
-      "id": "n12",
+      "id": "fd-n12",
       "name": "Buscar SHA do arquivo no GitHub",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         1980,
-        -220
+        2700
       ],
       "notes": "Le o blob SHA atual do arquivo em main -- a API do GitHub exige o SHA da versao que esta sobrescrevendo para aceitar o PUT (evita sobrescrever mudanca concorrente sem querer).",
       "parameters": {
@@ -1560,19 +2680,19 @@
       },
       "credentials": {
         "httpHeaderAuth": {
-          "id": "",
+          "id": "C6veV11Q2srDmrtL",
           "name": "GitHub API"
         }
       }
     },
     {
-      "id": "n13",
+      "id": "fd-n13",
       "name": "Commitar mudanca no GitHub",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         2200,
-        -220
+        2700
       ],
       "notes": "Espelha a versao aprovada (ja aplicada em prompt_ativo) para o arquivo .md correspondente no repo, para historico legivel fora do banco. O Supabase (prompt_ativo) continua sendo a fonte que o agente le em tempo real -- este commit e so rastreabilidade, nao afeta o runtime.",
       "parameters": {
@@ -1600,9 +2720,56 @@
       },
       "credentials": {
         "httpHeaderAuth": {
-          "id": "",
+          "id": "C6veV11Q2srDmrtL",
           "name": "GitHub API"
         }
+      }
+    },
+    {
+      "id": "hs-n26",
+      "name": "Handshake Meta (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        3320
+      ],
+      "notes": "Responde a verificacao do webhook da Meta. Mesmo path do 'WhatsApp IN', metodo GET -- so existe para o handshake; nenhuma mensagem de lead passa por aqui.",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "whatsapp-in",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "hs-n27",
+      "name": "Validar verify token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        3320
+      ],
+      "notes": "Recusa o handshake se o token nao bater, para um terceiro nao conseguir apontar o proprio app da Meta para este webhook. <<WHATSAPP_VERIFY_TOKEN>> e a string que voce inventa e cadastra dos dois lados.",
+      "parameters": {
+        "jsCode": "const q = $input.first().json.query || {};\nconst esperado = '<<WHATSAPP_VERIFY_TOKEN>>';\n\nif (q['hub.mode'] !== 'subscribe' || q['hub.verify_token'] !== esperado) {\n  throw new Error('Handshake recusado: hub.verify_token nao confere com o cadastrado.');\n}\n\n// A Meta exige o challenge devolvido cru, sem aspas nem JSON em volta.\nreturn [{ json: { challenge: q['hub.challenge'] } }];"
+      }
+    },
+    {
+      "id": "hs-n28",
+      "name": "Devolver challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        3320
+      ],
+      "notes": "Texto puro, status 200. Se vier embrulhado em JSON, a Meta recusa a inscricao.",
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.challenge }}",
+        "options": {}
       }
     }
   ],
@@ -1622,83 +2789,7 @@
       "main": [
         [
           {
-            "node": "Upsert lead",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Upsert lead": {
-      "main": [
-        [
-          {
-            "node": "Buscar historico",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Buscar prompt ativo",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Buscar produtos",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Buscar historico": {
-      "main": [
-        [
-          {
-            "node": "Merge contexto",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Buscar prompt ativo": {
-      "main": [
-        [
-          {
-            "node": "Merge contexto",
-            "type": "main",
-            "index": 1
-          }
-        ]
-      ]
-    },
-    "Merge contexto": {
-      "main": [
-        [
-          {
-            "node": "Merge contexto 2",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Buscar produtos": {
-      "main": [
-        [
-          {
-            "node": "Merge contexto 2",
-            "type": "main",
-            "index": 1
-          }
-        ]
-      ]
-    },
-    "Merge contexto 2": {
-      "main": [
-        [
-          {
-            "node": "Montar mensagens OpenAI",
+            "node": "Marcar evento processado",
             "type": "main",
             "index": 0
           }
@@ -1720,7 +2811,7 @@
       "main": [
         [
           {
-            "node": "Extrair resposta e intent",
+            "node": "OpenAI respondeu?",
             "type": "main",
             "index": 0
           }
@@ -1731,7 +2822,7 @@
       "main": [
         [
           {
-            "node": "Enviar WhatsApp",
+            "node": "Preparar resposta ao lead",
             "type": "main",
             "index": 0
           },
@@ -1739,15 +2830,14 @@
             "node": "Arquetipo detectado?",
             "type": "main",
             "index": 0
-          }
-        ]
-      ]
-    },
-    "Enviar WhatsApp": {
-      "main": [
-        [
+          },
           {
-            "node": "Gravar evento conversa",
+            "node": "Intent = sofrimento?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Intent = opt_out?",
             "type": "main",
             "index": 0
           }
@@ -1803,7 +2893,7 @@
       "main": [
         [
           {
-            "node": "Atualizar evento com carrinho",
+            "node": "Venda criada?",
             "type": "main",
             "index": 0
           }
@@ -1814,7 +2904,7 @@
       "main": [
         [
           {
-            "node": "Enviar link WhatsApp",
+            "node": "Preparar link de pagamento",
             "type": "main",
             "index": 0
           }
@@ -1839,11 +2929,409 @@
         ]
       ]
     },
+    "Intent = sofrimento?": {
+      "main": [
+        [
+          {
+            "node": "Preparar alerta de sofrimento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sem sofrimento detectado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "E audio?": {
+      "main": [
+        [
+          {
+            "node": "Buscar URL do audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normalizar texto (sem audio)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar URL do audio": {
+      "main": [
+        [
+          {
+            "node": "Baixar audio binario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baixar audio binario": {
+      "main": [
+        [
+          {
+            "node": "Nomear arquivo de audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcrever audio (Whisper)": {
+      "main": [
+        [
+          {
+            "node": "Usar transcricao como texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Usar transcricao como texto": {
+      "main": [
+        [
+          {
+            "node": "Merge apos audio/texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge apos audio/texto": {
+      "main": [
+        [
+          {
+            "node": "Registrar lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nomear arquivo de audio": {
+      "main": [
+        [
+          {
+            "node": "Transcrever audio (Whisper)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar texto (sem audio)": {
+      "main": [
+        [
+          {
+            "node": "Merge apos audio/texto",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Tem texto para responder?": {
+      "main": [
+        [
+          {
+            "node": "Bufferizar mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar pedido de texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carregar contexto": {
+      "main": [
+        [
+          {
+            "node": "Montar mensagens OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar resposta ao lead": {
+      "main": [
+        [
+          {
+            "node": "Enviar resposta ao lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar resposta ao lead": {
+      "main": [
+        [
+          {
+            "node": "Gravar evento conversa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar link de pagamento": {
+      "main": [
+        [
+          {
+            "node": "Enviar link de pagamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar alerta de sofrimento": {
+      "main": [
+        [
+          {
+            "node": "Enviar alerta de sofrimento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar alerta de sofrimento": {
+      "main": [
+        [
+          {
+            "node": "Marcar sofrimento na conversa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar pedido de texto": {
+      "main": [
+        [
+          {
+            "node": "Enviar pedido de texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar evento processado": {
+      "main": [
+        [
+          {
+            "node": "Mensagem inedita?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem inedita?": {
+      "main": [
+        [
+          {
+            "node": "E audio?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Duplicata ignorada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar lead": {
+      "main": [
+        [
+          {
+            "node": "Lead pediu para parar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead pediu para parar?": {
+      "main": [
+        [
+          {
+            "node": "Tem texto para responder?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Opt-out respeitado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bufferizar mensagem": {
+      "main": [
+        [
+          {
+            "node": "Aguardar rajada (8s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar rajada (8s)": {
+      "main": [
+        [
+          {
+            "node": "Consumir buffer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consumir buffer": {
+      "main": [
+        [
+          {
+            "node": "Ainda sou a ultima?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ainda sou a ultima?": {
+      "main": [
+        [
+          {
+            "node": "Carregar contexto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Superada por mensagem nova",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI respondeu?": {
+      "main": [
+        [
+          {
+            "node": "Extrair resposta e intent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar aviso de falha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar aviso de falha": {
+      "main": [
+        [
+          {
+            "node": "Enviar aviso de falha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intent = opt_out?": {
+      "main": [
+        [
+          {
+            "node": "Registrar opt-out",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Venda criada?": {
+      "main": [
+        [
+          {
+            "node": "Atualizar evento com carrinho",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar falha do link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar falha do link": {
+      "main": [
+        [
+          {
+            "node": "Enviar falha do link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar link de pagamento": {
+      "main": [
+        [
+          {
+            "node": "Guardar link gerado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "BlackCat IN": {
       "main": [
         [
           {
-            "node": "event = paid?",
+            "node": "Marcar webhook processado",
             "type": "main",
             "index": 0
           }
@@ -1854,7 +3342,7 @@
       "main": [
         [
           {
-            "node": "Marcar cliente",
+            "node": "Registrar compra",
             "type": "main",
             "index": 0
           }
@@ -1904,28 +3392,6 @@
         ]
       ]
     },
-    "Marcar cliente": {
-      "main": [
-        [
-          {
-            "node": "Confirmar no WhatsApp",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Confirmar no WhatsApp": {
-      "main": [
-        [
-          {
-            "node": "Gravar evento (venda)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Marcar abandonado": {
       "main": [
         [
@@ -1963,7 +3429,7 @@
       "main": [
         [
           {
-            "node": "Recuperacao texto livre",
+            "node": "Preparar recuperacao de carrinho",
             "type": "main",
             "index": 0
           }
@@ -1971,6 +3437,174 @@
         [
           {
             "node": "Sem acao (ja resolveu)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gravar evento (venda)": {
+      "main": [
+        [
+          {
+            "node": "Buscar conteudo de entrega",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar confirmacao de pagamento": {
+      "main": [
+        [
+          {
+            "node": "Enviar confirmacao de pagamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar confirmacao de pagamento": {
+      "main": [
+        [
+          {
+            "node": "Gravar evento (venda)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar recuperacao de carrinho": {
+      "main": [
+        [
+          {
+            "node": "Enviar recuperacao de carrinho",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar conteudo de entrega": {
+      "main": [
+        [
+          {
+            "node": "Montar entrega",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar entrega": {
+      "main": [
+        [
+          {
+            "node": "Preparar entrega",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar entrega": {
+      "main": [
+        [
+          {
+            "node": "Enviar entrega",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar entrega": {
+      "main": [
+        [
+          {
+            "node": "Gravar entrega",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gravar entrega": {
+      "main": [
+        [
+          {
+            "node": "Falta conteudo de entrega?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Falta conteudo de entrega?": {
+      "main": [
+        [
+          {
+            "node": "Preparar alerta de entrega",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Entrega completa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar alerta de entrega": {
+      "main": [
+        [
+          {
+            "node": "Enviar alerta de entrega",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar webhook processado": {
+      "main": [
+        [
+          {
+            "node": "Webhook inedito?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook inedito?": {
+      "main": [
+        [
+          {
+            "node": "event = paid?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reenvio ignorado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar compra": {
+      "main": [
+        [
+          {
+            "node": "Preparar confirmacao de pagamento",
             "type": "main",
             "index": 0
           }
@@ -2003,14 +3637,36 @@
       "main": [
         [
           {
-            "node": "Enviar template",
+            "node": "Preparar template de follow-up",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Enviar template": {
+    "Preparar template de follow-up": {
+      "main": [
+        [
+          {
+            "node": "Enviar template de follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar template de follow-up": {
+      "main": [
+        [
+          {
+            "node": "Marcar follow-up enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar follow-up enviado": {
       "main": [
         [
           {
@@ -2065,7 +3721,29 @@
       "main": [
         [
           {
-            "node": "Enviar digest WhatsApp",
+            "node": "Preparar digest da fila",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar digest da fila": {
+      "main": [
+        [
+          {
+            "node": "Enviar digest da fila",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar digest da fila": {
+      "main": [
+        [
+          {
+            "node": "Marcar como notificadas",
             "type": "main",
             "index": 0
           }
@@ -2188,6 +3866,28 @@
         [
           {
             "node": "Commitar mudanca no GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handshake Meta (GET)": {
+      "main": [
+        [
+          {
+            "node": "Validar verify token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar verify token": {
+      "main": [
+        [
+          {
+            "node": "Devolver challenge",
             "type": "main",
             "index": 0
           }

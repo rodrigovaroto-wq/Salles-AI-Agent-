@@ -1,0 +1,128 @@
+{
+  "name": "sub-enviar-whatsapp (sub-workflow)",
+  "active": false,
+  "settings": {},
+  "nodes": [
+    {
+      "id": "s1",
+      "name": "Entrada",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "notes": "CONTRATO DE ENTRADA (UM ITEM POR MENSAGEM -- pode receber varios):\n  to             (obrigatorio) numero destino, formato 55DDDNUMERO\n  tipo           'text' (padrao) ou 'template'\n  texto          obrigatorio quando tipo='text'\n  template_nome  obrigatorio quando tipo='template'\n  template_params  array de strings (viram parametros do body, na ordem)\n  template_idioma  padrao 'pt_BR'\n\nAs mensagens sao enviadas NA ORDEM dos itens, com ~900ms entre elas.\nSAIDA: { ok, enviadas, total, erro } -- nunca lanca excecao por falha de envio.",
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "s2",
+      "name": "Montar corpo da mensagem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "notes": "Valida o contrato e monta o corpo da Graph API para CADA item recebido. Erro de contrato LANCA de proposito -- e bug de quem chamou, precisa aparecer alto.",
+      "parameters": {
+        "jsCode": "// Um item por mensagem a enviar. O agente agora responde em 1-3 mensagens\n// curtas em vez de uma parede de texto, entao este node precisa mapear todas.\nreturn $input.all().map(item => {\n  const e = item.json;\n\n  if (!e.to) throw new Error('sub-enviar-whatsapp: campo \"to\" e obrigatorio.');\n\n  if (e.tipo === 'template') {\n    if (!e.template_nome) throw new Error('sub-enviar-whatsapp: tipo=template exige \"template_nome\".');\n    const params = e.template_params || [];\n    return { json: { corpo: {\n      messaging_product: 'whatsapp',\n      to: e.to,\n      type: 'template',\n      template: {\n        name: e.template_nome,\n        language: { code: e.template_idioma || 'pt_BR' },\n        components: params.length\n          ? [{ type: 'body', parameters: params.map(x => ({ type: 'text', text: String(x) })) }]\n          : []\n      }\n    } } };\n  }\n\n  if (!e.texto) throw new Error('sub-enviar-whatsapp: tipo=text exige \"texto\".');\n  return { json: { corpo: {\n    messaging_product: 'whatsapp',\n    to: e.to,\n    type: 'text',\n    text: { body: e.texto }\n  } } };\n});"
+      }
+    },
+    {
+      "id": "s3",
+      "name": "Enviar (Graph API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "notes": "UNICO lugar do projeto com <<WHATSAPP_PHONE_NUMBER_ID>>. batchSize=1 com 900ms garante que as mensagens cheguem NA ORDEM (requisicoes paralelas poderiam inverter) e dá o ritmo de quem digita. onError=continueRegularOutput para o erro chegar normalizado em vez de estourar no fluxo chamador.",
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.corpo }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 900
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Cloud API"
+        }
+      }
+    },
+    {
+      "id": "s4",
+      "name": "Resultado do envio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "notes": "Agrega os envios num resultado unico {ok, enviadas, total, erro}. Nunca lanca: um envio que falha nao pode derrubar o fluxo de venda que chamou.",
+      "parameters": {
+        "jsCode": "// Um resultado por mensagem enviada; agrega para o chamador saber se TUDO saiu.\nconst itens = $input.all().map(i => i.json || {});\nconst resultados = itens.map(r => {\n  const ok = Array.isArray(r.messages) && r.messages.length > 0;\n  if (ok) return { ok: true, id_mensagem: r.messages[0].id, erro: null, codigo: null };\n  const err = r.error || {};\n  let erro = err.message || 'falha desconhecida no envio';\n  // 131047: janela de 24h fechada. Texto livre nao passa; so template aprovado.\n  if (err.code === 131047) erro = 'janela de 24h fechada (131047) -- so template aprovado reabre a conversa';\n  return { ok: false, id_mensagem: null, erro, codigo: err.code || null };\n});\n\nconst falhas = resultados.filter(r => !r.ok);\nreturn [{ json: {\n  ok: falhas.length === 0,\n  enviadas: resultados.length - falhas.length,\n  total: resultados.length,\n  erro: falhas.length ? falhas[0].erro : null,\n  codigo: falhas.length ? falhas[0].codigo : null,\n  resultados\n} }];"
+      }
+    }
+  ],
+  "connections": {
+    "Entrada": {
+      "main": [
+        [
+          {
+            "node": "Montar corpo da mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar corpo da mensagem": {
+      "main": [
+        [
+          {
+            "node": "Enviar (Graph API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar (Graph API)": {
+      "main": [
+        [
+          {
+            "node": "Resultado do envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

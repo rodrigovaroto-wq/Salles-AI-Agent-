@@ -181,15 +181,81 @@ Hermes pedindo para executar a tarefa **uma vez agora**, e confira:
   certos?
 - Nenhuma chamada foi feita a WhatsApp/Telegram/etc.?
 
-## 10. Ponto de segurança a endurecer depois (não bloqueia o MVP)
+## 10. Trocar a `service_role key` por um role restrito
 
-Usar a `service_role key` do Supabase no Hermes dá acesso total ao banco, não
-só a leitura de `conversas`/`aprendizado` e escrita em `fila_sugestoes`. Para
-produção, o ideal é criar um **role Postgres dedicado** no Supabase com
-`GRANT SELECT` só nas tabelas de leitura e `GRANT INSERT` só em
-`fila_sugestoes`, e gerar um JWT restrito a esse role para o Hermes usar no
-lugar da `service_role key`. Registrado aqui como próximo passo de
-hardening, não bloqueia o funcionamento.
+A `service_role key` dá acesso total ao banco e ignora RLS. O Hermes só
+precisa **ler** conversas/métricas e **inserir** sugestões na fila — com a
+chave total, um prompt mal formulado (ou comprometido) conseguiria apagar
+leads, reescrever `prompt_ativo` ou vazar PII. O role abaixo torna isso
+impossível no nível do banco, em vez de depender de o agente se comportar.
+
+### 10a. Criar o role
+
+Rode [`../supabase/role-hermes.sql`](../supabase/role-hermes.sql) no SQL
+Editor do Supabase. É idempotente — pode rodar de novo sem estragar nada.
+
+O que ele concede, e só isso:
+
+| Tabela | Permissão | Por quê |
+|---|---|---|
+| `conversas` | `SELECT` | é o material de análise |
+| `metricas_periodo` | `SELECT` | agregados de performance |
+| `fila_sugestoes` | `SELECT`, `INSERT` | lê o cursor, grava hipóteses |
+
+E o que ele **não** alcança, de propósito: `leads` (nome, e-mail, CPF —
+minimização de dados da LGPD; o Hermes analisa texto de conversa, não precisa
+de PII), `prompt_ativo` (quem aplica é o n8n, depois do seu aval),
+`produtos`, e qualquer `UPDATE`/`DELETE` em qualquer lugar.
+
+Uma policy extra vale destacar: o `INSERT` em `fila_sugestoes` só passa com
+`status = 'pendente'`. **O Hermes não consegue gravar uma sugestão já marcada
+como aprovada** e pular a sua decisão — o gate humano deixa de ser convenção e
+vira garantia do banco.
+
+### 10b. Gerar o token
+
+```bash
+export SUPABASE_JWT_SECRET='<Settings → API → JWT Settings → JWT Secret>'
+python3 30-integracoes/supabase/gerar-jwt-hermes.py --dias 365
+```
+
+Use um script local em vez do jwt.io: assinar lá significa colar o JWT Secret
+do projeto num site de terceiro, e esse segredo assina **qualquer** role,
+inclusive `service_role`. O gerador usa só a stdlib — nada sai da máquina.
+
+**Anote a data de validade.** Quando o token vencer, o Hermes para de gravar
+sugestões — e falha silenciosa, porque ninguém está olhando a fila vazia.
+
+### 10c. Trocar no `.env` e reiniciar
+
+Substitua o valor de `SUPABASE_SERVICE_KEY` pelo token gerado (o nome da
+variável continua o mesmo — é só o header `Authorization` que o Hermes manda)
+e `docker compose up -d --force-recreate`.
+
+**Confirme que a restrição pegou de verdade:**
+
+```bash
+# deve devolver dados
+curl -s "$SUPABASE_URL/rest/v1/conversas?limit=1" \
+  -H "apikey: $TOKEN" -H "Authorization: Bearer $TOKEN"
+
+# deve devolver vazio ou erro de permissão -- se vier PII de lead, o role
+# não está sendo aplicado e você ainda está usando a chave total
+curl -s "$SUPABASE_URL/rest/v1/leads?limit=1" \
+  -H "apikey: $TOKEN" -H "Authorization: Bearer $TOKEN"
+```
+
+> **Não testado contra uma instância real.** O mecanismo (claim `role` no JWT
+> → `SET ROLE` no PostgREST, `grant <role> to authenticator`) é o documentado
+> pelo Supabase, mas eu não tenho acesso ao seu banco para validar. Se o
+> segundo `curl` devolver dados de lead, pare e me avise antes de considerar
+> o hardening concluído.
+
+> **Consciência residual:** a `service_role key` foi colada no histórico de
+> chat do Hermes em sessões anteriores. Trocar o token do `.env` não apaga
+> isso. Se quiser fechar de vez, rotacione a chave em
+> `Settings → API → service_role` — lembrando que o n8n usa a mesma chave e
+> precisará ser atualizado junto.
 
 ---
 
@@ -204,7 +270,10 @@ hardening, não bloqueia o funcionamento.
       `provider: "custom"` confirmado
 - [ ] Tarefa diária criada via `hermes cron create --workdir` (seção 8)
 - [ ] Teste manual (seção 9) validado, incluindo checar se o `AGENTS.md` foi carregado
-- [ ] (Depois) role Postgres restrito para substituir a service_role key
+- [ ] `role-hermes.sql` rodado no Supabase (seção 10a)
+- [ ] JWT do `hermes_agent` gerado e trocado no `.env` (seções 10b/10c)
+- [ ] Confirmado que o token **não** lê a tabela `leads` (curl da seção 10c)
+- [ ] Data de validade do token anotada
 
 ## Relacionado
 - [`../../AGENTS.md`](../../AGENTS.md) — contexto persistente injetado via `--workdir`

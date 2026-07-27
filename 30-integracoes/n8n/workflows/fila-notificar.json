@@ -32,18 +32,18 @@
         220,
         0
       ],
-      "notes": "order alfabetico de risco_conformidade coloca 'alto' antes de 'baixo' e 'medio' naturalmente (a < b < m).",
+      "notes": "#12 Sem o filtro de notificado_em, o digest reenviava as mesmas sugestoes todo dia ate voce decidir.",
       "parameters": {
         "method": "GET",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?status=eq.pendente&order=risco_conformidade.asc,criado_em.desc",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?status=eq.pendente&notificado_em=is.null&order=risco_conformidade.asc,criado_em.desc",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -92,17 +92,63 @@
       }
     },
     {
-      "id": "n5",
-      "name": "Enviar digest WhatsApp",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "id": "n6",
+      "name": "Nada pendente",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        660,
+        80
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "n5p",
+      "name": "Preparar digest da fila",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         880,
         -80
       ],
+      "notes": "",
       "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
+        "jsCode": "return [{ json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: $json.texto } }];"
+      }
+    },
+    {
+      "id": "n5x",
+      "name": "Enviar digest da fila",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        -80
+      ],
+      "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G1sbNfyXXIwL3Cmh",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n7",
+      "name": "Marcar como notificadas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        0
+      ],
+      "notes": "Marca so o que entrou neste digest. Sugestao nova criada depois continua pendente para o proximo.",
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/fila_sugestoes?status=eq.pendente&notificado_em=is.null",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -114,28 +160,17 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { messaging_product: 'whatsapp', to: '<<RODRIGO_WA_NUMBER>>', type: 'text', text: { body: $json.texto } } }}",
+        "jsonBody": "={{ { notificado_em: new Date().toISOString() } }}",
         "options": {},
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth"
+        "genericAuthType": "httpCustomAuth"
       },
       "credentials": {
-        "httpHeaderAuth": {
-          "id": "",
-          "name": "WhatsApp Cloud API"
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
-    },
-    {
-      "id": "n6",
-      "name": "Nada pendente",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [
-        660,
-        80
-      ],
-      "parameters": {}
     }
   ],
   "connections": {
@@ -183,7 +218,29 @@
       "main": [
         [
           {
-            "node": "Enviar digest WhatsApp",
+            "node": "Preparar digest da fila",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar digest da fila": {
+      "main": [
+        [
+          {
+            "node": "Enviar digest da fila",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar digest da fila": {
+      "main": [
+        [
+          {
+            "node": "Marcar como notificadas",
             "type": "main",
             "index": 0
           }

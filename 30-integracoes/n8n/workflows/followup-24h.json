@@ -32,18 +32,18 @@
         220,
         0
       ],
-      "notes": "HTTP Request mantem o array inteiro como 1 item por padrao (nao explode sozinho) -- por isso o node seguinte separa explicitamente.",
+      "notes": "#1 Antes so filtrava por ultima_interacao, e nada marcava o envio: o mesmo lead recebia template TODA HORA, para sempre -- 24/dia, o suficiente para derrubar a qualidade da conta e levar a banimento. Agora exige consentimento (#4, compliance secao 5), teto de 2 follow-ups por lead, e intervalo minimo de 48h entre eles. O 'or' com is.null cobre quem nunca recebeu (#13: 'lt' nao casa NULL).",
       "parameters": {
         "method": "GET",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?status=in.(ativo,abandonou)&ultima_interacao=lt.{{new Date(Date.now()-24*60*60*1000).toISOString()}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?status=in.(ativo,abandonou)&consentimento_contato=eq.true&followups_enviados=lt.2&ultima_interacao=lt.{{new Date(Date.now()-24*60*60*1000).toISOString()}}&or=(ultimo_followup_em.is.null,ultimo_followup_em.lt.{{new Date(Date.now()-48*60*60*1000).toISOString()}})",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     },
@@ -53,7 +53,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        330,
+        440,
         0
       ],
       "notes": "Transforma o array unico em N itens n8n, um por lead, para os proximos nodes rodarem por item automaticamente.",
@@ -62,49 +62,13 @@
       }
     },
     {
-      "id": "n3",
-      "name": "Enviar template",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        440,
-        0
-      ],
-      "notes": "WHATSAPP_TEMPLATE_NAME = nome do template aprovado pela Meta (ver ../../whatsapp/README.md secao 9). Fora da janela 24h so template serve.",
-      "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/<<WHATSAPP_PHONE_NUMBER_ID>>/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $json.lead_id, type: 'template', template: { name: '<<WHATSAPP_TEMPLATE_NAME>>', language: { code: 'pt_BR' }, components: [{ type: 'body', parameters: [{ type: 'text', text: $json.nome || '' }] }] } } }}",
-        "options": {},
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth"
-      },
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "",
-          "name": "WhatsApp Cloud API"
-        }
-      }
-    },
-    {
       "id": "n4",
       "name": "Gravar evento (follow-up)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        660,
-        0
+        1320,
+        80
       ],
       "parameters": {
         "method": "POST",
@@ -127,8 +91,78 @@
       },
       "credentials": {
         "httpCustomAuth": {
-          "id": "",
-          "name": "Supabase (apikey+auth)"
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "n3p",
+      "name": "Preparar template de follow-up",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "notes": "Fora da janela de 24h so um template aprovado reabre a conversa. O template precisa ter EXATAMENTE uma variavel no corpo (o nome) e existir em pt_BR -- ver ../../whatsapp/README.md secao 9.",
+      "parameters": {
+        "jsCode": "return [{ json: { to: $json.lead_id, tipo: 'template', template_nome: '<<WHATSAPP_TEMPLATE_NAME>>', template_idioma: 'pt_BR', template_params: [$json.nome || ''] } }];"
+      }
+    },
+    {
+      "id": "n3x",
+      "name": "Enviar template de follow-up",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        0
+      ],
+      "notes": "Chama sub-enviar-whatsapp. Selecione o sub-workflow no dropdown apos importar -- o ID nao viaja entre instancias.",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G1sbNfyXXIwL3Cmh",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n5",
+      "name": "Marcar follow-up enviado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        0
+      ],
+      "notes": "#1 Sem este passo o lead volta a casar na query na hora seguinte. Incrementa via RPC-livre: le o valor atual do proprio item.",
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.lead_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { ultimo_followup_em: new Date().toISOString(), followups_enviados: ($json.followups_enviados || 0) + 1 } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
         }
       }
     }
@@ -160,14 +194,36 @@
       "main": [
         [
           {
-            "node": "Enviar template",
+            "node": "Preparar template de follow-up",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Enviar template": {
+    "Preparar template de follow-up": {
+      "main": [
+        [
+          {
+            "node": "Enviar template de follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar template de follow-up": {
+      "main": [
+        [
+          {
+            "node": "Marcar follow-up enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar follow-up enviado": {
       "main": [
         [
           {

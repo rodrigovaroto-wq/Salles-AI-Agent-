@@ -75,10 +75,12 @@ n8n, é o valor puro mesmo:
 | `https://salles-ai-agent.pikapod.net` (URL do pod n8n) | preenchido | `agente-vendas` (postbackUrl do BlackCat), `fila-notificar` (link de decisão) |
 | `<<WHATSAPP_PHONE_NUMBER_ID>>` | `../../whatsapp/README.md` — só existe depois da verificação Meta | `agente-vendas`, `pagamento-blackcat`, `followup-24h`, `fila-notificar` |
 | `<<WHATSAPP_TEMPLATE_NAME>>` | Nome do template aprovado pela Meta | `followup-24h` |
-| `<<RODRIGO_WA_NUMBER>>` | Seu número, para receber o digest do Hermes | `fila-notificar` |
+| `<<WHATSAPP_VERIFY_TOKEN>>` | String que você inventa e cadastra dos dois lados | `agente-vendas` (nó `Validar verify token`) |
+| `<<RODRIGO_WA_NUMBER>>` | Seu número | `fila-notificar` (digest do Hermes), `agente-vendas` (alerta de handoff por sofrimento) |
 
-**Os 3 placeholders que restam** (`<<WHATSAPP_PHONE_NUMBER_ID>>`,
-`<<WHATSAPP_TEMPLATE_NAME>>`, `<<RODRIGO_WA_NUMBER>>`) dependem do
+**Os 4 placeholders que restam** (`<<WHATSAPP_PHONE_NUMBER_ID>>`,
+`<<WHATSAPP_TEMPLATE_NAME>>`, `<<RODRIGO_WA_NUMBER>>`,
+`<<WHATSAPP_VERIFY_TOKEN>>`) dependem do
 WhatsApp/BlackCat, que estão pausados. Quando tiver os valores, me passe
 aqui (não é segredo — URLs, IDs de telefone e nome de template podem vir no
 chat sem problema; o que **não** deve vir aqui é a `service_role key` ou
@@ -89,8 +91,8 @@ validação de integridade.
 
 | Arquivo | Gatilho | O que faz |
 |---|---|---|
-| `agente-vendas.json` | 1 | Recebe mensagem → busca lead/histórico/prompt ativo/**catálogo de produtos** (2 Merges) → chama OpenAI já informado dos produtos, preços e tags de **pivô por objeção/arquétipo** (saída em JSON estruturado: `resposta` + `intent` + `arquetipo`) → envia WhatsApp → grava evento → **detecta e grava o arquétipo do lead** (se houver sinal real) → se `intent=gerar_link`, monta carrinho com preço **real do Supabase** e desconto **efetivamente aplicado**, cria venda no BlackCat, e grava o desconto/link de volta no evento |
-| `pagamento-blackcat.json` | 2 e 3 | Recebe webhook do BlackCat → roteia por `event` (cadeia de IFs) → `paid`: marca cliente e confirma → `created`: marca abandonado, **espera 2h** (node `Wait`, sobrevive a reinício do pod) e reabre se ainda abandonado → `failed`: libera para follow-up |
+| `agente-vendas.json` | 1 | Recebe mensagem → **se for áudio, baixa e transcreve via Whisper antes de seguir** (ver nota abaixo) → busca lead/histórico/prompt ativo/**catálogo de produtos** (2 Merges) → chama OpenAI já informado dos produtos, preços e tags de **pivô por objeção/arquétipo** (saída em JSON estruturado: `resposta` + `intent` + `arquetipo`) → envia WhatsApp → grava evento → **detecta e grava o arquétipo do lead** (se houver sinal real) → se `intent=gerar_link`, monta carrinho com preço **real do Supabase** e desconto **efetivamente aplicado**, cria venda no BlackCat, e grava o desconto/link de volta no evento → **se `intent=sofrimento`, notifica o Rodrigo no WhatsApp e marca `status=aguardando_humano`** (handoff, ver nota abaixo) |
+| `pagamento-blackcat.json` | 2 e 3 | Recebe webhook do BlackCat → roteia por `event` (cadeia de IFs) → `paid`: marca cliente, confirma e **entrega o produto pelo WhatsApp** (lendo `produtos.entrega_texto`) → `created`: marca abandonado, **espera 2h** (node `Wait`, sobrevive a reinício do pod) e reabre se ainda abandonado → `failed`: libera para follow-up |
 | `followup-24h.json` | 4 | A cada hora, busca leads sem compra há >24h, separa em itens e envia o template aprovado |
 | `fila-notificar.json` | ciclo Hermes | Todo dia às 8h, busca sugestões pendentes (risco alto primeiro) e manda um resumo com links de aprovar/rejeitar para você no WhatsApp |
 | `fila-decidir.json` | ciclo Hermes | Recebe o clique do link → registra a decisão → se aprovada, **aplica sozinho**: desativa a versão antiga em `prompt_ativo`, insere a nova (rollback fica preservado, nada é apagado) e **espelha a mudança no git** (commit direto no arquivo `.md` correspondente via API do GitHub) |
@@ -180,6 +182,107 @@ usa `externalReference` (não `externalRef`) e `transactionId` (não `id`).
   modelo retorna um valor não vazio — evita apagar um arquétipo já
   identificado numa mensagem anterior só porque a mensagem atual não deu
   sinal novo.
+- **Transcrição de áudio (`agente-vendas.json`):** "Extrair mensagem e
+  origem" agora também captura `tipo_mensagem` e `audio_media_id`. O IF
+  "É áudio?" desvia para baixar o binário (`Buscar URL do audio` →
+  `Baixar audio binario`, ambos autenticados com a credencial do WhatsApp
+  Cloud API) e transcrever com Whisper (`Transcrever audio (Whisper)`,
+  reaproveita a credencial `OpenAI`). O node `Merge apos audio/texto`
+  (`mode: append`) reconverge os dois ramos — daí em diante, **todo node que
+  precisa do texto da mensagem lê de `Merge apos audio/texto`, não mais de
+  `Extrair mensagem e origem`** (que continua sendo a fonte de `wa_id`,
+  `nome` e `origem`, que não mudam com a transcrição).
+- **`Nomear arquivo de audio` não é opcional:** a URL de mídia do Graph não
+  tem extensão no nome, e a API da OpenAI decide o formato **pelo nome do
+  arquivo** — sem esse node o upload é recusado por formato inválido. O
+  WhatsApp entrega voz em OGG/Opus, então o binário é nomeado `audio.ogg`.
+- **Falha de áudio degrada, não derruba:** os três nodes do ramo de áudio
+  usam `onError: continueRegularOutput`. Se o download ou a transcrição
+  falhar, o fluxo segue com texto vazio em vez de abortar a execução — e cai
+  no gate abaixo, que responde com honestidade.
+- **`Tem texto para responder?` fecha o buraco da resposta no vácuo:** um
+  único IF depois do upsert cobre **toda** mensagem sem texto legível —
+  áudio cuja transcrição falhou, imagem, figurinha, mensagem vazia. Em vez
+  de mandar um prompt vazio para a OpenAI (e o agente responder inventando o
+  que a pessoa disse — o que `objecoes.md` seção O proíbe), envia a resposta
+  honesta pedindo que reescreva em texto. De quebra, economiza a chamada de
+  IA. O lead **é registrado antes do gate**, então o contato nunca se perde.
+- **E-mail/CPF de quem já comprou não são pedidos de novo:** o `Upsert lead`
+  usa `return=representation` com `merge-duplicates`, então a linha que ele
+  devolve já traz `email`/`cpf` gravados numa conversa anterior — sem query
+  extra. Esses valores entram no system prompt ("DADOS JÁ CONHECIDOS") e
+  também servem de fallback em "Criar venda BlackCat" e "Salvar dados de
+  pagamento do lead" (que assim **nunca sobrescreve um dado bom com vazio**).
+  Isso remove uma fricção de recompra: o cliente recorrente vai direto ao
+  link.
+- **Handoff humano por sofrimento (`agente-vendas.json`):** o prompt agora
+  instrui o modelo a retornar `intent="sofrimento"` quando detectar o sinal
+  descrito em `../../../00-nucleo/objecoes.md` (seção P). O IF "Intent =
+  sofrimento?" dispara `Notificar Rodrigo (sofrimento)` (WhatsApp para
+  `<<RODRIGO_WA_NUMBER>>`) e sempre grava `leads.status=aguardando_humano`,
+  mesmo que a notificação falhe ou o número ainda não exista — preserva o
+  sinal para conferência manual enquanto o WhatsApp está pausado.
+- **Entrega pelo WhatsApp (`pagamento-blackcat.json`):** confirmado o
+  pagamento, o fluxo lê `produtos.entrega_texto` do catálogo e manda o acesso
+  de cada item comprado. O conteúdo mora no banco, não no workflow — trocar um
+  áudio ou o link do grupo é um `UPDATE`, sem republicar nada.
+- **Produto sem conteúdo cadastrado não vira silêncio:** se faltar
+  `entrega_texto`, a cliente recebe "seu acesso chega em seguida por este
+  WhatsApp" e o Rodrigo é alertado no próprio número para entregar na mão. O
+  pior desfecho possível aqui é a pessoa pagar e não receber mensagem nenhuma.
+- **Não há oferta de upsell pós-compra.** Existiu uma (10 min após o
+  pagamento) e foi removida por decisão da operação: oferecer algo novo antes
+  de entregar o que já foi pago é o caminho curto para chargeback.
+
+## `workflow-completo.json` é gerado, não editado à mão
+
+```bash
+python3 30-integracoes/n8n/workflows/gerar-workflow-completo.py
+```
+
+**Rode isso sempre que editar um dos 5 arquivos individuais.** O consolidado
+precisa ser a soma exata deles; mantido à mão ele diverge — foi exatamente o
+que aconteceu antes (três nós ficaram sem prefixo de ramo e os mecanismos
+novos nunca chegaram nele). O gerador prefixa os `id` por ramo, desloca cada
+ramo verticalmente para não se sobreporem, e **falha** se dois ramos tiverem
+um nó com o mesmo nome (conexões e expressões `$node["..."]` referenciam por
+nome — nome duplicado geraria um consolidado silenciosamente quebrado).
+
+## Correções de robustez (auditoria de 2026-07-26)
+
+Treze defeitos encontrados e fechados. Os quatro primeiros anulavam mecanismos
+de segurança que já existiam — não eram melhorias, eram buracos.
+
+| # | Defeito | Como ficou |
+|---|---|---|
+| 1 | `followup-24h` reenviava template **de hora em hora, para sempre** (24/dia por lead) — derrubaria a qualidade da conta até o banimento | Contador `followups_enviados` (teto 2), `ultimo_followup_em` com intervalo mínimo de 48h, e o envio agora marca o lead |
+| 2 | O upsert gravava `status='ativo'` em toda mensagem, apagando `opt_out`, `aguardando_humano` e `cliente` | `registrar_lead()` nunca toca no status; a origem só entra se ainda não houver uma |
+| 3 | Nada checava o estado do lead antes de vender — o handoff valia só para a mensagem que o disparou | `opt_out` barra antes da OpenAI; `aguardando_humano` entra em **modo sem venda** no system prompt |
+| 4 | `consentimento_contato` nunca era usado, e não havia como a lead pedir para sair | Follow-up filtra por consentimento; novo `intent="opt_out"` grava `status` e derruba o consentimento |
+| 5 | Sem idempotência: reenvio de webhook gerava resposta e **entrega duplicadas** | Tabela `eventos_processados` com `Prefer: resolution=ignore-duplicates` — atômico, sem janela entre checar e inserir |
+| 6 | `produtos_comprados` era sobrescrito na segunda compra | `registrar_compra()` concatena e avança `etapa_funil` |
+| 7 | Falha de OpenAI ou BlackCat abortava a execução — a lead ficava no silêncio | Ambos com `onError`; caminho de erro avisa a lead e alerta o Rodrigo |
+| 8 | Três mensagens seguidas = três execuções paralelas respondendo cego | Buffer + espera de 8s; só a última consome e responde, com o texto das três |
+| 9 | Resposta de 428 caracteres em 14 linhas numa mensagem só | Modelo devolve `mensagens[]` (1–3 curtas); sub-workflow envia em ordem, 900ms entre elas |
+| 10 | Janela de histórico de 10 eventos, gasta com registros sem texto | 20 eventos, e só os que têm mensagem |
+| 11 | O agente não sabia o que a lead já comprou | `carregar_contexto` devolve o lead; o catálogo ofertável exclui o que ela tem |
+| 12 | Digest do Hermes reenviava as mesmas sugestões todo dia | `notificado_em` filtra e é marcado após o envio |
+| 13 | `ultima_interacao` nulo nunca entrava no follow-up; link duplicado se pedisse duas vezes | `or=(...is.null)` na query; link válido por 30 min é reenviado em vez de recriado |
+
+Depende de [`../../supabase/migracao-robustez.sql`](../../supabase/migracao-robustez.sql).
+**Sem rodar essa migração os workflows chamam RPC inexistente e o agente não
+responde nada.**
+
+### O debounce, em detalhe
+
+Vale entender porque ele é o mais sutil. Cada mensagem entra no buffer e grava
+seu `msg_id` no lead. A execução espera 8s e chama `consumir_buffer`, que só
+devolve texto **se aquele `msg_id` ainda for o último**. Quem foi superado
+recebe `null` e encerra em silêncio.
+
+O ganho não é só evitar corrida: quem escreve em três pedaços ("oi" / "vi o
+anúncio" / "quanto custa?") recebia três respostas desencontradas, cada uma
+sem conhecer as outras. Agora recebe uma resposta que considera as três.
 
 ## Convenção de layout (para novos workflows)
 
