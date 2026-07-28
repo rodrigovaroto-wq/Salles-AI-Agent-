@@ -6,7 +6,7 @@ Marque conforme avança.
 Estimativa: ~1h30 de trabalho seu, fora o tempo de aprovação da Meta.
 
 ---
-
+**FEITO**
 ## 1️⃣ Supabase Storage — hospedar os arquivos (15 min)
 
 O WhatsApp precisa baixar o arquivo de uma **URL pública**. O GitHub não serve
@@ -72,7 +72,7 @@ https://rmvmqmcfcjmcjtonewgi.supabase.co/storage/v1/object/public/entrega/oracao
 > só recebe o texto. Confira que os 15 nomes batem exatamente.
 
 ---
-
+**FEITO**
 ## 2️⃣ Supabase SQL — rodar 5 arquivos, nesta ordem (15 min)
 
 > Você já rodou esta etapa. **Rode o 2.3 de novo**: os áudios foram convertidos
@@ -111,7 +111,7 @@ select chave, versao from prompt_ativo where ativo;             -- 3 chaves
 ```
 
 ---
-
+**FEITO** - Parcialmente (Apenas BravoPay)
 ## 3️⃣ Gateways — gerar as chaves (20 min)
 
 ### BravoPay (entradas: principal + order bumps)
@@ -130,7 +130,7 @@ select chave, versao from prompt_ativo where ativo;             -- 3 chaves
    `charge.payment_failed`, `subscription.canceled`
 
 ---
-
+**À FAZER**
 ## 4️⃣ OpenAI — créditos (2 min)
 
 Adicionar saldo na conta. Sem isso, três coisas param juntas: o agente não
@@ -150,7 +150,7 @@ Anote e me mande:
 | Nome do template | o nome exato do template de follow-up aprovado |
 
 ---
-
+**À FAZER**
 ## 6️⃣ n8n — credenciais (10 min)
 
 Painel do n8n → **Credentials** → New. Os nomes têm que ser **exatos**:
@@ -166,7 +166,7 @@ Painel do n8n → **Credentials** → New. Os nomes têm que ser **exatos**:
 > No terminal: `echo -n 'sk_sua_chave:' | base64`
 
 ---
-
+**À FAZER**
 ## 7️⃣ n8n — me destravar (2 min) ⭐
 
 **No card de cada um dos 7 workflows → habilitar acesso MCP.**
@@ -180,7 +180,7 @@ Este é o passo de maior alavancagem da lista. Com ele, eu faço daqui:
 Sem ele, cada um desses vira trabalho manual seu no editor.
 
 ---
-
+**À FAZER**
 ## 8️⃣ Depois disso — comigo
 
 Quando 1 a 7 estiverem prontos, eu:
@@ -189,7 +189,7 @@ Quando 1 a 7 estiverem prontos, eu:
 - rodo o roteiro do `VALIDACAO.md` §3.5 ponta a ponta
 
 ---
-
+**À FAZER**
 ## 9️⃣ Os dois testes que decidem tudo
 
 Antes de ligar qualquer anúncio:
