@@ -72,7 +72,7 @@ https://rmvmqmcfcjmcjtonewgi.supabase.co/storage/v1/object/public/entrega/oracao
 > só recebe o texto. Confira que os 15 nomes batem exatamente.
 
 ---
-**FEITO**
+**FEITO PARCIALMENTE** - Ainda nao tenho o link da comunidade
 ## 2️⃣ Supabase SQL — rodar 5 arquivos, nesta ordem (15 min)
 
 > Você já rodou esta etapa. **Rode o 2.3 de novo**: os áudios foram convertidos
@@ -137,7 +137,7 @@ Adicionar saldo na conta. Sem isso, três coisas param juntas: o agente não
 responde, a transcrição de áudio não funciona e o Hermes não roda.
 
 ---
-
+**À FAZER** - Ja tenho as infos, só nao acabei ainda
 ## 5️⃣ Meta / WhatsApp — 4 valores (10 min)
 
 Anote e me mande:
