@@ -23,37 +23,55 @@ O Pagar.me oferece dois caminhos para isso:
 A `secret_key` fica **apenas** como Credential do n8n. A `public_key` (`pk_`) é
 a única que pode aparecer em página; hoje não usamos nenhuma.
 
-## Fluxo da assinatura
+## Fluxo da assinatura — dois momentos, de propósito
+
+A entrada e a mensalidade **não** acontecem no mesmo checkout. Isso foi decisão,
+não limitação:
 
 ```
-lead aceita a Comunidade na conversa
+lead aceita a Comunidade / Contato com o Padre
         │
         ▼
-agente pede e-mail + CPF (já faz isso hoje)
+BravoPay: cobrança da ENTRADA por Pix (R$ 44,90 ou R$ 19,90)
+        │  a cliente paga no app do banco, sem cartão
+        ▼
+webhook transaction.paid → entrega (PDF, áudios, link do grupo)
         │
         ▼
-n8n: POST /core/v5/paymentlinks   → devolve url do checkout
-        │                            (entrada R$ 44,90 + assinatura R$ 9,78/mes,
-        │                             trial de 30 dias)
+Pagar.me: POST /paymentlinks devolve a url do checkout
+        │  o agente manda: "seus 30 dias são um presente; cadastre seu cartão aqui"
         ▼
-agente manda a url no WhatsApp
+cliente digita o cartão NA PÁGINA DO PAGAR.ME
         │
         ▼
-cliente preenche o cartão na página do Pagar.me
+webhook subscription.created → assinaturas: status='trial', até o dia 30
         │
         ▼
-webhook subscription.created  → assinaturas: status='trial', trial_ate=+30d
-webhook order.paid            → entrega (PDF, áudios, link do grupo)
-        │
-        ▼
-dia 31 em diante: Pagar.me cobra o cartão sozinho
-        charge.paid   → proxima_cobranca += 30d, status='ativa'
-        charge.failed → status='inadimplente' + alerta ao Rodrigo
+dia 31: Pagar.me cobra o cartão sozinho, todo mês
+        charge.paid           → proxima_cobranca += 30d, status='ativa'
+        charge.payment_failed → status='inadimplente'
+        subscription.canceled → status='cancelada'
 ```
 
-A diferença prática para o BlackCat: **a partir do dia 31 ninguém precisa fazer
-nada**. Sem link mensal, sem a cliente lembrar de pagar, sem churn por
-esquecimento.
+**Por que não tudo no Pagar.me, num checkout só?** Porque assinatura exige
+cartão, e o público é 45–60+ — boa parte paga por Pix e pode nem ter cartão de
+crédito. Jogar a entrada para dentro do checkout de assinatura trocaria Pix por
+cartão na hora da compra, que é justamente onde está o dinheiro mais garantido.
+
+**O custo dessa escolha:** existe uma janela em que a cliente pagou a entrada,
+recebeu tudo, e ainda não cadastrou o cartão. Ela tem 30 dias de acesso de
+qualquer forma (é o trial), então ninguém é prejudicado — mas quem não cadastrar
+some no dia 31 sem nunca ter pago mensalidade. Vale acompanhar essa conversão
+nos primeiros meses:
+
+```sql
+select produto_id, count(*) filter (where status = 'trial') as sem_cartao,
+       count(*) filter (where status = 'ativa') as pagando
+from assinaturas group by produto_id;
+```
+
+Se muita gente ficar em `trial` sem virar `ativa`, o convite precisa de reforço
+(um lembrete no dia 25, por exemplo) — hoje ele é enviado uma vez só.
 
 ## Endpoints usados
 
@@ -102,13 +120,33 @@ São duas assinaturas independentes: a cliente pode ter uma, outra ou as duas.
 Com as duas, são R$ 15,25/mês a partir do dia 31. A tabela `assinaturas` já tem
 `unique (lead_id, produto_id)`, então cada uma vira uma linha própria.
 
+## Autenticação do webhook — resolvida por confirmação na fonte
+
+A documentação pública do Pagar.me **não especifica** o mecanismo de
+autenticação do webhook (não há HMAC documentado, como o BravoPay tem). Em vez
+de adivinhar um esquema de assinatura, o workflow **não confia no payload**:
+o node `Confirmar no Pagar.me` faz um `GET /subscriptions/{id}` antes de gravar
+qualquer coisa.
+
+Um webhook forjado aponta para uma assinatura que não existe (ou não é da nossa
+conta) e a chamada falha — o evento é descartado. Custa uma requisição por
+evento, e remove a dúvida por completo.
+
+Quando a conta existir, vale confirmar no painel se há Basic Auth ou assinatura
+disponível; se houver, dá para somar às duas verificações.
+
 ## O que falta
 
-- [ ] `secret_key` de produção como Credential `Pagar.me API` no n8n
-      (Header Auth, `Authorization: Basic base64(sk_xxx:)`)
-- [ ] Webhook cadastrado no painel apontando para `/webhook/pagarme`
-- [ ] Workflow `pagamento-pagarme.json` — **ainda não construído**. Agora
-      desbloqueado: a doc do BravoPay chegou e a divisão está fechada
+- [x] Workflow `pagamento-pagarme.json` construído (17 nodes)
+- [x] Criação do link de assinatura embutida no fluxo de entrega
+- [ ] Criar a conta e pegar a `secret_key`
+- [ ] Credential `Pagar.me API` no n8n — Header Auth,
+      `Authorization` = `Basic <base64 de "sk_xxx:">`
+- [ ] **Trocar `<<PAGARME_CREDENTIAL_ID>>`** nos dois workflows pelo id real da
+      credential (aparece na URL ao abrir a credential no n8n)
+- [ ] Webhook no painel → `https://salles-ai-agent.pikapod.net/webhook/pagarme`,
+      eventos: `charge.paid`, `charge.payment_failed`, `subscription.created`,
+      `subscription.canceled`
 
 ## BravoPay — documentado, divisão fechada
 

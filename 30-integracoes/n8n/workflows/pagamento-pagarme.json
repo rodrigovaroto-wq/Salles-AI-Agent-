@@ -1,0 +1,644 @@
+{
+  "name": "pagamento-pagarme (assinaturas)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pagarme",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "pm-in",
+      "name": "Pagar.me IN",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        0
+      ],
+      "notes": "Webhook das assinaturas. A doc publica do Pagar.me nao especifica o mecanismo de autenticacao (nao ha HMAC documentado como no BravoPay), entao a confianca NAO vem do payload: o node 'Confirmar no Pagar.me' consulta a API antes de qualquer gravacao. Payload forjado morre ali."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Achata o payload do Pagar.me para o que o resto do fluxo usa.\nconst c = $json.body || {};\nconst d = c.data || {};\n\n// Em charge.* o objeto e a cobranca e a assinatura vem aninhada;\n// em subscription.* o proprio objeto ja e a assinatura.\nconst assinatura = d.subscription || (String(c.type || '').startsWith('subscription.') ? d : {});\n\nreturn [{ json: {\n  tipo:        c.type || '',\n  evento_id:   c.id || null,\n  objeto_id:   d.id || null,\n  assinatura_id: assinatura.id || null,\n  // `code` e onde gravamos o wa_id na criacao -- e o elo de volta a conversa\n  lead_id:     assinatura.code || d.code || (d.customer || {}).code || null,\n  produto_id:  ((assinatura.metadata || d.metadata || {}).produto_id) || null,\n  valor_cents: d.amount || 0,\n  status:      d.status || null,\n} }];"
+      },
+      "id": "pm-norm",
+      "name": "Normalizar evento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -980,
+        0
+      ],
+      "notes": "Traduz o formato Pagar.me. O lead_id vem de `code`, que preenchemos com o wa_id na criacao da assinatura -- sem ele o evento nao tem como voltar para a conversa."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.pagar.me/core/v5/subscriptions/{{ $json.assinatura_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "pm-conf",
+      "name": "Confirmar no Pagar.me",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -760,
+        0
+      ],
+      "notes": "Confirma o evento na fonte antes de gravar qualquer coisa. Como nao ha assinatura criptografica documentada, esta e a garantia real: um webhook forjado aponta para uma assinatura que nao existe (ou nao e nossa) e a chamada falha. Custa uma requisicao por evento -- barato perto de liberar acesso sem pagamento.",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "<<PAGARME_CREDENTIAL_ID>>",
+          "name": "Pagar.me API"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "pm-existe",
+      "name": "Assinatura existe?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -540,
+        0
+      ],
+      "notes": "Saida 0 = confirmada pela API. Saida 1 = nao existe ou erro; descarta em silencio."
+    },
+    {
+      "parameters": {},
+      "id": "pm-desc",
+      "name": "Evento nao confirmado (descartado)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -320,
+        260
+      ],
+      "notes": "Fim silencioso. Chega aqui se a API do Pagar.me nao reconhece a assinatura: webhook forjado, id errado ou falha de credencial. O motivo fica no log."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/eventos_processados",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=ignore-duplicates,return=representation"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { chave: 'pm:' + $node[\"Normalizar evento\"].json.evento_id } }}"
+      },
+      "id": "pm-idem",
+      "name": "Marcar webhook processado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -320,
+        0
+      ],
+      "notes": "Idempotencia por evento_id do Pagar.me. Reenvio devolve lista vazia e para no node seguinte -- sem isso, uma renovacao reenviada empurraria proxima_cobranca 30 dias para frente duas vezes, e a cliente ganharia um mes de graca.",
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "pm-ined",
+      "name": "Webhook inedito?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -100,
+        0
+      ],
+      "notes": "Lista vazia = ja processado antes."
+    },
+    {
+      "parameters": {},
+      "id": "pm-reenv",
+      "name": "Reenvio ignorado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        120,
+        260
+      ],
+      "notes": "Evento repetido, nada a fazer."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node[\"Normalizar evento\"].json.tipo }}",
+              "rightValue": "charge.paid",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "pm-r1",
+      "name": "charge.paid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        120,
+        -180
+      ],
+      "notes": "Mensalidade paga."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node[\"Normalizar evento\"].json.tipo }}",
+              "rightValue": "charge.payment_failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "pm-r2",
+      "name": "charge falhou?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        340,
+        -60
+      ],
+      "notes": "Mensalidade recusada."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node[\"Normalizar evento\"].json.tipo }}",
+              "rightValue": "subscription.created",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "pm-r3",
+      "name": "subscription.created?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        560,
+        60
+      ],
+      "notes": "Cartao cadastrado, trial comeca."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node[\"Normalizar evento\"].json.tipo }}",
+              "rightValue": "subscription.canceled",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "pm-r4",
+      "name": "subscription.canceled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        780,
+        180
+      ],
+      "notes": "Cancelamento."
+    },
+    {
+      "parameters": {},
+      "id": "pm-r5",
+      "name": "Evento sem tratamento",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        300
+      ],
+      "notes": "Tipo que nao acionamos (subscription.updated, invoice.*)."
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/assinaturas?lead_id=eq.{{ $node[\"Normalizar evento\"].json.lead_id }}&produto_id=eq.{{ $node[\"Normalizar evento\"].json.produto_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { status: 'ativa', ultimo_pagamento: new Date().toISOString(), proxima_cobranca: new Date(Date.now() + 30*86400000).toISOString() } }}"
+      },
+      "id": "pm-a1",
+      "name": "Renovacao paga",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        340,
+        -300
+      ],
+      "notes": "Renovacao confirmada: empurra proxima_cobranca 30 dias e tira de inadimplente se estava. A idempotencia acima e o que impede este PATCH de rodar duas vezes no mesmo evento.",
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/assinaturas?lead_id=eq.{{ $node[\"Normalizar evento\"].json.lead_id }}&produto_id=eq.{{ $node[\"Normalizar evento\"].json.produto_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { status: 'inadimplente' } }}"
+      },
+      "id": "pm-a2",
+      "name": "Marcar inadimplente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        -180
+      ],
+      "notes": "Cobranca recusada. O Pagar.me ainda tenta de novo por conta propria; se uma das tentativas passar, chega charge.paid e o status volta para ativa sozinho. A remocao do grupo e manual, a partir desta consulta.",
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/assinaturas?on_conflict=lead_id,produto_id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const e = $node[\"Normalizar evento\"].json; const ate = new Date(Date.now() + 30*86400000).toISOString(); return { lead_id: e.lead_id, produto_id: e.produto_id, status: 'trial', trial_ate: ate, proxima_cobranca: ate, valor_centavos: e.valor_cents }; })() }}"
+      },
+      "id": "pm-a3",
+      "name": "Ativar trial",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        -60
+      ],
+      "notes": "Cartao cadastrado com sucesso: a assinatura vira trial de 30 dias e a primeira cobranca fica marcada para o dia 30. Upsert, entao recadastro do cartao nao duplica linha.",
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/assinaturas?lead_id=eq.{{ $node[\"Normalizar evento\"].json.lead_id }}&produto_id=eq.{{ $node[\"Normalizar evento\"].json.produto_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { status: 'cancelada', cancelada_em: new Date().toISOString() } }}"
+      },
+      "id": "pm-a4",
+      "name": "Marcar cancelada",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        60
+      ],
+      "notes": "Cancelamento. A cliente mantem o acesso ate o fim do periodo ja pago -- por isso so marcamos a data, sem mexer em proxima_cobranca.",
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Pagar.me IN": {
+      "main": [
+        [
+          {
+            "node": "Normalizar evento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar evento": {
+      "main": [
+        [
+          {
+            "node": "Confirmar no Pagar.me",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmar no Pagar.me": {
+      "main": [
+        [
+          {
+            "node": "Assinatura existe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assinatura existe?": {
+      "main": [
+        [
+          {
+            "node": "Marcar webhook processado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Evento nao confirmado (descartado)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar webhook processado": {
+      "main": [
+        [
+          {
+            "node": "Webhook inedito?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook inedito?": {
+      "main": [
+        [
+          {
+            "node": "charge.paid?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reenvio ignorado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "charge.paid?": {
+      "main": [
+        [
+          {
+            "node": "Renovacao paga",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "charge falhou?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "charge falhou?": {
+      "main": [
+        [
+          {
+            "node": "Marcar inadimplente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "subscription.created?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "subscription.created?": {
+      "main": [
+        [
+          {
+            "node": "Ativar trial",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "subscription.canceled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "subscription.canceled?": {
+      "main": [
+        [
+          {
+            "node": "Marcar cancelada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Evento sem tratamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true
+  }
+}
