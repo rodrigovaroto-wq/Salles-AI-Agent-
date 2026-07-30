@@ -33,7 +33,7 @@ function montar({ texto, historico = [], lead = {}, origem = 'lp' }) {
   const nodes = {
     'Carregar contexto': { json: ctx },
     'Extrair mensagem e origem': { json: { origem } },
-    'Consumir buffer': { json: texto },
+    'Normalizar buffer': { json: { texto, superada: false, vazio: !texto } },
   };
   const wf = JSON.parse(fs.readFileSync(__dirname + '/../workflows/agente-vendas.json', 'utf8'));
   const src = wf.nodes.find(n => n.name === 'Montar mensagens OpenAI').parameters.jsCode;
