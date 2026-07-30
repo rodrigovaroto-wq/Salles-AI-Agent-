@@ -872,6 +872,77 @@
           "name": "SUPABASE"
         }
       }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.pagar.me/core/v5/paymentlinks",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const a = $node[\"Montar entrega\"].json.assinatura; const lead = $node[\"Normalizar payload\"].json.lead_id; return { name: 'Assinatura ' + a.produto_id, is_building: false, type: 'subscription', payment_settings: { accepted_payment_methods: ['credit_card'] }, cart_settings: { items: [{ amount: a.valor_centavos, name: 'Mensalidade', default_quantity: 1 }] }, subscription_settings: { interval: 'month', interval_count: 1, billing_type: 'prepaid', minimum_price: a.valor_centavos, start_at: new Date(Date.now() + (a.trial_dias||30)*86400000).toISOString() }, customer_settings: { customer: { code: lead } }, metadata: { wa_id: lead, produto_id: a.produto_id } }; })() }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "pm-link-01",
+      "name": "Criar link de assinatura (Pagar.me)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2620,
+        60
+      ],
+      "notes": "Gera o checkout hospedado onde a cliente cadastra o cartao. start_at no fim do trial: ela cadastra hoje e a primeira cobranca so sai no dia 31. `code` = wa_id e o elo de volta a conversa; e por ele que o webhook sabe de quem e. O cartao e digitado na pagina do Pagar.me -- nunca passa pelo WhatsApp, pelo n8n nem pelo Supabase.",
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "<<PAGARME_CREDENTIAL_ID>>",
+          "name": "Pagar.me API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $node[\"Criar link de assinatura (Pagar.me)\"].json || {};\nconst url = r.url || null;\nconst to = $node[\"Normalizar payload\"].json.lead_id;\nconst a = $node[\"Montar entrega\"].json.assinatura || {};\nconst valor = ((a.valor_centavos || 0) / 100).toFixed(2).replace('.', ',');\n\n// Sem link nao inventa mensagem: a cliente ja pagou a entrada e recebeu o\n// produto. Falhar aqui nao pode virar cobranca fantasma nem promessa vazia --\n// o alerta vai para o Rodrigo resolver na mao.\nif (!url) {\n  return [{ json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto:\n    '⚠️ Pagar.me nao gerou o link de assinatura do lead ' + to +\n    ' (produto ' + (a.produto_id || '?') + '). Ela pagou a entrada e recebeu o acesso, ' +\n    'mas a mensalidade nao foi cadastrada. Resolver na mao.' } }];\n}\n\nreturn [{ json: { to, tipo: 'text', texto:\n  'Seus primeiros 30 dias sao um presente 🙏\\n\\n' +\n  'Para continuar depois desse periodo, cadastre seu cartao aqui: ' + url + '\\n\\n' +\n  'Sao R$ ' + valor + ' por mes, a primeira cobranca so acontece no 31o dia, ' +\n  'e voce cancela quando quiser.' } }];"
+      },
+      "id": "pm-link-02",
+      "name": "Preparar convite de assinatura",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2840,
+        60
+      ],
+      "notes": "Mensagem que convida a cadastrar o cartao. Repete o valor, o prazo e o cancelamento -- a divulgacao da mensalidade e o que separa isto de cobranca surpresa. Se o link falhar, vira alerta ao Rodrigo em vez de promessa vazia."
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "G1sbNfyXXIwL3Cmh",
+          "mode": "list",
+          "cachedResultName": "sub-enviar-whatsapp (sub-workflow)"
+        },
+        "options": {}
+      },
+      "id": "pm-link-03",
+      "name": "Enviar convite de assinatura",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3060,
+        60
+      ],
+      "notes": "Manda pelo sub-enviar-whatsapp, como todo envio do projeto."
     }
   ],
   "connections": {
@@ -1232,6 +1303,39 @@
         [
           {
             "node": "Validar assinatura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar assinatura": {
+      "main": [
+        [
+          {
+            "node": "Criar link de assinatura (Pagar.me)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar link de assinatura (Pagar.me)": {
+      "main": [
+        [
+          {
+            "node": "Preparar convite de assinatura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar convite de assinatura": {
+      "main": [
+        [
+          {
+            "node": "Enviar convite de assinatura",
             "type": "main",
             "index": 0
           }
