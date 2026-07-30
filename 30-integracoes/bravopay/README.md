@@ -156,11 +156,41 @@ existe endpoint de assinatura com trial de 30 dias e qual a taxa de renovação?
 
 ## O que falta
 
-- [ ] Gerar a API key no painel (Dashboard → API Keys, chave `bp_live_...`)
-- [ ] Credential `BravoPay API` no n8n — Header Auth, `Authorization: Bearer bp_live_...`
-- [ ] Guardar o **webhook secret** (para o HMAC) como credential separada
-- [ ] Cadastrar o webhook apontando para `https://salles-ai-agent.pikapod.net/webhook/bravopay`
-- [ ] Confirmar as taxas reais da sua conta
-- [ ] Workflow `pagamento-bravopay.json` — a construir a partir do
-      `pagamento-blackcat.json`, com validação HMAC no primeiro node e os
-      `produto_id` trafegando por `metadata`
+- [x] API key gerada e credential `BravoPay API` criada no n8n
+- [x] Webhook cadastrado em `/webhook/bravopay`
+- [x] Taxas confirmadas (ver acima)
+- [x] Workflow `pagamento-bravopay.json` construído
+- [ ] **Cadastrar o webhook secret** em `configuracoes.bravopay_webhook_secret`
+      (rode `migracao-config.sql`, depois o `update` com o valor real)
+- [ ] Recolar os workflows no n8n
+
+> ⚠️ O segredo do webhook **não** fica em Credential do n8n nem em `$env`: o
+> PikaPods não expõe variáveis de ambiente e um node Code não consegue ler
+> Credential. Ele mora em `configuracoes`, que é o único lugar que o node de
+> validação alcança. A credential `BravoPay Webhook Secret` que você criou não
+> é usada por nada — pode apagar.
+
+## Como o workflow ficou
+
+```
+BravoPay IN (rawBody)
+   → Buscar segredo do webhook      (configuracoes)
+   → Validar assinatura             (HMAC-SHA256 + janela de 5 min + timingSafeEqual)
+   → Assinatura válida?  ──não──→   descarta em silêncio
+        │sim
+   → Normalizar payload             (traduz o formato BravoPay para o do fluxo)
+   → Marcar webhook processado      (idempotência: chave `bp:<tx>:<tipo>`)
+   → Webhook inédito?    ──não──→   reenvio ignorado
+        │sim
+   → paid / created / failed
+```
+
+Teste: `node 30-integracoes/n8n/ensaio/ensaio-hmac.js` — 12 casos, incluindo
+assinatura forjada, corpo adulterado depois de assinado e replay antigo.
+
+### O elo que não pode quebrar: `metadata.produtos`
+
+Como não há `items[]`, o node "Montar items do carrinho" grava os `produto_id`
+em `metadata.produtos` (string separada por vírgula — `metadata` só aceita
+valores simples), e o webhook lê de volta de lá. **Se isso não for gravado, o
+pagamento entra mas a entrega não sabe o que mandar.**

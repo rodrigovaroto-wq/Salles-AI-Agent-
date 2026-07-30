@@ -1,11 +1,11 @@
 {
-  "name": "pagamento-blackcat (Gatilhos 2 e 3)",
+  "name": "pagamento-bravopay (Gatilhos 2 e 3)",
   "active": false,
   "settings": {},
   "nodes": [
     {
       "id": "n1",
-      "name": "BlackCat IN",
+      "name": "BravoPay IN",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
@@ -14,10 +14,13 @@
       ],
       "parameters": {
         "httpMethod": "POST",
-        "path": "blackcat",
+        "path": "bravopay",
         "responseMode": "onReceived",
-        "options": {}
-      }
+        "options": {
+          "rawBody": true
+        }
+      },
+      "notes": "Webhook do BravoPay. rawBody=true e obrigatorio: a assinatura HMAC e calculada sobre o corpo cru, e qualquer reserializacao invalida a conferencia."
     },
     {
       "id": "n2",
@@ -37,7 +40,7 @@
           },
           "conditions": [
             {
-              "leftValue": "={{$json.body.event}}",
+              "leftValue": "={{$json.tipo}}",
               "rightValue": "transaction.paid",
               "operator": {
                 "type": "string",
@@ -67,7 +70,7 @@
           },
           "conditions": [
             {
-              "leftValue": "={{$json.body.event}}",
+              "leftValue": "={{$json.tipo}}",
               "rightValue": "transaction.created",
               "operator": {
                 "type": "string",
@@ -97,7 +100,7 @@
           },
           "conditions": [
             {
-              "leftValue": "={{$json.body.event}}",
+              "leftValue": "={{$json.tipo}}",
               "rightValue": "transaction.failed",
               "operator": {
                 "type": "string",
@@ -144,7 +147,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { p_lead_id: $node[\"BlackCat IN\"].json.body.externalReference, p_items: $node[\"BlackCat IN\"].json.body.items } }}",
+        "jsonBody": "={{ { p_lead_id: $node[\"Normalizar payload\"].json.lead_id, p_items: $node[\"Normalizar payload\"].json.items } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -179,7 +182,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { lead_id: $node[\"BlackCat IN\"].json.body.externalReference, etapa_processo: 'fechamento', desfecho: 'venda', link_blackcat_id: $node[\"BlackCat IN\"].json.body.transactionId || null } }}",
+        "jsonBody": "={{ { lead_id: $node[\"Normalizar payload\"].json.lead_id, etapa_processo: 'fechamento', desfecho: 'venda', link_blackcat_id: $node[\"Normalizar payload\"].json.transacao || null } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -189,7 +192,8 @@
           "id": "9XxwNt8U6u5tce4w",
           "name": "SUPABASE"
         }
-      }
+      },
+      "notes": "Grava o fechamento. A coluna chama link_blackcat_id por heranca do gateway anterior -- guarda o id da transacao BravoPay. Renomear exigiria migracao dos dados ja gravados; o nome e feio, o conteudo esta certo."
     },
     {
       "id": "n6",
@@ -203,7 +207,7 @@
       "notes": "transaction.created sem paid ainda: arma o estado para o timer de recuperacao de 2h.",
       "parameters": {
         "method": "PATCH",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalReference}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{ $node[\"Normalizar payload\"].json.lead_id }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -253,7 +257,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"BlackCat IN\"].json.body.externalReference}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$node[\"Normalizar payload\"].json.lead_id}}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -319,7 +323,7 @@
       "notes": "transaction.failed: expirou ou falhou. Volta para follow-up padrao (Gatilho 4).",
       "parameters": {
         "method": "PATCH",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{$json.body.externalReference}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/leads?lead_id=eq.{{ $node[\"Normalizar payload\"].json.lead_id }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -354,7 +358,7 @@
       ],
       "notes": "",
       "parameters": {
-        "jsCode": "return [{ json: { to: $node[\"BlackCat IN\"].json.body.externalReference, tipo: 'text', texto: 'Pagamento confirmado! Em instantes voce recebe os detalhes de acesso. \\ud83d\\ude4f' } }];"
+        "jsCode": "return [{ json: { to: $node[\"Normalizar payload\"].json.lead_id, tipo: 'text', texto: 'Pagamento confirmado! Em instantes voce recebe os detalhes de acesso. \\ud83d\\ude4f' } }];"
       }
     },
     {
@@ -388,7 +392,7 @@
       ],
       "notes": "Dentro da janela de 24h (o lead iniciou a conversa) -> texto livre, sem template.",
       "parameters": {
-        "jsCode": "return [{ json: { to: $node[\"BlackCat IN\"].json.body.externalReference, tipo: 'text', texto: 'Vi que voce nao concluiu ainda. Ficou alguma duvida que eu possa te ajudar a resolver?' } }];"
+        "jsCode": "return [{ json: { to: $node[\"Normalizar payload\"].json.lead_id, tipo: 'text', texto: 'Vi que voce nao concluiu ainda. Ficou alguma duvida que eu possa te ajudar a resolver?' } }];"
       }
     },
     {
@@ -446,7 +450,7 @@
       ],
       "notes": "Le entrega_texto e entrega_midia do catalogo. Midia (PDF, audios) e enviada antes do texto, no proprio chat. Produto sem entrega alguma NAO vira silencio: aviso + alerta ao Rodrigo. Se a venda inclui produto com mensalidade, devolve `assinatura` para registro.",
       "parameters": {
-        "jsCode": "const comprados = $node[\"BlackCat IN\"].json.body.items || [];\nconst catalogo = $node[\"Buscar conteudo de entrega\"].json || [];\n\nconst partes = [];   // mensagens de texto\nconst midias = [];   // documentos/audios enviados ANTES do texto\nconst faltando = [];\nlet assinatura = null; // produto recorrente comprado nesta venda, se houver\n\nfor (const item of comprados) {\n  const p = catalogo.find(c => c.produto_id === item.produto_id || c.nome === item.title);\n  const nome = (p && p.nome) || item.title || 'seu item';\n\n  if (p && Array.isArray(p.entrega_midia)) {\n    for (const mid of p.entrega_midia) {\n      if (mid && mid.url) midias.push(mid);\n    }\n  }\n\n  if (p && p.mensalidade_centavos) {\n    assinatura = {\n      produto_id: p.produto_id,\n      valor_centavos: p.mensalidade_centavos,\n      trial_dias: p.trial_dias || 0\n    };\n  }\n\n  if (p && p.entrega_texto) {\n    let txt = p.entrega_texto;\n\n    // Link individual da Comunidade: 1 acesso por compradora. Se a fila de\n    // links acabou, NAO manda placeholder cru nem link quebrado -- avisa que\n    // chega em seguida e cai no alerta para o Rodrigo repor a fila.\n    if (txt.includes('{LINK_COMUNIDADE}')) {\n      const cfg = $node[\"Buscar link da comunidade\"].json;\n      const linha = Array.isArray(cfg) ? cfg[0] : cfg;\n      let url = (linha && linha.valor) || null;\n      // placeholder nao preenchido conta como ausente: melhor avisar que chega\n      // em seguida do que mandar \"<<COLE_AQUI_O_LINK_DO_GRUPO>>\" para a cliente\n      if (url && url.startsWith('<<')) url = null;\n      if (url) {\n        txt = txt.split('{LINK_COMUNIDADE}').join(url);\n      } else {\n        txt = 'Seja bem-vinda a Comunidade do Padre Frei! Seu link de acesso chega em seguida, aqui mesmo por este WhatsApp.';\n        faltando.push(nome + ' (link do grupo nao cadastrado)');\n      }\n    }\n\n    partes.push(txt);\n  } else if (!(p && Array.isArray(p.entrega_midia) && p.entrega_midia.length)) {\n    // so conta como faltando se nao tiver NEM texto NEM midia\n    faltando.push(nome);\n    partes.push('Sobre *' + nome + '*: seu acesso chega em seguida, aqui mesmo por este WhatsApp.');\n  }\n}\n\n// Nunca deixar a cliente sem mensagem alguma depois de pagar.\nconst texto = partes.length\n  ? partes.join('\\n\\n')\n  : 'Seu acesso chega em seguida, aqui mesmo por este WhatsApp.';\n\nreturn [{ json: { texto, midias, assinatura, faltando, tem_falta: faltando.length > 0 } }];"
+        "jsCode": "const comprados = $node[\"Normalizar payload\"].json.items || [];\nconst catalogo = $node[\"Buscar conteudo de entrega\"].json || [];\n\nconst partes = [];   // mensagens de texto\nconst midias = [];   // documentos/audios enviados ANTES do texto\nconst faltando = [];\nlet assinatura = null; // produto recorrente comprado nesta venda, se houver\n\nfor (const item of comprados) {\n  const p = catalogo.find(c => c.produto_id === item.produto_id || c.nome === item.title);\n  const nome = (p && p.nome) || item.title || 'seu item';\n\n  if (p && Array.isArray(p.entrega_midia)) {\n    for (const mid of p.entrega_midia) {\n      if (mid && mid.url) midias.push(mid);\n    }\n  }\n\n  if (p && p.mensalidade_centavos) {\n    assinatura = {\n      produto_id: p.produto_id,\n      valor_centavos: p.mensalidade_centavos,\n      trial_dias: p.trial_dias || 0\n    };\n  }\n\n  if (p && p.entrega_texto) {\n    let txt = p.entrega_texto;\n\n    // Link individual da Comunidade: 1 acesso por compradora. Se a fila de\n    // links acabou, NAO manda placeholder cru nem link quebrado -- avisa que\n    // chega em seguida e cai no alerta para o Rodrigo repor a fila.\n    if (txt.includes('{LINK_COMUNIDADE}')) {\n      const cfg = $node[\"Buscar link da comunidade\"].json;\n      const linha = Array.isArray(cfg) ? cfg[0] : cfg;\n      let url = (linha && linha.valor) || null;\n      // placeholder nao preenchido conta como ausente: melhor avisar que chega\n      // em seguida do que mandar \"<<COLE_AQUI_O_LINK_DO_GRUPO>>\" para a cliente\n      if (url && url.startsWith('<<')) url = null;\n      if (url) {\n        txt = txt.split('{LINK_COMUNIDADE}').join(url);\n      } else {\n        txt = 'Seja bem-vinda a Comunidade do Padre Frei! Seu link de acesso chega em seguida, aqui mesmo por este WhatsApp.';\n        faltando.push(nome + ' (link do grupo nao cadastrado)');\n      }\n    }\n\n    partes.push(txt);\n  } else if (!(p && Array.isArray(p.entrega_midia) && p.entrega_midia.length)) {\n    // so conta como faltando se nao tiver NEM texto NEM midia\n    faltando.push(nome);\n    partes.push('Sobre *' + nome + '*: seu acesso chega em seguida, aqui mesmo por este WhatsApp.');\n  }\n}\n\n// Nunca deixar a cliente sem mensagem alguma depois de pagar.\nconst texto = partes.length\n  ? partes.join('\\n\\n')\n  : 'Seu acesso chega em seguida, aqui mesmo por este WhatsApp.';\n\nreturn [{ json: { texto, midias, assinatura, faltando, tem_falta: faltando.length > 0 } }];"
       }
     },
     {
@@ -459,7 +463,7 @@
         -160
       ],
       "parameters": {
-        "jsCode": "const to = $node[\"BlackCat IN\"].json.body.externalReference;\nconst e = $node[\"Montar entrega\"].json;\n\nconst saida = [];\nfor (const m of (e.midias || [])) {\n  const item = { to, tipo: m.tipo === 'audio' ? 'audio' : 'documento', url: m.url };\n  if (m.filename) item.filename = m.filename;\n  if (m.legenda) item.legenda = m.legenda;\n  saida.push({ json: item });\n}\nsaida.push({ json: { to, tipo: 'text', texto: e.texto } });\nreturn saida;"
+        "jsCode": "const to = $node[\"Normalizar payload\"].json.lead_id;\nconst e = $node[\"Montar entrega\"].json;\n\nconst saida = [];\nfor (const m of (e.midias || [])) {\n  const item = { to, tipo: m.tipo === 'audio' ? 'audio' : 'documento', url: m.url };\n  if (m.filename) item.filename = m.filename;\n  if (m.legenda) item.legenda = m.legenda;\n  saida.push({ json: item });\n}\nsaida.push({ json: { to, tipo: 'text', texto: e.texto } });\nreturn saida;"
       }
     },
     {
@@ -506,7 +510,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { lead_id: $node[\"BlackCat IN\"].json.body.externalReference, etapa_processo: 'entrega', mensagem_agente: $node[\"Montar entrega\"].json.texto } }}",
+        "jsonBody": "={{ { lead_id: $node[\"Normalizar payload\"].json.lead_id, etapa_processo: 'entrega', mensagem_agente: $node[\"Montar entrega\"].json.texto } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -559,7 +563,7 @@
       ],
       "notes": "A cliente pagou por algo que o sistema nao sabe entregar. Precisa de acao humana AGORA, nao de um relatorio no fim do dia.",
       "parameters": {
-        "jsCode": "const m = $node[\"Montar entrega\"].json;\nconst wa = $node[\"BlackCat IN\"].json.body.externalReference;\nreturn [{ json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: '\\u26a0\\ufe0f Entrega pendente.\\nCliente: ' + wa + '\\nSem conteudo cadastrado para: ' + m.faltando.join(', ') + '\\nEla ja pagou e foi avisada de que o acesso chega em seguida. Entregue na mao e preencha entrega_texto em produtos.' } }];"
+        "jsCode": "const m = $node[\"Montar entrega\"].json;\nconst wa = $node[\"Normalizar payload\"].json.lead_id;\nreturn [{ json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: '\\u26a0\\ufe0f Entrega pendente.\\nCliente: ' + wa + '\\nSem conteudo cadastrado para: ' + m.faltando.join(', ') + '\\nEla ja pagou e foi avisada de que o acesso chega em seguida. Entregue na mao e preencha entrega_texto em produtos.' } }];"
       }
     },
     {
@@ -620,7 +624,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { chave: 'bc:' + $json.body.transactionId + ':' + $json.body.event } }}",
+        "jsonBody": "={{ { chave: 'bp:' + $json.transacao + ':' + $json.tipo } }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -725,7 +729,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ (() => { const a = $node[\"Montar entrega\"].json.assinatura; const dias = a.trial_dias || 0; const ate = new Date(Date.now() + dias*86400000).toISOString(); return { lead_id: $node[\"BlackCat IN\"].json.body.externalReference, produto_id: a.produto_id, status: dias > 0 ? 'trial' : 'ativa', trial_ate: dias > 0 ? ate : null, proxima_cobranca: ate, valor_centavos: a.valor_centavos }; })() }}",
+        "jsonBody": "={{ (() => { const a = $node[\"Montar entrega\"].json.assinatura; const dias = a.trial_dias || 0; const ate = new Date(Date.now() + dias*86400000).toISOString(); return { lead_id: $node[\"Normalizar payload\"].json.lead_id, produto_id: a.produto_id, status: dias > 0 ? 'trial' : 'ativa', trial_ate: dias > 0 ? ate : null, proxima_cobranca: ate, valor_centavos: a.valor_centavos }; })() }}",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
@@ -771,20 +775,106 @@
           "name": "SUPABASE"
         }
       }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Valida a assinatura HMAC-SHA256 do BravoPay.\n// Sem isto, quem descobrir a URL do webhook forja um transaction.paid e recebe\n// a entrega sem pagar -- o fluxo inteiro confia neste payload.\nconst crypto = require('crypto');\n\nconst entrada = $node[\"BravoPay IN\"].json;\nconst headers = entrada.headers || {};\nconst bruto   = entrada.body;   // string, por causa do rawBody no webhook\n\nconst assinatura = headers['bravopay-signature'] || headers['x-bravopay-signature'] || '';\n\n// O segredo vem da tabela `configuracoes`. O PikaPods nao expoe $env e um node\n// Code nao consegue ler Credential do n8n -- o banco e o unico lugar comum.\nconst cfg = $node[\"Buscar segredo do webhook\"].json;\nconst linha = Array.isArray(cfg) ? cfg[0] : cfg;\nconst segredo = (linha && linha.valor) || '';\n\nfunction recusar(motivo) {\n  return [{ json: { valido: false, motivo, corpo: null } }];\n}\n\nif (!segredo || segredo.startsWith('<<')) return recusar('segredo do webhook nao cadastrado em configuracoes');\nif (!assinatura) return recusar('requisicao sem cabecalho de assinatura');\n\n// formato: t=<timestamp>,v1=<hex>\nconst partes = Object.fromEntries(\n  String(assinatura).split(',').map(p => {\n    const i = p.indexOf('=');\n    return [p.slice(0, i).trim(), p.slice(i + 1).trim()];\n  })\n);\nconst ts = partes.t;\nconst v1 = partes.v1;\nif (!ts || !v1) return recusar('cabecalho de assinatura malformado');\n\n// Janela de 5 min: sem isso, uma requisicao legitima capturada uma vez pode ser\n// reenviada para sempre, porque a assinatura dela continua valendo.\nconst idadeSeg = Math.abs(Math.floor(Date.now() / 1000) - Number(ts));\nif (!Number.isFinite(idadeSeg) || idadeSeg > 300) {\n  return recusar('timestamp fora da janela de 5 minutos (' + idadeSeg + 's)');\n}\n\nconst corpoStr = typeof bruto === 'string' ? bruto : JSON.stringify(bruto);\nconst esperado = crypto.createHmac('sha256', segredo)\n                       .update(ts + '.' + corpoStr)\n                       .digest('hex');\n\n// timingSafeEqual: comparar com === vaza o tamanho do prefixo correto pelo\n// tempo de resposta, o que permite descobrir a assinatura byte a byte.\nconst a = Buffer.from(esperado, 'hex');\nconst b = Buffer.from(String(v1), 'hex');\nconst confere = a.length === b.length && crypto.timingSafeEqual(a, b);\n\nif (!confere) return recusar('assinatura nao confere');\n\nreturn [{ json: { valido: true, motivo: null, corpo: JSON.parse(corpoStr) } }];"
+      },
+      "id": "bp-hmac-0001",
+      "name": "Validar assinatura",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        0
+      ],
+      "notes": "HMAC-SHA256 sobre `${timestamp}.${rawBody}`, comparado com timingSafeEqual. Recusa se: falta segredo, falta cabecalho, formato invalido, timestamp com mais de 5 min (anti-replay) ou assinatura divergente. O segredo vem da tabela configuracoes (chave bravopay_webhook_secret)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.valido }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bp-hmac-0002",
+      "name": "Assinatura valida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        20,
+        0
+      ],
+      "notes": "Saida 0 = valida, segue. Saida 1 = recusada, descarta em silencio."
+    },
+    {
+      "parameters": {},
+      "id": "bp-hmac-0003",
+      "name": "Webhook recusado (assinatura invalida)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        240,
+        220
+      ],
+      "notes": "Fim silencioso. Nao responder com detalhe do erro de proposito: dizer 'assinatura invalida' ajuda quem esta tentando forjar. O motivo fica no log da execucao."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normaliza o payload do BravoPay para a forma que o resto do fluxo espera.\n// O BravoPay NAO manda items[] -- manda um amount_cents unico. Os produto_id\n// comprados viajam em metadata.produtos, gravado na criacao da cobranca.\nconst c = $node[\"Validar assinatura\"].json.corpo || {};\nconst d = c.data || {};\nconst meta = d.metadata || {};\n\n// metadata so aceita valores simples, entao produtos vai como \"a,b,c\".\nconst ids = String(meta.produtos || '')\n  .split(',').map(s => s.trim()).filter(Boolean);\n\n// Reconstroi items[] no formato que registrar_compra() espera.\nconst items = ids.map(id => ({ produto_id: id }));\n\nreturn [{ json: {\n  tipo:        c.type || '',\n  transacao:   d.id || null,\n  lead_id:     d.external_reference || null,\n  valor_cents: d.amount_cents || 0,\n  metodo:      (d.method || '').toLowerCase(),\n  items,\n  metadata:    meta,\n  tracking:    d.tracking || {},\n  cliente:     d.customer || {},\n} }];"
+      },
+      "id": "bp-norm-0001",
+      "name": "Normalizar payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "notes": "Traduz o formato BravoPay para o que o fluxo ja usava. O ponto sensivel e items[]: o BravoPay nao devolve a lista de produtos, entao os produto_id tem que ser gravados em metadata.produtos na criacao da cobranca. Se vierem vazios, a entrega nao sabe o que mandar."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/configuracoes?chave=eq.bravopay_webhook_secret&select=valor",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth"
+      },
+      "id": "bp-seg-0001",
+      "name": "Buscar segredo do webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -420,
+        0
+      ],
+      "notes": "O segredo vive em configuracoes, nao em $env: o PikaPods nao expoe variaveis de ambiente, e node Code nao le Credential do n8n. Trocar o segredo passa a ser um UPDATE numa linha.",
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9XxwNt8U6u5tce4w",
+          "name": "SUPABASE"
+        }
+      }
     }
   ],
   "connections": {
-    "BlackCat IN": {
-      "main": [
-        [
-          {
-            "node": "Marcar webhook processado",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "event = paid?": {
       "main": [
         [
@@ -1080,6 +1170,68 @@
         [
           {
             "node": "Montar entrega",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BravoPay IN": {
+      "main": [
+        [
+          {
+            "node": "Buscar segredo do webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar assinatura": {
+      "main": [
+        [
+          {
+            "node": "Assinatura valida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assinatura valida?": {
+      "main": [
+        [
+          {
+            "node": "Normalizar payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Webhook recusado (assinatura invalida)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar payload": {
+      "main": [
+        [
+          {
+            "node": "Marcar webhook processado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar segredo do webhook": {
+      "main": [
+        [
+          {
+            "node": "Validar assinatura",
             "type": "main",
             "index": 0
           }
