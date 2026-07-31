@@ -1,12 +1,20 @@
-# Relatório de bugs — 30/07/2026
+# Relatório de bugs — 30–31/07/2026
 
-Sessão de religar credenciais que virou caça a defeitos. **Quatro bugs, três
+Sessão de religar credenciais que virou caça a defeitos. **Doze bugs, cinco
 deles fatais**, todos invisíveis para os testes que existiam.
 
+Duas rodadas. Na primeira, com o Supabase ainda fora do ar, a auditoria estática
+achou 5 defeitos. Na segunda, com a credencial preenchida, dava para **executar
+de verdade** — e apareceram mais 7, entre eles o pior de todos: nenhum link de
+pagamento chegaria à cliente.
+
 O fio condutor: os ensaios validavam *o que o agente pensa* (montagem do
-prompt) e *o que ele aceita* (HMAC). Nenhum validava **por onde o fluxo passa**
-nem **o que o banco devolve**. Os quatro bugs moram exatamente nesses dois
+prompt) e *o que ele aceita* (HMAC). Nenhum validava **por onde o fluxo passa**,
+**o que o banco devolve** nem **em que formato**. Os doze bugs moram nesses três
 vãos.
+
+> A lição que se repetiu: os defeitos não davam erro. Davam sempre a mesma
+> resposta — e quase sempre a errada.
 
 ---
 
@@ -233,3 +241,168 @@ Sejamos exatos sobre o alcance desta sessão:
 
 Ou seja: os quatro bugs estão corrigidos no código e no n8n, e **a validação
 real começa quando a credencial do Supabase for preenchida.**
+
+---
+
+# Segunda rodada — 31/07, com o Supabase ligado
+
+Com a credencial preenchida deu para **executar de verdade**. Apareceram
+**mais sete defeitos**, um deles comercialmente fatal. Todos os sete vêm da
+mesma raiz e nenhum era visível offline.
+
+## A raiz: o n8n entrega uma LINHA por item, não o array
+
+O PostgREST devolve `[{...}, {...}]`. O nó HTTP do n8n **quebra esse array em
+itens** — cada linha vira um item, e `$json` é a **linha**, nunca a lista.
+
+Quem escreveu os workflows assumiu o contrário. O resultado é traiçoeiro:
+
+- `$json[0]` → `undefined`
+- `$json.length` → `undefined`, e `undefined != 0` é **verdadeiro**, então toda
+  comparação numérica com `typeValidation: loose` **passa**
+
+Ou seja: os portões não davam erro. Eles respondiam sempre a mesma coisa.
+
+## 🔴 #5 — Nenhum link de pagamento seria entregue. Nunca.
+
+**Gravidade: fatal comercialmente. É o pior bug da sessão.**
+
+`Venda criada?` testava `{{ $json.data }}` *notEmpty*. Mas a resposta de
+`POST /transactions` do BravoPay é **plana** — está no
+[`bravopay/README.md`](30-integracoes/bravopay/README.md):
+
+```json
+{ "id": "tx_...", "status": "PENDING", "amount_cents": 7112,
+  "pix": { "copy_paste": "00020126..." } }
+```
+
+O envelope `data` só existe no **webhook**, não na criação. Então `$json.data`
+era sempre vazio e **toda venda bem-sucedida caía no ramo de falha**.
+
+A lead que acabou de aceitar a oferta e entregar e-mail e CPF receberia:
+
+> *"Não consegui gerar seu link agora, foi um problema técnico aqui."*
+
+E o Rodrigo receberia um alerta de falha do gateway — para uma cobrança que
+foi criada com sucesso. **Conversão zero, com o sistema parecendo saudável.**
+
+Curiosamente os outros três nós que leem a mesma resposta (`Preparar link de
+pagamento`, `Guardar link gerado`, `Atualizar evento com carrinho`) já liam os
+campos na raiz, corretamente. Era uma contradição interna: os quatro não podiam
+estar certos ao mesmo tempo. A doc desempatou.
+
+**Correção:** testa `{{ $json.id }}` notEmpty — o id da transação é o que a doc
+garante vir na criação.
+
+## 🔴 #6 — O n8n não conseguia sequer ler o buffer
+
+A correção SQL da primeira rodada funcionou: medido ao vivo, o banco devolve
+`"primeira mensagem\nsegunda mensagem"`. Mas o nó saía com:
+
+```json
+{"error": "Response body is not valid JSON. Change \"Response Format\" to \"Text\""}
+```
+
+`consumir_buffer` retorna `text`, e o PostgREST devolve **texto cru** — que não
+é JSON válido quando contém quebra de linha. O `Normalizar buffer` então
+calculava `String({error:...})` = `"[object Object]"`, que era o que iria para
+a OpenAI como mensagem da lead.
+
+**Correção:** `responseFormat: text` no nó. Medido depois da correção:
+
+| caso | retorno do nó | resultado |
+|---|---|---|
+| última mensagem | `{"data":"primeira mensagem\nsegunda mensagem"}` | ✅ texto certo |
+| superada | `{"data":null}` | ✅ `superada = true` |
+
+## 🟠 #7 — A recuperação de carrinho de 2h nunca disparava
+
+`Status = abandonou?` lia `{{ $json[0].status }}` → `undefined`. Quem começava
+a compra e não concluía **nunca recebia** a mensagem de recuperação.
+
+## 🟠 #8 — O digest do Hermes nunca era enviado
+
+`Tem pendentes?` lia `{{ $json.length }}` de um objeto → `undefined > 0` é
+**falso**. Com a fila cheia de sugestões, o digest ia sempre para "Nada
+pendente". E `Montar digest` iterava sobre a primeira linha em vez da lista, o
+que quebraria o nó se ele chegasse a executar.
+
+## 🟠 #9 — O follow-up de 24h quebraria na primeira lead
+
+`Separar leads (1 item cada)` fazia `$input.first().json.map(...)` sobre um
+**objeto**. `.map` não existe ali: o nó lançaria exceção na primeira vez que
+houvesse alguém para notificar. Nunca falhou porque nunca rodou com dados.
+
+## 🟠 #10 — O `fila-decidir` inteiro, e a primeira versão de prompt
+
+Quatro nós liam `json[0]`: `Derivar chave do prompt` (quebrava), e as duas
+chamadas ao GitHub (montavam a URL com `undefined`).
+
+E um problema separado: `Buscar versao atual` devolve array vazio quando a
+chave ainda não tem versão ativa → **0 itens** → toda a cadeia seguinte é
+pulada. A **primeira** versão de qualquer prompt nunca conseguiria ser
+inserida. Resolvido com `alwaysOutputData`.
+
+## 🟠 #11 — A auditoria do desconto se perdia em silêncio
+
+`Atualizar evento com carrinho` montava
+`?evento_id=eq.{{ ...json[0].evento_id }}` → `eq.undefined`. O PATCH não casava
+com nada, retornava 200 e não gravava nada. Sem erro, sem rastro.
+
+## 🟡 As travas de idempotência funcionavam por acidente
+
+`Mensagem inedita?` e os dois `Webhook inedito?` liam `$json.length != 0` —
+sempre verdadeiro. Não viraram reprocessamento por um detalhe: numa duplicata o
+PostgREST devolve `[]`, o n8n produz **0 itens** e o fluxo simplesmente parava.
+
+Medido, isolando a variável:
+
+| caso | itens entregues | o ramo de descarte executou? |
+|---|---|---|
+| chave inédita | 1 | — segue o fluxo ✅ |
+| duplicata | **0** | **não** — nada roda depois |
+| duplicata **com `alwaysOutputData`** | 1, `{}` | condição antiga **passava** ⚠️ |
+
+Ou seja: a proteção existia, mas não era a que estava escrita, `Duplicata
+ignorada` era código morto, e bastava alguém ligar `alwaysOutputData` — algo
+natural ao depurar "por que nada roda depois?" — para a trava **abrir**. Num
+reenvio de `transaction.paid` isso é o produto entregue duas vezes.
+
+**Correção:** `alwaysOutputData` + condição `{{ $json.chave }}` notEmpty. Agora
+a trava é explícita, o ramo de descarte executa de verdade e aparece no log.
+
+## O que foi confirmado funcionando ao vivo
+
+| | |
+|---|---|
+| Credencial `SUPABASE` | ✅ autentica |
+| `registrar_lead` | ✅ devolve a linha; `Conversa encerrada?` lê `.status` corretamente |
+| `consumir_buffer` (SQL corrigido) | ✅ devolve as duas mensagens juntas |
+| `consumir_buffer` (caso superada) | ✅ devolve `null` |
+| `carregar_contexto` | ✅ 3 prompts, 4 produtos, 15 áudios, histórico |
+| Preços no banco | ✅ 2290 / 1390 / 4490 / 1990 centavos |
+| Trava de duplicata | ✅ agora explícita |
+
+## Ensaios
+
+`ensaio-topologia` ganhou duas seções que pegam esta classe inteira:
+
+- **§5** — qualquer `$json[0]`, `$json.length` ou `.json[0]` em parâmetros
+- **§6** — RPC de retorno escalar exige `responseFormat: text`
+
+**92 checagens** passam, mais 13 + 14 + 12 dos outros três.
+
+## Limpeza
+
+As quatro sondas foram arquivadas e os registros de teste removidos do banco
+(`probe_bug_hunt_001/002`, `probe_003`, `probe:004:idem` — conferido: a consulta
+final volta vazia).
+
+## O que ainda não foi testado
+
+- **A OpenAI não foi chamada** — falta confirmar saldo. É o único elo do
+  caminho principal que continua sem verificação real.
+- **Nenhuma mensagem de WhatsApp saiu** — depende da Meta.
+- **BravoPay e Pagar.me não foram chamados** — a correção do #5 está baseada na
+  doc oficial do BravoPay, não numa resposta real. Vale conferir no primeiro
+  `create-sale` de verdade que o `id` vem na raiz.

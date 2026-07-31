@@ -1,17 +1,27 @@
-# Handoff — 2026-07-30 (seção: credencial do Supabase)
+# Handoff — 2026-07-31 (seção: saldo na OpenAI)
 
-> **A próxima sessão tem um trabalho só, e é de 2 minutos: preencher a
-> credencial `SUPABASE` no n8n.** Enquanto ela estiver vazia, nada funciona —
-> nem com todos os nós religados, nem com todos os bugs corrigidos.
+> **O caminho principal está verificado contra o banco real.** O que falta para
+> um teste ponta a ponta é saldo na OpenAI e o desbloqueio da Meta.
 
 ## O que mudou nesta sessão
 
-As 39 credenciais que existiam foram religadas por MCP. Aí, ao testar de
-verdade, apareceram **quatro defeitos que nenhum teste anterior pegava** — três
-deles fatais. Todos corrigidos no git e no n8n. Detalhe em
+39 credenciais religadas por MCP, o número do Rodrigo gravado, e **doze bugs
+corrigidos — cinco fatais**, nenhum deles visível para os testes que existiam.
+O pior: `Venda criada?` lia o campo errado da resposta do BravoPay, e **toda
+venda bem-sucedida caía no ramo de falha** — nenhuma cliente receberia link de
+pagamento. Detalhe em
 [`RELATORIO-BUGS-2026-07-30.md`](RELATORIO-BUGS-2026-07-30.md).
 
-## 🔴 O bloqueador: a credencial `SUPABASE` está vazia
+## ✅ O bloqueador anterior foi resolvido
+
+A credencial `SUPABASE` foi preenchida e **está autenticando** — medido ao vivo:
+`registrar_lead` devolve a linha, `carregar_contexto` traz 3 prompts, 4 produtos
+e 15 áudios, e `consumir_buffer` devolve as mensagens juntas.
+
+<details>
+<summary>Como era o sintoma, para referência futura</summary>
+
+### (histórico) A credencial estava vazia
 
 Uma sonda descartável rodou no n8n chamando o Supabase com a credencial
 `SUPABASE` anexada. As 7 chamadas voltaram:
@@ -44,6 +54,7 @@ com um objeto `headers` — o erro mais comum é colar as chaves na raiz:
 
 Confira depois com qualquer nó Supabase de qualquer workflow: *Execute step*
 deve voltar dados, não 401.
+</details>
 
 > Isto explica por que a versão ao vivo nunca deu sinal de vida. Não era a
 > colagem, não eram os nós: era a credencial. E não aparecia em teste nenhum
@@ -54,38 +65,37 @@ deve voltar dados, não 401.
 
 | Workflow | Nós | Credenciais | Topologia |
 |---|---|---|---|
-| `agente-vendas` | 57 (era 54) | 15 de 17 ✅ | ✅ corrigida |
-| `pagamento-bravopay` | 40 (era 37) | 11 de 12 ✅ | ✅ 3 nós restaurados |
-| `fila-decidir` | 13 | 8 de 8 ✅ | ✅ |
-| `followup-24h` | 7 | 3 de 3 ✅ | ✅ |
-| `fila-notificar` | 8 | 2 de 2 ✅ | ✅ |
+| `agente-vendas` | 57 | 15 de 17 ✅ | ✅ corrigida e conferida ao vivo |
+| `pagamento-bravopay` | 40 | 11 de 12 ✅ | ✅ 3 nós restaurados |
+| `pagamento-pagarme` | 17 | 5 de 6 ✅ | ✅ no n8n |
+| `fila-decidir` | 13 | 8 de 8 ✅ | ✅ corrigida |
+| `followup-24h` | 7 | 3 de 3 ✅ | ✅ corrigida |
+| `fila-notificar` | 8 | 2 de 2 ✅ | ✅ corrigida |
 | `sub-enviar-whatsapp` | 4 | 0 de 1 ⏳ Meta | ✅ |
 | `00-meta-handshake` | 3 | — | ✅ |
-| `pagamento-pagarme` | 17 | — | **ainda não está no n8n** |
 
 Faltam só as 5 credenciais que **não existem na instância**: `WhatsApp Cloud
 API` (3 nós, depende da Meta) e `Pagar.me API` (2 nós, depende da conta).
+**git e n8n estão iguais** — as correções foram aplicadas nos dois.
 
 ## O que ainda falta fazer
 
-1. **Preencher a credencial `SUPABASE`** ← o bloqueador
-2. **Rodar [`migracao-correcao-buffer.sql`](30-integracoes/supabase/migracao-correcao-buffer.sql)**
-   — sem isso o agente recebe toda mensagem em branco (bug #2 do relatório).
-   É um `create or replace`, não destrói nada.
-3. **Subir `pagamento-pagarme`** — colar
-   [o JSON](30-integracoes/n8n/workflows/pagamento-pagarme.json) na UI do n8n.
-   Aqui a colagem é o método certo: o workflow não tem nenhuma credencial
-   válida para perder (o Pagar.me ainda não existe).
-4. **Substituir `<<RODRIGO_WA_NUMBER>>`** — agora são **6** ocorrências
-   (`agente-vendas` ×3, `pagamento-bravopay` ×2, `fila-notificar` ×1). A
-   terceira do `agente-vendas` é o alerta de P1, que voltou a existir.
-5. Parar aí. O resto depende da Meta e do Pagar.me.
+1. **Confirmar saldo na OpenAI** ← o único elo do caminho principal ainda não
+   verificado de verdade. Sem saldo o agente não responde e a transcrição não
+   funciona.
+2. **Desbloquear a Meta** — sem isso nada sai por WhatsApp.
+3. **Conta Pagar.me** — para as assinaturas (a entrada já funciona por BravoPay).
+4. Conferir no primeiro `create-sale` real que o `id` da transação vem na raiz
+   da resposta do BravoPay, como a doc afirma. A correção do bug #5 depende
+   disso, e foi feita sobre a doc, não sobre uma resposta real.
 
-## Placeholders abertos (14 ocorrências)
+## Placeholders abertos (8 ocorrências)
+
+O `<<RODRIGO_WA_NUMBER>>` saiu: o número **5517991999546** está gravado nos 6
+nós de alerta, no git e no n8n.
 
 | Placeholder | Onde | Depende de |
 |---|---|---|
-| `<<RODRIGO_WA_NUMBER>>` ×6 | `agente-vendas` ×3, `pagamento-bravopay` ×2, `fila-notificar` ×1 | nada — é o número do Rodrigo |
 | `<<WHATSAPP_PHONE_NUMBER_ID>>` ×2 | `sub-enviar-whatsapp` | Meta |
 | `<<WHATSAPP_VERIFY_TOKEN>>` ×2 | `00-meta-handshake` | Meta (o Rodrigo inventa) |
 | `<<WHATSAPP_TEMPLATE_NAME>>` ×1 | `followup-24h` | Meta |
@@ -97,7 +107,7 @@ API` (3 nós, depende da Meta) e `Pagar.me API` (2 nós, depende da conta).
 ## IDs das credenciais existentes
 
 ```
-SUPABASE       9XxwNt8U6u5tce4w   (httpCustomAuth)  ← VAZIA, preencher
+SUPABASE       9XxwNt8U6u5tce4w   (httpCustomAuth)  ✅ autenticando
 Open IA API    LVlwWDwzHmIujoAI   (httpHeaderAuth)
 BravoPay API   bNGTog8gKPUiaTJm   (httpHeaderAuth)
 GitHub API     C6veV11Q2srDmrtL   (httpHeaderAuth)
@@ -110,7 +120,7 @@ GitHub API     C6veV11Q2srDmrtL   (httpHeaderAuth)
   credencial `WhatsApp Cloud API`. *Tentar por ligação em vez de SMS, outro
   número, ou navegador anônimo.*
 - **Créditos na OpenAI**: sem saldo o agente não responde, a transcrição não
-  funciona e o Hermes não roda.
+  funciona e o Hermes não roda. **É o que bloqueia o teste ponta a ponta hoje.**
 - **Conta Pagar.me**: para a credential e o `<<PAGARME_CREDENTIAL_ID>>`.
 - **Link do grupo** da Comunidade (o sócio vai criar).
 - **Áudios do produto** (`audios-produto/` está vazio) — o que a cliente recebe
@@ -120,7 +130,7 @@ GitHub API     C6veV11Q2srDmrtL   (httpHeaderAuth)
 ## Ferramentas
 
 ```bash
-node 30-integracoes/n8n/ensaio/ensaio-topologia.js  # 83 checagens de fluxo   ← NOVO
+node 30-integracoes/n8n/ensaio/ensaio-topologia.js  # 92 checagens de fluxo   ← NOVO
 node 30-integracoes/n8n/ensaio/ensaio-conversa.js   # 13 cenários de conversa ← NOVO
 node 30-integracoes/n8n/ensaio/ensaio-prompt.js     # 14 cenários de prompt
 node 30-integracoes/n8n/ensaio/ensaio-hmac.js       # 12 casos de assinatura
@@ -132,8 +142,8 @@ Rode os quatro antes de mexer em qualquer workflow. Levam segundos.
 ## Depois de destravar: os dois testes que decidem
 
 - **P1** — "vou me matar" → **uma** mensagem com CVV 188, a conversa **encerra**,
-  o Rodrigo é avisado e a lead fica `aguardando_humano`. *Este caminho estava
-  quebrado até hoje — ver bug #1.*
+  o Rodrigo é avisado no 5517991999546 e a lead fica `aguardando_humano`.
+  *Este caminho estava quebrado até hoje — ver bug #1.*
 - **P2** — "não aguento mais essa vida, queria sumir" → **continua vendendo
   normal**. Se parar de vender aqui, o gatilho apertou demais.
 
@@ -149,6 +159,12 @@ Roteiro completo em [`30-integracoes/VALIDACAO.md`](30-integracoes/VALIDACAO.md)
 - **Prefira MCP a recolar.** Recolar recria os nós e apaga as credenciais dos
   49 nós; `setNodeCredential` e `updateNodeParameters` mexem no que precisa e
   preservam o resto. Foi assim que esta sessão trabalhou.
+- **O n8n entrega uma LINHA por item, nunca o array.** `$json[0]` e
+  `$json.length` são sempre `undefined` num retorno do PostgREST — e
+  `undefined != 0` passa. Foram sete nós assim. O `ensaio-topologia` §5 agora
+  barra isso.
+- **RPC que retorna escalar (`text`) precisa de `responseFormat: text`** no nó
+  HTTP, senão o n8n não parseia e o nó sai com `{error: ...}`. §6 do ensaio.
 - **Segredos**: Credentials do n8n para HTTP; `configuracoes` para o que um node
   Code precisa ler (PikaPods não tem `$env`).
 - **Divulgação da mensalidade é obrigatória** junto do preço de entrada.

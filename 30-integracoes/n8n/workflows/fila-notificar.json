@@ -65,17 +65,19 @@
           },
           "conditions": [
             {
-              "leftValue": "={{$json.length}}",
-              "rightValue": 0,
+              "leftValue": "={{ $json.sugestao_id }}",
+              "rightValue": "",
               "operator": {
-                "type": "number",
-                "operation": "gt"
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
               }
             }
           ],
           "combinator": "and"
         }
-      }
+      },
+      "notes": "Lia $json.length de um OBJETO (sempre undefined), entao 'undefined > 0' era sempre falso e o digest NUNCA era enviado, mesmo com fila cheia. Sem pendentes o GET devolve 0 itens e este IF nem chega a rodar."
     },
     {
       "id": "n4",
@@ -88,7 +90,7 @@
       ],
       "notes": "Link de decisao aponta para o workflow fila-decidir.json. N8N_BASE_URL = URL publica do pod PikaPods.",
       "parameters": {
-        "jsCode": "const itens = $input.first().json;\nconst base = 'https://salles-ai-agent.pikapod.net' + '/webhook/fila-decidir';\nlet texto = 'Sugestoes do Hermes pendentes (' + itens.length + '):\\n\\n';\nfor (const s of itens) {\n  texto += '[' + s.risco_conformidade.toUpperCase() + '] ' + s.area + '\\n';\n  texto += s.problema_observado + '\\n';\n  texto += 'Aprovar: ' + base + '?id=' + s.sugestao_id + '&decisao=aprovada\\n';\n  texto += 'Rejeitar: ' + base + '?id=' + s.sugestao_id + '&decisao=rejeitada\\n\\n';\n}\nreturn [{ json: { texto } }];"
+        "jsCode": "// $input.first().json e a PRIMEIRA linha, nao a lista: iterar sobre ela quebrava o node.\nconst itens = $input.all().map(i => i.json);\nconst base = 'https://salles-ai-agent.pikapod.net' + '/webhook/fila-decidir';\nlet texto = 'Sugestoes do Hermes pendentes (' + itens.length + '):\\n\\n';\nfor (const s of itens) {\n  texto += '[' + s.risco_conformidade.toUpperCase() + '] ' + s.area + '\\n';\n  texto += s.problema_observado + '\\n';\n  texto += 'Aprovar: ' + base + '?id=' + s.sugestao_id + '&decisao=aprovada\\n';\n  texto += 'Rejeitar: ' + base + '?id=' + s.sugestao_id + '&decisao=rejeitada\\n\\n';\n}\nreturn [{ json: { texto } }];"
       }
     },
     {
@@ -113,7 +115,7 @@
       ],
       "notes": "",
       "parameters": {
-        "jsCode": "return [{ json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: $json.texto } }];"
+        "jsCode": "return [{ json: { to: '5517991999546', tipo: 'text', texto: $json.texto } }];"
       }
     },
     {

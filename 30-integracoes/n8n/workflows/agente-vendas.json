@@ -227,7 +227,7 @@
         6160,
         -80
       ],
-      "notes": "POST /transactions. method=pix devolve pix.copy_paste; method=card devolve card.hosted_url (checkout Stripe do lado deles -- cartao nunca passa por aqui).",
+      "notes": "POST /transactions. method=pix devolve pix.copy_paste; method=card devolve card.hosted_url (checkout Stripe do lado deles -- cartao nunca passa por aqui). onError=continueRegularOutput: um 4xx/5xx do gateway precisa cair no ramo 'Venda criada?' para virar aviso a lead e alerta ao Rodrigo, e nao derrubar a execucao em silencio.",
       "parameters": {
         "method": "POST",
         "url": "https://bravopay.club/api/v1/transactions",
@@ -264,10 +264,10 @@
         6600,
         80
       ],
-      "notes": "Fecha o loop de auditoria do desconto: grava desconto_aplicado_pct e link_bravopay_id no evento inserido em 'Gravar evento conversa' (exige Prefer:return=representation la para termos o evento_id). Campo de retorno confirmado na doc oficial: data.transactionId (resposta vem aninhada em 'data').",
+      "notes": "Fecha o loop de auditoria do desconto: grava desconto_aplicado_pct e o id da transacao no evento inserido em 'Gravar evento conversa' (exige Prefer:return=representation la para termos o evento_id). Lia json[0].evento_id: o POST com return=representation devolve um array, mas o n8n ja entrega a LINHA como item -- a URL virava evento_id=eq.undefined, nao casava com nada e a auditoria do desconto era perdida em silencio, sem erro.",
       "parameters": {
         "method": "PATCH",
-        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/conversas?evento_id=eq.{{$node[\"Gravar evento conversa\"].json[0].evento_id}}",
+        "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/conversas?evento_id=eq.{{$node[\"Gravar evento conversa\"].json.evento_id}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -894,7 +894,8 @@
           "name": "SUPABASE"
         }
       },
-      "notes": "#5 idempotencia. A Meta reenvia o webhook se nao receber 200 a tempo. Prefer=ignore-duplicates faz o reenvio devolver array VAZIO -- e isso que o IF seguinte detecta. Atomico: nao ha janela entre checar e inserir."
+      "notes": "#5 idempotencia. A Meta reenvia o webhook se nao receber 200 a tempo. Prefer=ignore-duplicates faz o reenvio devolver array VAZIO -- e isso que o IF seguinte detecta. Atomico: nao ha janela entre checar e inserir. alwaysOutputData: sem isto a duplicata devolve 0 itens e o ramo de descarte nunca executa -- a protecao funcionava por acidente, sem deixar rastro no log.",
+      "alwaysOutputData": true
     },
     {
       "id": "d2",
@@ -914,18 +915,19 @@
           },
           "conditions": [
             {
-              "leftValue": "={{ $json.length }}",
-              "rightValue": 0,
+              "leftValue": "={{ $json.chave }}",
+              "rightValue": "",
               "operator": {
-                "type": "number",
-                "operation": "notEquals"
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
               }
             }
           ],
           "combinator": "and"
         }
       },
-      "notes": "Array vazio = a Meta ja tinha entregue esta mensagem antes. Encerra sem responder de novo."
+      "notes": "Insercao com resolution=ignore-duplicates devolve a linha quando insere e array vazio quando ignora. O n8n quebra o array em itens: a chave so existe no caso inedito. A condicao antiga ({{ $json.length }} != 0) lia .length de um OBJETO -- sempre undefined, sempre verdadeiro. So nao virou reprocessamento porque array vazio vira 0 itens e o fluxo parava sozinho; bastava alguem ligar alwaysOutputData para a trava abrir."
     },
     {
       "id": "d3",
@@ -1049,7 +1051,7 @@
         3520,
         0
       ],
-      "notes": "Devolve o texto acumulado APENAS se esta ainda for a ultima mensagem. Se outra chegou durante a espera, devolve null e esta execucao encerra -- quem responde e a mais recente, ja com tudo.",
+      "notes": "Devolve o texto acumulado APENAS se esta ainda for a ultima mensagem. responseFormat=text e OBRIGATORIO: a funcao retorna um escalar e o PostgREST devolve texto cru, que o n8n nao consegue parsear como JSON -- o node saia com {error: 'Response body is not valid JSON'}. Com text, vira {data: '<texto>'} e {data: null} quando superada.",
       "parameters": {
         "method": "POST",
         "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/rpc/consumir_buffer",
@@ -1065,7 +1067,14 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { p_lead_id: $node[\"Extrair mensagem e origem\"].json.wa_id, p_msg_id: $node[\"Extrair mensagem e origem\"].json.msg_id } }}",
-        "options": {},
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "data"
+            }
+          }
+        },
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth"
       },
@@ -1162,7 +1171,7 @@
       ],
       "notes": "Duas mensagens: a lead nao fica no vacuo, e voce sabe na hora. Sem isto, uma cota estourada derruba o funil em silencio.",
       "parameters": {
-        "jsCode": "const wa = $node[\"Extrair mensagem e origem\"].json.wa_id;\nreturn [\n  { json: { to: wa, tipo: 'text', texto: 'Deu um probleminha aqui do meu lado agora. Ja ja te respondo, ta bom? Nao vou te deixar sem resposta.' } },\n  { json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: '\\u26a0\\ufe0f OpenAI falhou para o lead ' + wa + '. Ela foi avisada e esta esperando. Verifique credito/limite da conta.' } }\n];"
+        "jsCode": "const wa = $node[\"Extrair mensagem e origem\"].json.wa_id;\nreturn [\n  { json: { to: wa, tipo: 'text', texto: 'Deu um probleminha aqui do meu lado agora. Ja ja te respondo, ta bom? Nao vou te deixar sem resposta.' } },\n  { json: { to: '5517991999546', tipo: 'text', texto: '\\u26a0\\ufe0f OpenAI falhou para o lead ' + wa + '. Ela foi avisada e esta esperando. Verifique credito/limite da conta.' } }\n];"
       }
     },
     {
@@ -1194,7 +1203,7 @@
         6380,
         -160
       ],
-      "notes": "#7 create-sale pode falhar (chave, indisponibilidade, dado recusado). Ela pediu o link -- precisa saber.",
+      "notes": "Testava $json.data notEmpty, mas a resposta de POST /transactions do BravoPay e PLANA ({id, status, amount_cents, pix:{copy_paste}} -- ver bravopay/README.md). O envelope 'data' so existe no WEBHOOK. Resultado: a condicao era falsa em TODA venda bem-sucedida e a lead que acabou de aceitar e informar email/CPF recebia 'nao consegui gerar seu link', com alarme falso para o Rodrigo. Nenhum link de pagamento chegava. Agora testa o id da transacao, que e o que a doc garante vir na criacao.",
       "parameters": {
         "conditions": {
           "options": {
@@ -1204,11 +1213,12 @@
           },
           "conditions": [
             {
-              "leftValue": "={{ $json.data }}",
+              "leftValue": "={{ $json.id }}",
               "rightValue": "",
               "operator": {
-                "type": "object",
-                "operation": "notEmpty"
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
               }
             }
           ],
@@ -1227,7 +1237,7 @@
       ],
       "notes": "",
       "parameters": {
-        "jsCode": "const wa = $node[\"Extrair mensagem e origem\"].json.wa_id;\nreturn [\n  { json: { to: wa, tipo: 'text', texto: 'Nao consegui gerar seu link agora, foi um problema tecnico aqui. Ja estou resolvendo e te mando em seguida.' } },\n  { json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: '\\u26a0\\ufe0f BravoPay recusou a cobranca do lead ' + wa + '. Ela pediu o link e esta esperando.' } }\n];"
+        "jsCode": "const wa = $node[\"Extrair mensagem e origem\"].json.wa_id;\nreturn [\n  { json: { to: wa, tipo: 'text', texto: 'Nao consegui gerar seu link agora, foi um problema tecnico aqui. Ja estou resolvendo e te mando em seguida.' } },\n  { json: { to: '5517991999546', tipo: 'text', texto: '\\u26a0\\ufe0f BravoPay recusou a cobranca do lead ' + wa + '. Ela pediu o link e esta esperando.' } }\n];"
       }
     },
     {
@@ -1364,7 +1374,7 @@
       ],
       "notes": "Handoff automatico do P1. Existia ate a361424 e sumiu em 844f46f, deixando a saida true do 'Intent = sofrimento?' vazia: o P1 era detectado e nada acontecia. RODRIGO_WA_NUMBER so envia de verdade depois da verificacao Meta, mas o 'Marcar sofrimento na conversa' logo adiante ja preserva o sinal no banco.",
       "parameters": {
-        "jsCode": "const e = $node[\"Extrair mensagem e origem\"].json;\nconst texto = $node[\"Normalizar buffer\"].json.texto;\nreturn [{ json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: '\\u26a0\\ufe0f Sinal de sofrimento real detectado (P1).\\nLead: ' + (e.nome || e.wa_id) + ' (' + e.wa_id + ')\\nMensagem: \"' + texto + '\"\\nO agente ja parou de vender, acolheu e citou o CVV 188. Preciso que voce (ou alguem de confianca) assuma esta conversa agora.' } }];"
+        "jsCode": "const e = $node[\"Extrair mensagem e origem\"].json;\nconst texto = $node[\"Normalizar buffer\"].json.texto;\nreturn [{ json: { to: '5517991999546', tipo: 'text', texto: '\\u26a0\\ufe0f Sinal de sofrimento real detectado (P1).\\nLead: ' + (e.nome || e.wa_id) + ' (' + e.wa_id + ')\\nMensagem: \"' + texto + '\"\\nO agente ja parou de vender, acolheu e citou o CVV 188. Preciso que voce (ou alguem de confianca) assuma esta conversa agora.' } }];"
       }
     },
     {

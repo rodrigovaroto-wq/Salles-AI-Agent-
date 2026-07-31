@@ -278,7 +278,7 @@
         1760,
         0
       ],
-      "notes": "So recupera se ainda nao pagou nesse meio-tempo (transaction.paid teria mudado o status para cliente).",
+      "notes": "So recupera se ainda nao pagou nesse meio-tempo. Lia $json[0].status: o GET devolve um array, mas o n8n ja entrega a LINHA como item -- $json[0] era undefined e a condicao nunca dava verdadeira. A recuperacao de carrinho de 2h nunca disparava.",
       "parameters": {
         "conditions": {
           "options": {
@@ -288,7 +288,7 @@
           },
           "conditions": [
             {
-              "leftValue": "={{$json[0].status}}",
+              "leftValue": "={{ $json.status }}",
               "rightValue": "abandonou",
               "operator": {
                 "type": "string",
@@ -563,7 +563,7 @@
       ],
       "notes": "A cliente pagou por algo que o sistema nao sabe entregar. Precisa de acao humana AGORA, nao de um relatorio no fim do dia.",
       "parameters": {
-        "jsCode": "const m = $node[\"Montar entrega\"].json;\nconst wa = $node[\"Normalizar payload\"].json.lead_id;\nreturn [{ json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto: '\\u26a0\\ufe0f Entrega pendente.\\nCliente: ' + wa + '\\nSem conteudo cadastrado para: ' + m.faltando.join(', ') + '\\nEla ja pagou e foi avisada de que o acesso chega em seguida. Entregue na mao e preencha entrega_texto em produtos.' } }];"
+        "jsCode": "const m = $node[\"Montar entrega\"].json;\nconst wa = $node[\"Normalizar payload\"].json.lead_id;\nreturn [{ json: { to: '5517991999546', tipo: 'text', texto: '\\u26a0\\ufe0f Entrega pendente.\\nCliente: ' + wa + '\\nSem conteudo cadastrado para: ' + m.faltando.join(', ') + '\\nEla ja pagou e foi avisada de que o acesso chega em seguida. Entregue na mao e preencha entrega_texto em produtos.' } }];"
       }
     },
     {
@@ -605,7 +605,7 @@
         220,
         0
       ],
-      "notes": "#5 O BlackCat reenvia o postback se nao receber 200 em 10s. Sem esta trava, um reenvio de transaction.paid entrega o produto DUAS vezes e grava a venda duas vezes.",
+      "notes": "#5 O BlackCat reenvia o postback se nao receber 200 em 10s. Sem esta trava, um reenvio de transaction.paid entrega o produto DUAS vezes e grava a venda duas vezes. alwaysOutputData: sem isto a duplicata devolve 0 itens e o ramo de descarte nunca executa -- a protecao funcionava por acidente, sem deixar rastro no log.",
       "parameters": {
         "method": "POST",
         "url": "=https://rmvmqmcfcjmcjtonewgi.supabase.co/rest/v1/eventos_processados",
@@ -634,7 +634,8 @@
           "id": "9XxwNt8U6u5tce4w",
           "name": "SUPABASE"
         }
-      }
+      },
+      "alwaysOutputData": true
     },
     {
       "id": "pd2",
@@ -645,7 +646,7 @@
         440,
         0
       ],
-      "notes": "Array vazio = reenvio do mesmo evento. Encerra sem reprocessar.",
+      "notes": "Insercao com resolution=ignore-duplicates devolve a linha quando insere e array vazio quando ignora. O n8n quebra o array em itens: a chave so existe no caso inedito. A condicao antiga ({{ $json.length }} != 0) lia .length de um OBJETO -- sempre undefined, sempre verdadeiro. So nao virou reprocessamento porque array vazio vira 0 itens e o fluxo parava sozinho; bastava alguem ligar alwaysOutputData para a trava abrir.",
       "parameters": {
         "conditions": {
           "options": {
@@ -655,11 +656,12 @@
           },
           "conditions": [
             {
-              "leftValue": "={{ $json.length }}",
-              "rightValue": 0,
+              "leftValue": "={{ $json.chave }}",
+              "rightValue": "",
               "operator": {
-                "type": "number",
-                "operation": "notEquals"
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
               }
             }
           ],
@@ -912,7 +914,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const r = $node[\"Criar link de assinatura (Pagar.me)\"].json || {};\nconst url = r.url || null;\nconst to = $node[\"Normalizar payload\"].json.lead_id;\nconst a = $node[\"Montar entrega\"].json.assinatura || {};\nconst valor = ((a.valor_centavos || 0) / 100).toFixed(2).replace('.', ',');\n\n// Sem link nao inventa mensagem: a cliente ja pagou a entrada e recebeu o\n// produto. Falhar aqui nao pode virar cobranca fantasma nem promessa vazia --\n// o alerta vai para o Rodrigo resolver na mao.\nif (!url) {\n  return [{ json: { to: '<<RODRIGO_WA_NUMBER>>', tipo: 'text', texto:\n    '⚠️ Pagar.me nao gerou o link de assinatura do lead ' + to +\n    ' (produto ' + (a.produto_id || '?') + '). Ela pagou a entrada e recebeu o acesso, ' +\n    'mas a mensalidade nao foi cadastrada. Resolver na mao.' } }];\n}\n\nreturn [{ json: { to, tipo: 'text', texto:\n  'Seus primeiros 30 dias sao um presente 🙏\\n\\n' +\n  'Para continuar depois desse periodo, cadastre seu cartao aqui: ' + url + '\\n\\n' +\n  'Sao R$ ' + valor + ' por mes, a primeira cobranca so acontece no 31o dia, ' +\n  'e voce cancela quando quiser.' } }];"
+        "jsCode": "const r = $node[\"Criar link de assinatura (Pagar.me)\"].json || {};\nconst url = r.url || null;\nconst to = $node[\"Normalizar payload\"].json.lead_id;\nconst a = $node[\"Montar entrega\"].json.assinatura || {};\nconst valor = ((a.valor_centavos || 0) / 100).toFixed(2).replace('.', ',');\n\n// Sem link nao inventa mensagem: a cliente ja pagou a entrada e recebeu o\n// produto. Falhar aqui nao pode virar cobranca fantasma nem promessa vazia --\n// o alerta vai para o Rodrigo resolver na mao.\nif (!url) {\n  return [{ json: { to: '5517991999546', tipo: 'text', texto:\n    '⚠️ Pagar.me nao gerou o link de assinatura do lead ' + to +\n    ' (produto ' + (a.produto_id || '?') + '). Ela pagou a entrada e recebeu o acesso, ' +\n    'mas a mensalidade nao foi cadastrada. Resolver na mao.' } }];\n}\n\nreturn [{ json: { to, tipo: 'text', texto:\n  'Seus primeiros 30 dias sao um presente 🙏\\n\\n' +\n  'Para continuar depois desse periodo, cadastre seu cartao aqui: ' + url + '\\n\\n' +\n  'Sao R$ ' + valor + ' por mes, a primeira cobranca so acontece no 31o dia, ' +\n  'e voce cancela quando quiser.' } }];"
       },
       "id": "pm-link-02",
       "name": "Preparar convite de assinatura",

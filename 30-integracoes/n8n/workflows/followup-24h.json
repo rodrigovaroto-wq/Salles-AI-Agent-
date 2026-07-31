@@ -56,9 +56,9 @@
         440,
         0
       ],
-      "notes": "Transforma o array unico em N itens n8n, um por lead, para os proximos nodes rodarem por item automaticamente.",
+      "notes": "Passagem explicita: um item por lead. O n8n ja faz a quebra do array; este node so documenta o contrato para quem ler o fluxo depois.",
       "parameters": {
-        "jsCode": "const leads = $input.first().json || [];\nreturn leads.map(l => ({ json: l }));"
+        "jsCode": "// O GET devolve um array, mas o n8n JA entrega uma linha por item. O codigo antigo fazia\n// $input.first().json.map(...) sobre um OBJETO -- .map nao existe e o node quebrava,\n// derrubando o follow-up inteiro na primeira vez que houvesse lead para notificar.\nreturn $input.all().map(i => ({ json: i.json }));"
       }
     },
     {

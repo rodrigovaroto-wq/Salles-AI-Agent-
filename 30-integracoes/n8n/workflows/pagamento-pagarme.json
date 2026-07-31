@@ -142,13 +142,14 @@
         -320,
         0
       ],
-      "notes": "Idempotencia por evento_id do Pagar.me. Reenvio devolve lista vazia e para no node seguinte -- sem isso, uma renovacao reenviada empurraria proxima_cobranca 30 dias para frente duas vezes, e a cliente ganharia um mes de graca.",
+      "notes": "Idempotencia por evento_id do Pagar.me. Reenvio devolve lista vazia e para no node seguinte -- sem isso, uma renovacao reenviada empurraria proxima_cobranca 30 dias para frente duas vezes, e a cliente ganharia um mes de graca. alwaysOutputData: sem isto a duplicata devolve 0 itens e o ramo de descarte nunca executa -- a protecao funcionava por acidente, sem deixar rastro no log.",
       "credentials": {
         "httpCustomAuth": {
           "id": "9XxwNt8U6u5tce4w",
           "name": "SUPABASE"
         }
-      }
+      },
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -160,11 +161,12 @@
           },
           "conditions": [
             {
-              "leftValue": "={{ $json.length }}",
-              "rightValue": 0,
+              "leftValue": "={{ $json.chave }}",
+              "rightValue": "",
               "operator": {
-                "type": "number",
-                "operation": "notEquals"
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
               }
             }
           ],
@@ -180,7 +182,7 @@
         -100,
         0
       ],
-      "notes": "Lista vazia = ja processado antes."
+      "notes": "Insercao com resolution=ignore-duplicates devolve a linha quando insere e array vazio quando ignora. O n8n quebra o array em itens: a chave so existe no caso inedito. A condicao antiga ({{ $json.length }} != 0) lia .length de um OBJETO -- sempre undefined, sempre verdadeiro. So nao virou reprocessamento porque array vazio vira 0 itens e o fluxo parava sozinho; bastava alguem ligar alwaysOutputData para a trava abrir."
     },
     {
       "parameters": {},

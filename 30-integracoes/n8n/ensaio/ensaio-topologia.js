@@ -176,7 +176,39 @@ for (const arq of arquivos) {
 }
 console.log(linhas.splice(0).join('\n'));
 
-console.log('\n=== 5. PLACEHOLDERS AINDA ABERTOS ===');
+console.log('\n=== 5. LEITURA DE RETORNO DO POSTGREST ===');
+// O n8n quebra um array de resposta em UM ITEM POR LINHA. Quem escreve
+// $json[0] ou $json.length esta tratando o item como se fosse a lista inteira:
+// $json[0] vira undefined e $json.length vira undefined (que passa em qualquer
+// comparacao numerica com typeValidation:loose). Foram SETE nos assim, entre
+// eles o que decidia se a venda tinha sido criada.
+for (const arq of arquivos) {
+  const { wf } = carregar(arq);
+  const suspeitos = [];
+  for (const n of wf.nodes) {
+    const txt = JSON.stringify(n.parameters || {});
+    if (/\$json\[0\]|\$json\.length|\.json\[0\]/.test(txt)) suspeitos.push(n.name);
+  }
+  reportar(suspeitos.length === 0, arq,
+    suspeitos.length ? `le array onde o n8n entrega item: ${suspeitos.join(', ')}` : 'nenhuma leitura de array indevida',
+    'o n8n entrega uma LINHA por item; $json[0] e $json.length sao sempre undefined');
+}
+console.log(linhas.splice(0).join('\n'));
+
+console.log('\n=== 6. RETORNO ESCALAR DE RPC PRECISA DE responseFormat=text ===');
+// Uma funcao que retorna text (nao json/jsonb) faz o PostgREST devolver texto
+// cru. O n8n nao parseia isso como JSON e o node sai com {error: ...}.
+{
+  const { wf } = carregar('agente-vendas.json');
+  const n = wf.nodes.find((x) => x.name === 'Consumir buffer');
+  const fmt = (((n.parameters.options || {}).response || {}).response || {}).responseFormat;
+  reportar(fmt === 'text', 'agente-vendas.json',
+    `Consumir buffer responseFormat=${fmt || '(padrao json)'}`,
+    'consumir_buffer retorna text; sem responseFormat=text o node sai com erro de parse');
+}
+console.log(linhas.splice(0).join('\n'));
+
+console.log('\n=== 7. PLACEHOLDERS AINDA ABERTOS ===');
 let placeholders = 0;
 for (const arq of arquivos) {
   const txt = fs.readFileSync(path.join(DIR, arq), 'utf8');
